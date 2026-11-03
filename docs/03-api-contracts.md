@@ -198,8 +198,9 @@ Authorization: Bearer <parent access token>
 ```
 
 The frontend switches to this token while the child uses the app. With it, `GET /auth/me` returns
-`"active_role": "student"` and `"active_student"` = this child. There is no refresh token: when it
-expires, the parent's session is used to start a new one.
+`"active_role": "student"` and `"active_student"` = this child. There is no refresh token. The frontend
+deletes the parent's refresh token while child mode is on, so when the child session expires the
+parent signs in again (docs/04 §4.6).
 
 ## 3.3 Endpoints added in Step 2 — My Books
 

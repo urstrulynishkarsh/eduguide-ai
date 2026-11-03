@@ -1,0 +1,93 @@
+import {
+  BarChart3,
+  BookOpen,
+  Bot,
+  CalendarCheck,
+  ClipboardCheck,
+  Home,
+  LayoutDashboard,
+  Lightbulb,
+  PencilLine,
+  Settings,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+
+import type { copy } from "@/lib/copy";
+import type { ClassFeatures, UIMode } from "@/lib/types";
+
+export interface NavItem {
+  label: keyof typeof copy.nav;
+  href: string;
+  icon: LucideIcon;
+  /** Shown instead of the icon in the two younger layouts. */
+  emoji?: string;
+  /** Hidden unless the learner's class has this feature. */
+  feature?: keyof ClassFeatures;
+  /** Built in a later roadmap step: shown, but not a link yet. */
+  soon?: boolean;
+}
+
+const home: NavItem = { label: "home", href: "/learn", icon: Home, emoji: "🏠" };
+const practice: NavItem = {
+  label: "practice",
+  href: "/learn/practice",
+  icon: PencilLine,
+  emoji: "✏️",
+  soon: true,
+};
+const learn: NavItem = { label: "learn", href: "/learn/concepts", icon: Lightbulb, emoji: "💡", soon: true };
+const progress: NavItem = {
+  label: "progress",
+  href: "/learn/progress",
+  icon: BarChart3,
+  emoji: "📈",
+  soon: true,
+};
+
+/** All seven items of spec §38. */
+const fullMenu: NavItem[] = [
+  home,
+  practice,
+  learn,
+  {
+    label: "studentTests",
+    href: "/learn/tests",
+    icon: ClipboardCheck,
+    emoji: "📝",
+    feature: "practice_tests",
+    soon: true,
+  },
+  progress,
+  { label: "studyPlan", href: "/learn/plan", icon: CalendarCheck, emoji: "🗓️", soon: true },
+  { label: "tutor", href: "/learn/tutor", icon: Bot, emoji: "🤖", soon: true },
+];
+
+/** Smaller menus for the younger classes (docs/04 §4.4): no tests, few words. */
+const STUDENT_NAV: Record<UIMode, NavItem[]> = {
+  playful: [
+    home,
+    { label: "playAndLearn", href: "/learn/practice", icon: PencilLine, emoji: "🎈", soon: true },
+    { label: "myStars", href: "/learn/progress", icon: BarChart3, emoji: "⭐", soon: true },
+  ],
+  friendly: [home, practice, learn, progress],
+  standard: fullMenu,
+  dense: fullMenu,
+};
+
+export const PARENT_NAV: NavItem[] = [
+  { label: "dashboard", href: "/parent/dashboard", icon: LayoutDashboard, soon: true },
+  { label: "children", href: "/parent/children", icon: Users },
+  { label: "books", href: "/parent/books", icon: BookOpen, soon: true },
+  { label: "practice", href: "/parent/practice", icon: PencilLine, soon: true },
+  { label: "tests", href: "/parent/tests", icon: ClipboardCheck, soon: true },
+  { label: "plans", href: "/parent/plans", icon: CalendarCheck, soon: true },
+  { label: "progress", href: "/parent/progress", icon: BarChart3, soon: true },
+  { label: "assistant", href: "/parent/assistant", icon: Bot, soon: true },
+  { label: "settings", href: "/parent/settings", icon: Settings },
+];
+
+/** The learner's menu: the layout's items, minus features the class does not have. */
+export function studentNav(uiMode: UIMode, features: ClassFeatures): NavItem[] {
+  return STUDENT_NAV[uiMode].filter((item) => !item.feature || features[item.feature]);
+}

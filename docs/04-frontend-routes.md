@@ -102,10 +102,28 @@ Error wording follows spec §45, for example: *"We couldn't process this documen
 
 ## 4.6 Sessions in the browser
 
-- Tokens are kept in **httpOnly cookies set by the Next.js server**, not in `localStorage`, so
-  scripts on the page cannot read them. Next.js route handlers forward calls to the backend.
-- Child mode replaces the active token with the child-session token. Leaving child mode asks for
-  the parent's password again, so a child cannot wander into the parent area.
-- When an access token expires, the Next.js server uses the refresh token silently.
-- Screen language follows `users.preferred_language`; content language follows the child's
-  `primary_language`.
+Built in Step 5 (`frontend/lib/session.ts`, `frontend/proxy.ts`).
+
+- Tokens are kept in **two httpOnly cookies set by the Next.js server**, not in `localStorage`, so
+  scripts on the page cannot read them: `eg_access` (the token sent to the backend) and
+  `eg_refresh`. Only the Next.js server talks to the backend. Pages read data on the server;
+  forms are **Server Actions**. (Step 6 adds a forwarding route for uploads and progress polling.)
+- `proxy.ts` runs before every page. When the access token is about to expire it uses the refresh
+  token silently; a refresh the backend refuses ends the session. It also sends each session to its
+  area: signed out → `/login`, a student session on a parent URL → `/learn`, a parent on `/learn`
+  → `/who-is-learning`. These redirects only choose a screen; the backend checks every call.
+- **Child mode** replaces the access token with the child-session token **and deletes the parent's
+  refresh token**, so nothing on the device can act as the parent. Leaving child mode
+  (`/learn/exit`, "Grown-ups") asks for the parent's password, which signs the parent in again.
+  When the 12-hour child session ends, the device goes to sign-in.
+- A session the backend refuses (say the child was removed) is ended through `/signout`.
+- Screen language follows `users.preferred_language` (from Step 11; all wording is already in
+  `frontend/lib/copy.ts`); content language follows the child's `primary_language`.
+
+### Landing after sign-in
+
+| Who | Goes to | Unless |
+|---|---|---|
+| Parent | `/who-is-learning` | no children yet → `/onboarding/child` |
+| Solo student | `/learn` | no class details yet → `/onboarding/profile` |
+| Child mode | `/learn` | |

@@ -4,12 +4,27 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 4 of 12 is complete** — the whole MVP backend: accounts and children,
-> uploading and reading books, search with the AI connected, and the practice engine.
-> The frontend comes next (Steps 5–6).
+> **Build status: Step 5 of 12 is complete** — the whole MVP backend (accounts and children,
+> uploading and reading books, search with the AI connected, the practice engine) and the
+> frontend foundation: landing page, sign-up, onboarding, child mode and the four age-based
+> layouts. The library and practice screens come next (Step 6).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
+
+**In the browser** (<http://localhost:3000>)
+
+- Landing page, sign-up ("Who are you? Parent / Student") and sign-in
+- **Add Child** with the class first: stream, goals and subject suggestions follow the class
+- **Who is learning today?** — the parent taps a child and hands over the device (child mode).
+  Leaving child mode asks for the parent's password
+- Parent area: Children (add, edit, remove, start learning) and Settings. The rest of the menu
+  shows what is coming ("Soon")
+- The student area in **four layouts** chosen by the class: big and playful for Nursery–Class 2,
+  roomy for Class 3–5, a regular app for Class 6–8, a compact academic one for Class 9–12. Works on
+  phones, tablets and computers
+
+**In the API**
 
 - Sign-up and sign-in for **parents** and **students** (email + password)
 - Parents add children; the **class is chosen first** and decides which streams and goals are allowed
@@ -41,7 +56,7 @@ from Nursery to Class 12.
 
 ## Run it on your computer
 
-You need **Docker Desktop** and **Python 3.11 or newer**.
+You need **Docker Desktop**, **Python 3.11 or newer** and **Node.js 22 or 24 (LTS)**.
 
 **1. Start the database** (from the project folder):
 
@@ -72,7 +87,18 @@ python -m scripts.seed            # optional: demo accounts
 uvicorn app.main:app --reload
 ```
 
-**3. Open the API documentation:** <http://localhost:8000/docs>
+**3. Start the frontend** (in a second terminal, from the project folder):
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local        # where the API is; the default is fine
+npm run dev
+```
+
+Open <http://localhost:3000> and sign in with a demo account (below), or create your own.
+
+**4. Or explore the API directly:** <http://localhost:8000/docs>
 
 Try it: run `POST /api/v1/auth/login` with a demo account, copy the `access_token`, press
 **Authorize**, paste it, then call `GET /api/v1/students`.
@@ -135,6 +161,17 @@ ruff check .           # code style
 The API tests use a separate database (`eduguide_test`), rebuild it from the migrations on every run,
 and roll back after every test — your real data is never touched.
 
+From `frontend/`:
+
+```bash
+npm test               # unit tests (nothing needs to be running)
+npm run test:e2e       # whole journeys in a real browser: needs the database and the API running.
+                       # First time only: npx playwright install chromium
+npm run lint && npm run typecheck && npm run format:check
+```
+
+The browser tests sign up new accounts (`…@example.com`) in your development database each run.
+
 ## Where things are
 
 | Folder | What is in it |
@@ -151,8 +188,9 @@ and roll back after every test — your real data is never touched.
 | `backend/app/api` | HTTP routes |
 | `backend/alembic` | Database migrations |
 | `backend/tests` | Automated tests |
-| `backend/app/llm`, `question_generation`, `adaptive_learning`, `analytics` | Empty until their step (see the roadmap) |
-| `frontend/` | Empty until Step 5 |
+| `backend/app/adaptive_learning` | Empty until Step 7 |
+| `frontend/app` | The screens (Next.js pages): public, onboarding, `parent/`, `learn/` |
+| `frontend/components`, `frontend/lib` | Shared pieces, the wording of every screen (`lib/copy.ts`), sessions, calls to the API |
 
 ## Everyday commands (run inside `backend/`)
 
@@ -160,7 +198,7 @@ and roll back after every test — your real data is never touched.
 |---|---|
 | Start the API | `uvicorn app.main:app --reload` |
 | Apply database changes | `alembic upgrade head` |
-| Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0002` |
+| Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0005` (the next free number) |
 | Undo the last migration | `alembic downgrade -1` |
 | Make every book searchable again (after an upgrade or a search-model change) | `python -m scripts.reembed` |
 | Measure search quality on the sample book | `python -m scripts.eval_retrieval` |
@@ -181,6 +219,8 @@ and roll back after every test — your real data is never touched.
 | Explain answers `422 insufficient_context` | The child's books for that class don't cover the question; upload the chapter, or choose the book with `book_id` |
 | Upload answers `413` | The file is over `MAX_UPLOAD_MB` (50 MB). Split the book, e.g. one PDF per chapter — they can all go into the same book |
 | `database "eduguide_test" does not exist` when running tests | The database volume was created before this project's init script existed. Run `docker compose down -v` and `docker compose up -d`. |
+| The website says *"We can't reach EduGuide right now"* | The API is not running: start it with `uvicorn app.main:app --reload` in `backend/` |
+| `npm install` or `npm run dev` fails on an old Node.js | Install Node.js 22 or 24 LTS from nodejs.org (`node --version` to check) |
 | PowerShell refuses to run `Activate.ps1` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or use `cmd` with `activate.bat`. |
 
 Not using Docker? A PostgreSQL you install yourself also works (this step was tested on

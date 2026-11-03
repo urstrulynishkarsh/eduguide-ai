@@ -14,7 +14,8 @@ User roles: parent and student. A student is either a child profile under a pare
 - Database: PostgreSQL 16 with pgvector, run in Docker (`pgvector/pgvector:pg16`)
 - ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0004` so far)
 - Auth: JWT access tokens (30 min) + refresh tokens (14 days) with PyJWT; passwords hashed with Argon2. Child mode is a parent token limited to one child.
-- Frontend: Next.js (App Router) + TypeScript + Tailwind CSS + shadcn/ui (not built yet; starts in step 5)
+- Frontend: Next.js 16 (App Router, Cache Components on) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui (radix), Node.js 22/24 LTS. Versions are pinned exactly in `frontend/package.json`. Next.js 16 differs from older versions: read `frontend/node_modules/next/dist/docs/` before using an API you are unsure of (`middleware` is now `proxy.ts`)
+- Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API), ESLint, Prettier (print width 110), `tsc`
 - AI provider: Claude API through the `anthropic` SDK, model `claude-opus-5-5` for every tier (connected in step 3). Switched off unless `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` are set in `backend/.env`.
 - Search: local multilingual embeddings (`intfloat/multilingual-e5-base` through fastembed / ONNX, 768 dimensions) plus PostgreSQL keyword search
 - File parsing: pypdfium2 (PDF), python-docx + lxml (DOCX), plain text (TXT); optional OCR with Tesseract (`OCR_PROVIDER=tesseract`)
@@ -43,7 +44,12 @@ backend/
   alembic/versions/      # migrations
   scripts/               # init_env, seed, reembed, eval_retrieval
   tests/                 # unit/ (nothing running), api/ (needs the database), live/ (real Claude, opt-in)
-frontend/                # only a README until step 5
+frontend/
+  app/                   # screens: (entry)/ sign-in, sign-up, onboarding, who-is-learning; parent/; learn/
+  proxy.ts               # before every page: renews tokens, sends each session to its area
+  lib/                   # session cookies, backend calls (server only), Server Actions, copy.ts (all wording), navigation
+  components/            # shared pieces; ui/ holds the shadcn components in use
+  tests/                 # unit/ (Vitest), e2e/ (Playwright; needs the database and the API)
 docs/                    # design docs 01-07
 infra/postgres/init/     # creates the separate test database
 docker-compose.yml
@@ -73,6 +79,14 @@ pytest -m live                      # real calls to Claude; needs ANTHROPIC_API_
 # Code checks
 ruff check . && ruff format --check .
 
+# Frontend (from frontend/; the API must be running for the site to work)
+npm install
+cp .env.example .env.local          # first time only
+npm run dev                         # http://localhost:3000
+npm test                            # unit tests
+npm run test:e2e                    # browser journeys; first time: npx playwright install chromium
+npm run lint && npm run typecheck && npm run format:check && npm run build
+
 # Database migrations
 alembic revision --autogenerate -m "what changed" --rev-id 0005   # next free number; review the file
 alembic upgrade head
@@ -84,14 +98,16 @@ alembic upgrade head
 - Step 2: book upload and reading (PDF, DOCX, TXT, optional OCR), chapters, topics, exercises, chunks
 - Step 3: search inside books (meaning + keyword), the Claude connection, "Explain this" with sources
 - Step 4: practice engine: checked question generation, question bank, hints → steps → answer, attempts, basic progress
-- Next: step 5, the frontend foundation
+- Step 5: frontend foundation: landing page, sign-up / sign-in, onboarding, "Who is learning?", child mode, Children and Settings, the four age-based layouts
+- Next: step 6, the frontend MVP (My Books, upload, Create Practice, practice screen, basic progress)
 
 See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff section.
 
 ## Coding conventions
 
 - Keep route handlers thin; put logic in services.
-- Every new endpoint needs input validation and at least one test.
+- Every new endpoint needs input validation and at least one test. Every new screen needs at least one unit or browser test.
+- Screen text goes in `frontend/lib/copy.ts`, never inline; parent screens use the words in docs/04 §4.5.
 - Every new database table or column needs a migration.
 - Use clear names; no abbreviations for domain terms (book, chapter, exercise, chunk, attempt).
 - Check that a parent can only access their own children's data on every endpoint.

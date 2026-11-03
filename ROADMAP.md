@@ -13,8 +13,8 @@ Status: ✅ done · ⏭ next · ⬜ later
 | **2** | ✅ | **Upload and read books.** Upload PDF / DOCX / TXT safely, read the text (OCR for scanned pages when Tesseract is installed), find chapters, topics, exercises and each exercise question, cut the book into labelled pieces, library API. | `backend/app/rag/ingestion` · `backend/app/storage` · `backend/app/services` · `backend/app/api/v1` · tables: `books`, `documents`, `chapters`, `topics`, `exercises`, `document_chunks` | 5 Upload · 6 Parsing · 7 Chapter detection · 8 Chunking |
 | **3** | ✅ | **Search inside books + AI connection.** A local multilingual embedding model, vectors stored in PostgreSQL (pgvector), meaning search plus keyword search merged by rank, filters (family, book, class, chapter, exercise), context with source citations, "Explain this", and the swappable AI layer (Claude). | `backend/app/llm` · `backend/app/rag` · new columns on `document_chunks` | 9 Embeddings · 10 Vector database · 11 RAG retrieval |
 | **4** | ✅ | **Practice engine.** Class-aware question generation, automatic checking with an independent second solve and regeneration, a reusable question bank, hints → steps → answer, practice sessions, recording attempts, basic performance numbers. | `backend/app/question_generation` · `backend/app/analytics` · `backend/app/services` · `backend/app/api/v1` · tables: `questions`, `practice_sessions`, `practice_items`, `question_attempts` | 12 Question generation · 13 Solutions · 15 Basic performance tracking |
-| **5** | ⏭ | **Frontend foundation.** Next.js app, design system with the four age-based layouts, landing page, sign-up / sign-in, onboarding, child mode. | `frontend/` | screens for items 1–4 |
-| **6** | ⬜ | **Frontend MVP.** My Books and upload with progress, Create Practice, the student practice screen (including the picture-based one for Nursery–Class 2), basic progress. **The MVP works end to end here.** | `frontend/` | 14 Student practice interface |
+| **5** | ✅ | **Frontend foundation.** Next.js app, design system with the four age-based layouts, landing page, sign-up / sign-in, onboarding, child mode. | `frontend/` | screens for items 1–4 |
+| **6** | ⏭ | **Frontend MVP.** My Books and upload with progress, Create Practice, the student practice screen (including the picture-based one for Nursery–Class 2), basic progress. **The MVP works end to end here.** | `frontend/` | 14 Student practice interface |
 
 ## Phase 2
 
@@ -163,96 +163,115 @@ backend/
 To update a Step 3 setup: `alembic upgrade head` (migration 0004), `pytest`. With the AI switched
 on, `pytest -m live` also runs the whole write-and-review loop on the real model (two MCQs).
 
+## What Step 5 added
+
+```
+frontend/
+├── package.json · package-lock.json     exact versions (Next.js 16.4, React 19.3, Tailwind 4.3, …)
+├── .env.example                         API_BASE_URL (copy to .env.local)
+├── next.config.ts · proxy.ts            Cache Components on; proxy = token renewal + area redirects
+├── app/
+│   ├── page.tsx                         landing page (spec §49)
+│   ├── (entry)/                         login, register, onboarding/child, onboarding/profile, who-is-learning
+│   ├── parent/                          layout (menu), children, children/new, children/[studentId], settings
+│   ├── learn/                           layout (the four layouts), home, exit (leave child mode)
+│   ├── signout/route.ts                 clears the session cookies
+│   ├── globals.css                      design tokens and the four data-ui-mode palettes
+│   └── loading.tsx · not-found.tsx
+├── lib/
+│   ├── session.ts · routes.ts           cookies and token claims · which area a session may see
+│   ├── backend.ts · api.ts              calling the API (api.ts is server-only and reads the cookie)
+│   ├── actions/auth.ts · students.ts    Server Actions behind every form
+│   ├── forms.ts                         form fields → API bodies; API errors → messages by field
+│   ├── navigation.ts                    parent menu; student menu per layout, filtered by features
+│   ├── copy.ts                          every word on screen
+│   └── types.ts · utils.ts
+├── components/                          learner-profile-form (class first), nav-links, field, …; ui/ (shadcn)
+└── tests/unit (Vitest, 62) · tests/e2e (Playwright, 7 journeys × desktop + phone)
+```
+
+No backend changes. To update a Step 4 setup: install **Node.js 22 or 24 LTS**, then in
+`frontend/`: `npm install`, `cp .env.example .env.local`, `npm run dev`. For the browser tests,
+once: `npx playwright install chromium`.
+
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 4.*
+*Rewritten at the end of every step. Last updated: end of Step 5.*
 
 ### Where things stand
 
-- Steps 1–4 are done: the **whole MVP backend** works. 246 tests pass (2 live tests skipped by
-  default); `ruff check` and `ruff format --check` are clean; migration 0004 is applied to the
-  development database.
-- Step 4 is not committed yet. Commit it before Step 5 starts.
+- Steps 1–5 are done. Backend: 246 tests pass (2 live tests skipped), `ruff` clean, no changes in
+  this step. Frontend: 62 unit tests and 14 browser runs (7 journeys at desktop and phone size)
+  pass; `lint`, `typecheck`, `format:check` and `build` are clean.
+- Step 5 is not committed yet. Commit it before Step 6 starts.
 
-### What Step 4 built
+### What Step 5 built
 
-- **Create Practice** from an exercise, a chapter, a book or all of a child's books, with count,
-  difficulty, question type and language. The class profile decides which formats are allowed,
-  the usual count, and option counts (for example, 3 options for Nursery–Class 2).
-- **Generation loop**: the AI writes up to 10 questions per batch. Program checks come first
-  (spec §19). A second, independent solve follows on the strong tier, without seeing the
-  proposed answer. Failed questions are rewritten with the reasons, for at most 2 extra rounds;
-  questions that still fail are dropped. A session can therefore hold fewer questions than asked.
-- **Question bank**: checked questions are saved per family and reused. A learner is never served
-  a question they have already seen, so the AI writes only the shortfall.
-- Sessions are prepared **in the background** (`preparing` → `ready`; `failed` with a
-  parent-friendly message). A session still `preparing` when the API stops is picked up again
-  at the next start, as unfinished books are. Every answer is a `question_attempts` row with the
-  time taken and the help that was opened.
-- **Help**: Hint (one at a time) → Show Steps → Show Answer. "Explain this question" uses the
-  styles from Step 3. Nursery–Class 2 get `try_again` on a wrong answer, and the answer is not
-  revealed.
-- **Marking** is exact for choice, number, blank and matching answers. Written answers are marked
-  by the AI (fast tier).
-- **Progress** counts the first answer to each question in a session: accuracy, time, hints, and
-  results by chapter and by topic, plus recent sessions.
+- **Landing page** with the spec's hero, subheading, Get Started / See How It Works,
+  Upload → Understand → Practice → Improve, and a card per class group in that group's colours.
+- **Sign-up** ("Who are you? Parent / Student", then name, email, password) and **sign-in**. Field
+  errors from the API appear under the field they belong to; the email survives a wrong password.
+- **Onboarding.** Parent: Add Child, class first (`/onboarding/child`). Solo student: class details
+  (`/onboarding/profile`, also used later to change them). The form takes streams, goals, the
+  default goal and subject suggestions from `/meta/options`; changing the class resets the goal
+  to the new class's default. Every rule is still checked by the API, whose message shows next
+  to the field (for example JEE without Science).
+- **Who is learning today?** (`/who-is-learning`) is the parent's landing page: tap a child to start
+  child mode. Child mode deletes the parent's refresh token; **Grown-ups** (`/learn/exit`) asks
+  for the parent's password. A child session never reaches `/parent/…` (proxy redirect, and the
+  API refuses anyway).
+- **Parent area**: Children (list, add, edit name / age / class details, remove with a second
+  confirmation, start learning) and Settings (account details, sign out). Every other menu item
+  is shown with a **Soon** tag.
+- **Student area** in four layouts from `ui_mode`: `playful` (big emoji tiles, three menu items),
+  `friendly` (four), `standard` and `dense` (all seven; Tests hidden when `practice_tests` is off).
+  On phones the menu is a bottom tab bar. The home page is a placeholder with the menu as tiles.
 
-### New tables (migration 0004)
+### How the frontend works (read before adding screens)
 
-| Table | Holds |
-|---|---|
-| `questions` | the question bank: owner, book / chapter / topic / exercise, class, subject, format, style, difficulty, language, body, answer, hints, solution, source chunks, page, validation result |
-| `practice_sessions` | one Create Practice: learner, place, settings, `status`, `error_code`, `completed_at` |
-| `practice_items` | which questions a session serves, in order, and the help opened (hints, steps, answer) |
-| `question_attempts` | every answer: response, correct or not, feedback, time, hints used, solution viewed |
-
-### New endpoints
-
-| Method and path | Purpose |
-|---|---|
-| `POST /api/v1/practice/sessions` | Create Practice (201; poll while `preparing`) |
-| `GET /api/v1/practice/sessions/{id}` | the session and its questions (never with answers) |
-| `POST /api/v1/practice/sessions/{id}/answers` | answer one question |
-| `POST /api/v1/practice/sessions/{id}/questions/{question_id}/help` | hint / steps / answer |
-| `POST /api/v1/practice/sessions/{id}/questions/{question_id}/explain` | explain simply / like I'm 10 / Hindi / Hinglish |
-| `GET /api/v1/students/{id}/progress` | basic progress |
-
-Full shapes are in [docs/03-api-contracts.md](docs/03-api-contracts.md) §3.5.
+- Only the Next.js server talks to the API. **Pages** read data in Server Components through
+  `lib/api.ts` (`getMe`, `getLearner`, `getStudents`, `getStudent`, `getOptions`; add a
+  `load<T>(path)` getter for new reads: 401 → `/signout`, 404 → not-found page). **Forms** are
+  Server Actions in `lib/actions/`: return `formError(error)` for API errors and `redirect()`
+  outside the `try`.
+- **Cache Components is on** (Next.js 16 default, required in Next 17). Any page that reads the
+  session renders behind `app/loading.tsx`. Next.js keeps recently visited pages mounted but
+  hidden, so a form keeps its state on Back, and browser tests must click only visible elements
+  (`tap()` in `tests/e2e/helpers.ts`).
+- Screen text goes in `lib/copy.ts`. In the student area, style per layout with the variants
+  `playful:` `friendly:` `standard:` `dense:` (and `max-sm:dense:` for phones).
+- When a screen from the menu is built, remove its `soon: true` in `lib/navigation.ts`.
 
 ### Known issues
 
-- **The real Claude API has not been tried yet** (there is no key). The request and response
-  shapes were checked offline only. Run `pytest -m live` once `ANTHROPIC_API_KEY` is set.
-- The "not enough information" threshold (`min_similarity = 0.76`) separates covered questions
-  from off-topic ones only narrowly on the sample book (0.766 vs 0.752). Check it again with
-  `python -m scripts.eval_retrieval` on real textbooks.
-- Vector search is exact, with no vector index, inside the family's filtered set. That is fine
-  at family scale; add an HNSW index if it gets slow. There is no separate reranker either:
-  the merged rank order is used (see `app/rag/retrieval.py`).
-- Background jobs run inside the API process. Rate limiting, token revocation on sign-out and
-  security headers are still missing; all of these are planned for Step 12.
+- **Node.js on this machine is still v21.5.0** (`/usr/local/bin/node`, from the nodejs.org
+  installer). Step 5 was built and tested with Node 24.22.2 from nodejs.org in a temporary folder.
+  `npm install` and Vitest need Node ≥ 22.12. A `brew install node@22` (building from source) did
+  not finish. Easiest fix: the Node 24 LTS macOS installer from nodejs.org, which replaces
+  `/usr/local/bin/node`.
+- `npm audit` reports 17 moderate warnings, all one `minimatch` advisory inside ESLint's
+  dependencies (development only, never shipped). Left as is; recheck when ESLint updates.
+- When a 12-hour child session ends, the device simply shows sign-in; there is no "ask a grown-up"
+  message yet.
+- Browser tests sign up new `…@example.com` accounts in the development database on every run.
+- Unchanged from Step 4: the real Claude API has not been tried (no key); the "not enough
+  information" threshold is narrow on the sample book; no rate limiting, token revocation or
+  security headers yet (Step 12).
 
-### Loose ends
+### What Step 6 needs to know
 
-- **Node.js on this machine is v21.5.0**, an odd-numbered release with no support. Install the
-  LTS (`brew install node@22`) before Step 5.
-
-### What Step 5 needs to know
-
-- The API runs at `http://localhost:8000/api/v1`, with interactive docs at `/docs`. CORS already
-  allows `http://localhost:3000` (`CORS_ORIGINS` in `backend/.env`).
-- **Sign-in:**
-  - `POST /auth/register` and `POST /auth/login` return an access token (30 minutes) and a
-    refresh token (14 days);
-  - `POST /auth/refresh` and `GET /auth/me` complete the set;
-  - keep the tokens in httpOnly cookies set by the Next.js server
-    ([docs/04-frontend-routes.md](docs/04-frontend-routes.md) §4.6).
-- **Onboarding:** `GET /meta/options` returns everything the forms need, and
-  `GET /meta/classes/{class_level}` returns one class's rules. Children are managed with
-  `/students` and their profile with `PUT /students/{id}/profile`.
-- **Child mode:** `POST /students/{id}/session` returns a token that can act only as that child.
-- **The four layouts** come from the class profile's `ui_mode`: `playful` (Nursery–Class 2),
-  `friendly` (Classes 3–5), `standard` (Classes 6–8) and `dense` (Classes 9–12). Its `features` say which screens to hide.
-- Every error has the shape `{"error": {"code", "message", "details"}}`. Use `code` to choose the
-  message shown on screen; `message` is plain English that is safe to show a parent.
-- In parent-facing screens, use the words in docs/04 §4.5, not technical terms.
+- **Uploads and progress polling** cannot be Server Actions alone: the browser needs a progress
+  bar and polling. Add Route Handlers under `app/api/…` that forward to the backend with the
+  cookie's token. Two limits matter for a 50 MB upload: `proxy.ts` buffers request bodies up to
+  `proxyClientMaxBodySize` (Next.js default 10 MB), so either exclude the upload route from the
+  proxy matcher or raise that setting; Server Actions have their own 1 MB `bodySizeLimit`.
+- Parent screens of Step 6 (My Books, Create Practice, Progress) need the **child switcher** from
+  docs/04 §4.3 ("whose data every screen shows"). It was left out of Step 5 because no screen
+  used it yet.
+- `/parent/dashboard` (basic) is a Step 6 screen; when it exists, decide whether the parent
+  lands there or stays on "Who is learning?" (`homeFor` in `lib/routes.ts`).
+- The picture-based practice screen for Nursery–Class 2 goes in the `playful` layout: answers
+  are `visual_choice` / `counting` / `matching`, and a wrong answer gets `try_again` (no answer
+  shown). Upload progress words are in docs/04 §4.5.
+- The API shapes for Step 6 are in docs/03 §3.3 (books, documents, chapters, exercises) and
+  §3.5 (practice, progress).
