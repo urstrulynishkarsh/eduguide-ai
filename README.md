@@ -124,16 +124,20 @@ To try a book: `GET /api/v1/books` shows the sample book; `POST /api/v1/books` c
 and `POST /api/v1/books/{book_id}/documents` (press **Try it out**, choose a PDF) uploads a file.
 Follow it with `GET /api/v1/documents/{id}`, then open `GET /api/v1/books/{book_id}/chapters`.
 
-### Switching on the AI (Claude)
+### Switching on the AI (Groq or Claude)
 
-Everything except **Explain this** and writing new practice questions works without it (saved
-questions can still be practised). Get an API key at https://platform.claude.com,
-then add to `backend/.env` and restart the API:
+Everything except **Explain this**, writing new practice questions and marking written answers
+works without it (saved questions can still be practised). Choose one provider, add its two lines
+to `backend/.env` and restart the API:
 
-```
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-...
-```
+| Provider | Cost | Key from | Lines for `backend/.env` |
+|---|---|---|---|
+| **Groq** (open models: gpt-oss) | free plan, with low limits per minute and per day | https://console.groq.com/keys | `LLM_PROVIDER=groq` · `GROQ_API_KEY=gsk_...` |
+| **Claude** | paid per use | https://platform.claude.com | `LLM_PROVIDER=anthropic` · `ANTHROPIC_API_KEY=sk-ant-...` |
+
+The models are chosen for you (`LLM_MODEL_FAST` / `_DEFAULT` / `_STRONG` override them). On Groq's
+free plan a practice of 10 questions can take a minute or more, and when the day's allowance is used
+up the app says "busy, try again". Check that your key works with `pytest -m live`.
 
 The search model runs on your computer and needs no key. It is downloaded once (~1 GB, into
 `backend/storage/models/`) the first time a book is read.
@@ -177,7 +181,7 @@ From `backend/` with the virtual environment active:
 ```bash
 pytest                 # everything (the database must be running); no AI calls, no model download
 pytest tests/unit      # only the tests that need nothing running
-pytest -m live         # real calls to Claude (needs ANTHROPIC_API_KEY; costs a few cents)
+pytest -m live         # real calls to Groq and/or Claude, whichever keys are in .env
 ruff check .           # code style
 ```
 

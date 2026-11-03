@@ -40,3 +40,14 @@ def test_production_refuses_wildcard_cors():
 def test_production_refuses_sql_echo():
     with pytest.raises(ValidationError):
         _settings(jwt_secret_key=GOOD_SECRET, environment="production", db_echo=True)
+
+
+@pytest.mark.parametrize(("provider", "key"), [("anthropic", "anthropic_api_key"), ("groq", "groq_api_key")])
+def test_the_chosen_ai_provider_needs_its_key(provider: str, key: str):
+    with pytest.raises(ValidationError) as error:
+        _settings(jwt_secret_key=GOOD_SECRET, llm_provider=provider)
+    assert f"{key.upper()} in backend/.env" in str(error.value)
+    assert (
+        _settings(jwt_secret_key=GOOD_SECRET, llm_provider=provider, **{key: "a-key"}).llm_provider
+        == provider
+    )

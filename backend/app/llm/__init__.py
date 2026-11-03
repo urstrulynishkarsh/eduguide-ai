@@ -32,21 +32,34 @@ __all__ = [
 @lru_cache
 def _provider() -> LLMProvider | None:
     settings = get_settings()
-    if settings.llm_provider == "none":
-        return None
-    import anthropic
+    chosen: dict[ModelTier, str] = {
+        "fast": settings.llm_model_fast,
+        "default": settings.llm_model_default,
+        "strong": settings.llm_model_strong,
+    }
+    if settings.llm_provider == "anthropic":
+        import anthropic
 
-    from app.llm.anthropic_provider import AnthropicProvider
+        from app.llm.anthropic_provider import DEFAULT_MODELS, AnthropicProvider
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, max_retries=3, timeout=120)
-    return AnthropicProvider(
-        client,
-        {
-            "fast": settings.llm_model_fast,
-            "default": settings.llm_model_default,
-            "strong": settings.llm_model_strong,
-        },
-    )
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, max_retries=3, timeout=120)
+        return AnthropicProvider(client, _models(chosen, DEFAULT_MODELS))
+    if settings.llm_provider == "groq":
+        import groq
+
+        from app.llm.groq_provider import DEFAULT_MODELS as GROQ_MODELS
+        from app.llm.groq_provider import GroqProvider
+
+        return GroqProvider(
+            groq.AsyncGroq(api_key=settings.groq_api_key, max_retries=3, timeout=120),
+            _models(chosen, GROQ_MODELS),
+        )
+    return None
+
+
+def _models(chosen: dict[ModelTier, str], defaults: dict[ModelTier, str]) -> dict[ModelTier, str]:
+    """The model of each tier: the one set in backend/.env, else the provider's default."""
+    return {tier: chosen[tier] or defaults[tier] for tier in defaults}
 
 
 def get_llm_provider() -> LLMProvider:

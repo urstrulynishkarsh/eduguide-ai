@@ -57,8 +57,9 @@ even be written. There is no `Reranker` yet either (see [doc 5](05-rag-pipeline.
 
 **Model tiers** keep cost under control: `fast` for small jobs (understanding a question), `default`
 for writing explanations and questions, `strong` for the hardest checks. Each tier has a model
-(`LLM_MODEL_*`) and an effort level (low / medium / high). All three default to Claude Opus 5.5;
-a cheaper model for a tier is a setting, not a code change.
+(`LLM_MODEL_*`) and an effort level (low / medium / high). Left empty, each provider picks:
+Claude Opus 5.5 for all three, or on Groq `openai/gpt-oss-20b` (fast) and `openai/gpt-oss-120b`
+(default, strong). A different model for a tier is a setting, not a code change.
 
 **Errors** the API returns: `503 ai_not_configured` (AI switched off), `503 ai_unavailable` (the
 provider is busy, unreachable or rejects the key - details in the log), `422 ai_declined` (the
@@ -153,18 +154,29 @@ For Nursery–Class 2 the ladder is shorter and gentler: encouragement → show 
 ## 6.7 Settings (added in Step 3)
 
 ```
-LLM_PROVIDER=none            # none | anthropic
+LLM_PROVIDER=none            # none | anthropic | groq
 ANTHROPIC_API_KEY=           # required when LLM_PROVIDER=anthropic
-LLM_MODEL_FAST=claude-opus-5-5
-LLM_MODEL_DEFAULT=claude-opus-5-5
-LLM_MODEL_STRONG=claude-opus-5-5
+GROQ_API_KEY=                # required when LLM_PROVIDER=groq
+LLM_MODEL_FAST=              # empty = the provider's choice (DEFAULT_MODELS in its adapter)
+LLM_MODEL_DEFAULT=
+LLM_MODEL_STRONG=
 MODEL_CACHE_DIR=storage/models   # the local search model (~1 GB, downloaded on first use)
 ```
 
 **The first adapters.** Language model: Claude through the official `anthropic` SDK (2.x, API
 version 2026-10-21) - structured output with `messages.parse`, adaptive thinking with effort per
 tier, the system prompt cached, and server-side `fallbacks: "default"` so a request the model
-declines is retried on the model Anthropic recommends for that kind of refusal. Search model:
+declines is retried on the model Anthropic recommends for that kind of refusal.
+
+**Groq** (added after Step 7, for a free plan) through the official `groq` SDK
+(`app/llm/groq_provider.py`): `chat.completions` with `response_format` = a strict JSON schema
+(constrained decoding; `strict_schema` closes every object, as strict mode requires), reasoning
+effort per tier on the gpt-oss models with the reasoning itself left out of the reply, and the
+answer validated by the same Pydantic model. Open models have no refusal signal, so `ai_declined`
+never comes from Groq. The free plan's limits per minute and per day show up as `ai_unavailable`,
+with the reason in the log (HTTP 429, or 413 for a request larger than the plan allows per minute).
+
+Search model:
 `intfloat/multilingual-e5-base` (MIT, 768 dimensions, Hindi and Hinglish included) running on the
 server through ONNX - no API key, no per-book cost, small enough for a laptop with 8 GB of memory.
 

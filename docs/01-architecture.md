@@ -127,7 +127,7 @@ frontend uses. Details in [doc 7](07-class-aware-rules.md).
 
 | Interface | Used for | Chosen with |
 |---|---|---|
-| `LLMProvider` | questions, solutions, explanations, validation, chat — Claude first (Step 3) | `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `LLM_MODEL_*` |
+| `LLMProvider` | questions, solutions, explanations, validation, chat — Claude (Step 3), Groq (after Step 7) | `LLM_PROVIDER`, `ANTHROPIC_API_KEY` / `GROQ_API_KEY`, `LLM_MODEL_*` |
 | `EmbeddingProvider` | turning text into vectors — local multilingual-e5 first (Step 3) | `MODEL_CACHE_DIR` |
 | `OCRProvider` | scanned pages — Tesseract first (Step 2) | `OCR_PROVIDER`, `TESSERACT_CMD`, `OCR_LANGUAGES` |
 | `FileStorage` | uploaded files — local folder first, object storage later | `STORAGE_BACKEND`, `STORAGE_DIR` |

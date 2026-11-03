@@ -16,7 +16,7 @@ User roles: parent and student. A student is either a child profile under a pare
 - Auth: JWT access tokens (30 min) + refresh tokens (14 days) with PyJWT; passwords hashed with Argon2. Child mode is a parent token limited to one child.
 - Frontend: Next.js 16 (App Router, Cache Components on) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui (radix), Node.js 22/24 LTS. Versions are pinned exactly in `frontend/package.json`. Next.js 16 differs from older versions: read `frontend/node_modules/next/dist/docs/` before using an API you are unsure of (`middleware` is now `proxy.ts`)
 - Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API), ESLint, Prettier (print width 110), `tsc`
-- AI provider: Claude API through the `anthropic` SDK, model `claude-opus-5-5` for every tier (connected in step 3). Switched off unless `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` are set in `backend/.env`.
+- AI provider: switched off unless `backend/.env` sets one. `LLM_PROVIDER=groq` + `GROQ_API_KEY`: open models on Groq through the `groq` SDK (free plan; `openai/gpt-oss-20b` / `-120b`). `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`: Claude through the `anthropic` SDK, `claude-opus-5-5` for every tier (connected in step 3). Both behind `app/llm/`'s `LLMProvider`.
 - Search: local multilingual embeddings (`intfloat/multilingual-e5-base` through fastembed / ONNX, 768 dimensions) plus PostgreSQL keyword search
 - File parsing: pypdfium2 (PDF), python-docx + lxml (DOCX), plain text (TXT); optional OCR with Tesseract (`OCR_PROVIDER=tesseract`)
 - Tests and checks: pytest + pytest-asyncio + httpx; ruff (line length 110)
@@ -75,7 +75,7 @@ uvicorn app.main:app --reload       # API docs at http://localhost:8000/docs
 
 # Tests (the database must be running)
 pytest                              # live tests are skipped
-pytest -m live                      # real calls to Claude; needs ANTHROPIC_API_KEY in .env
+pytest -m live                      # real calls to Groq / Claude, for each key in .env
 
 # Code checks
 ruff check . && ruff format --check .

@@ -249,9 +249,13 @@ no frontend changes.
 
 ### Where things stand
 
-- Steps 1–7 are done. Backend: 272 tests pass (2 live tests skipped), `ruff` clean. The frontend
+- Steps 1–7 are done. Backend: 286 tests pass (live tests skipped), `ruff` clean. The frontend
   did not change in Step 7 (its 80 unit tests and 10 browser journeys passed at the end of Step 6).
-- Step 7 is not committed yet. Commit it before Step 8 starts.
+- **Added after Step 7: Groq as a second AI provider** (free plan). `app/llm/groq_provider.py`,
+  `groq==1.7.0` in requirements, `LLM_PROVIDER=groq` + `GROQ_API_KEY` in `backend/.env`;
+  `LLM_MODEL_*` now default to empty = the provider's own models (`DEFAULT_MODELS` in each
+  adapter). Live tests (`tests/live/test_ai_providers.py`) run for every provider with a key.
+  To update: `pip install -r requirements-dev.txt`.
 
 ### What Step 7 built
 
@@ -281,9 +285,14 @@ no frontend changes.
 
 ### Known issues
 
-- **The real Claude API has still not been tried** (no key). Practice from a recommendation needs
-  unseen saved questions at that place and difficulty; otherwise it needs the AI ("not switched on
-  yet" without a key).
+- **No AI provider has been tried with a real key yet.** The plan is Groq's free plan: add the key,
+  run `pytest -m live` first, then try Explain and a small practice. Expect: open models write
+  weaker Hindi / Hinglish and maths than Claude (the independent review drops wrong questions, so a
+  practice may get fewer); the free plan allows only a few thousand tokens a minute, so a request
+  with a full 6,000-token passage budget may be refused as too large (HTTP 413 in the log). If so,
+  lower `PASSAGE_BUDGET` in `practice_service.py` or the output budget for Groq.
+- Practice from a recommendation needs unseen saved questions at that place and difficulty;
+  otherwise it needs the AI.
 - **Recommendations are fixed for the day.** If a child fixes a weak topic in the morning, its
   "strengthen" item stays (it turns `done` only when a practice of that place is finished) until the
   next day's list. There is no "dismiss" yet.

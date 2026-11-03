@@ -2,7 +2,8 @@
 
 * Structured output: `messages.parse(output_format=<Pydantic model>)` - the answer is validated
   against the schema by the SDK.
-* Tiers map to a model (LLM_MODEL_*) and an effort level. Thinking is adaptive (the default).
+* Tiers map to a model (LLM_MODEL_*, else DEFAULT_MODELS) and an effort level. Thinking is adaptive
+  (the default).
 * Refusals: `fallbacks: "default"` lets the API retry a declined request on the model Anthropic
   recommends for that kind of refusal; a final refusal becomes AIDeclinedError.
 * The system prompt is the stable part of every request, so it is cached.
@@ -21,6 +22,11 @@ from app.llm.base import AIDeclinedError, AIUnavailableError, LLMResult, Message
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MODELS: dict[ModelTier, str] = {
+    "fast": "claude-opus-5-5",
+    "default": "claude-opus-5-5",
+    "strong": "claude-opus-5-5",
+}
 _EFFORT: dict[ModelTier, str] = {"fast": "low", "default": "medium", "strong": "high"}
 _FALLBACK_BETA = "server-side-fallback-2026-07-01"
 

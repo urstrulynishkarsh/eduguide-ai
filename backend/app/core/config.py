@@ -62,13 +62,16 @@ class Settings(BaseSettings):
     ocr_languages: str = "eng+hin"
 
     # ---- AI model (docs/06-llm-interfaces.md) ----
-    # "none": AI features answer 503 `ai_not_configured`. "anthropic": Claude.
-    llm_provider: Literal["none", "anthropic"] = "none"
+    # "none": AI features answer 503 `ai_not_configured`. "anthropic": Claude. "groq": open models on
+    # Groq, which has a free plan (with low limits per minute and per day).
+    llm_provider: Literal["none", "anthropic", "groq"] = "none"
     anthropic_api_key: str = ""  # required when LLM_PROVIDER=anthropic
-    # One model per tier; the tiers also differ in effort (fast = low, default = medium, strong = high).
-    llm_model_fast: str = "claude-opus-5-5"
-    llm_model_default: str = "claude-opus-5-5"
-    llm_model_strong: str = "claude-opus-5-5"
+    groq_api_key: str = ""  # required when LLM_PROVIDER=groq
+    # One model per tier; empty = the provider's own choice (DEFAULT_MODELS in its adapter). The tiers
+    # also differ in effort (fast = low, default = medium, strong = high).
+    llm_model_fast: str = ""
+    llm_model_default: str = ""
+    llm_model_strong: str = ""
 
     # ---- Search inside books ----
     # Folder for the local search model (~1 GB, downloaded on first use). Relative to backend/.
@@ -86,8 +89,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _ai_key_must_be_set(self) -> "Settings":
-        if self.llm_provider == "anthropic" and not self.anthropic_api_key:
-            raise ValueError("LLM_PROVIDER=anthropic needs ANTHROPIC_API_KEY in backend/.env.")
+        keys = {"anthropic": self.anthropic_api_key, "groq": self.groq_api_key}
+        if self.llm_provider in keys and not keys[self.llm_provider]:
+            name = f"{self.llm_provider.upper()}_API_KEY"
+            raise ValueError(f"LLM_PROVIDER={self.llm_provider} needs {name} in backend/.env.")
         return self
 
     @model_validator(mode="after")

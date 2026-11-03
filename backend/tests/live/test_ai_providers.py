@@ -1,38 +1,42 @@
-"""Real calls to Claude - catch prompt and schema problems the fakes cannot.
+"""Real calls to the AI providers - catch prompt and schema problems the fakes cannot.
 
-    pytest -m live      (needs ANTHROPIC_API_KEY in backend/.env; costs a fraction of a cent)
+    pytest -m live      (runs for each provider whose key is in backend/.env: ANTHROPIC_API_KEY
+                         costs a fraction of a cent; GROQ_API_KEY uses the free plan's allowance)
 
 Not part of the normal `pytest` run.
 """
 
 import anthropic
+import groq
 import pytest
 
 from app.class_profiles import get_class_profile
 from app.core.config import get_settings
 from app.core.enums import ClassLevel
-from app.llm import Message
-from app.llm.anthropic_provider import AnthropicProvider
+from app.llm import LLMProvider, Message, anthropic_provider, groq_provider
 from app.models import DocumentChunk, StudentProfile
 from app.rag.answering import Explanation, format_passages, system_prompt
 from app.rag.retrieval import Passage, build_context
 
 pytestmark = pytest.mark.live
 
-API_KEY = get_settings().anthropic_api_key  # read from backend/.env, even though tests switch AI off
+_settings = get_settings()  # keys are read from backend/.env, even though tests switch AI off
 
 
-@pytest.fixture
-def provider() -> AnthropicProvider:
-    if not API_KEY:
-        pytest.skip("ANTHROPIC_API_KEY is not set in backend/.env")
-    model = "claude-opus-5-5"
-    return AnthropicProvider(
-        anthropic.AsyncAnthropic(api_key=API_KEY), {"fast": model, "default": model, "strong": model}
-    )
+@pytest.fixture(params=["anthropic", "groq"])
+def provider(request: pytest.FixtureRequest) -> LLMProvider:
+    if request.param == "anthropic":
+        if not _settings.anthropic_api_key:
+            pytest.skip("ANTHROPIC_API_KEY is not set in backend/.env")
+        client = anthropic.AsyncAnthropic(api_key=_settings.anthropic_api_key)
+        return anthropic_provider.AnthropicProvider(client, anthropic_provider.DEFAULT_MODELS)
+    if not _settings.groq_api_key:
+        pytest.skip("GROQ_API_KEY is not set in backend/.env")
+    client = groq.AsyncGroq(api_key=_settings.groq_api_key)
+    return groq_provider.GroqProvider(client, groq_provider.DEFAULT_MODELS)
 
 
-async def test_grounded_explanation_in_hinglish(provider: AnthropicProvider):
+async def test_grounded_explanation_in_hinglish(provider: LLMProvider):
     chunk = DocumentChunk(
         content="Example 2: Solve 2x + 4 = 10.\nSolution: Subtract 4 from both sides, 2x = 6, so x = 3.",
         context_label="Class 7 · Mathematics · Chapter 4 Simple Equations · Example 2",
@@ -66,7 +70,7 @@ async def test_grounded_explanation_in_hinglish(provider: AnthropicProvider):
 
 
 async def test_questions_are_written_and_pass_the_independent_review(
-    provider: AnthropicProvider, monkeypatch: pytest.MonkeyPatch
+    provider: LLMProvider, monkeypatch: pytest.MonkeyPatch
 ):
     """The whole generation loop on a real model: schema accepted, checks passed, answers agreed."""
     from app import llm
