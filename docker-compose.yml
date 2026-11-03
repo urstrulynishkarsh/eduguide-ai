@@ -1,0 +1,35 @@
+# Local development services.
+#
+#   docker compose up -d      start in the background
+#   docker compose ps         see if it is healthy
+#   docker compose down       stop (data is kept)
+#   docker compose down -v    stop and DELETE all local data
+#
+# Redis is added in the step that first needs it.
+
+name: eduguide
+
+services:
+  db:
+    # PostgreSQL with the pgvector extension (used from Step 3 for searching inside books).
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eduguide
+      POSTGRES_PASSWORD: eduguide # for local development only
+      POSTGRES_DB: eduguide
+    ports:
+      # Only reachable from this computer. If 5432 is already in use, change the
+      # left number (e.g. "127.0.0.1:5433:5432") and the port in backend/.env.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - eduguide_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eduguide -d eduguide"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  eduguide_pgdata:

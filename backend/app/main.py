@@ -1,0 +1,54 @@
+"""The FastAPI application. Start it with:  uvicorn app.main:app --reload"""
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app import __version__
+from app.api import health
+from app.api.v1.router import api_v1_router
+from app.core.config import get_settings
+from app.core.database import engine
+from app.core.errors import register_exception_handlers
+from app.core.logging import configure_logging
+from app.core.middleware import RequestContextMiddleware
+
+_DESCRIPTION = """
+Backend of **EduGuide AI** - a personal tutor, practice generator, study planner
+and parent assistant for Indian students from Nursery to Class 12.
+
+**Trying the API here:** call `POST /api/v1/auth/login`, copy the `access_token`,
+press **Authorize** and paste it.
+"""
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    yield
+    await engine.dispose()
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    configure_logging(settings.log_level)
+
+    app = FastAPI(title=settings.app_name, version=__version__, description=_DESCRIPTION, lifespan=lifespan)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
+    )
+    app.add_middleware(RequestContextMiddleware)
+    register_exception_handlers(app)
+
+    app.include_router(health.router)
+    app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
+    return app
+
+
+app = create_app()
