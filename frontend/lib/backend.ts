@@ -2,7 +2,7 @@ import { copy } from "@/lib/copy";
 import type { ApiErrorBody } from "@/lib/types";
 
 /** The FastAPI backend. Only the Next.js server talks to it; the browser never does. */
-const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8000/api/v1";
+export const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8000/api/v1";
 
 /** An error answer from the backend: `{"error": {"code", "message", "details"}}`. */
 export class ApiError extends Error {

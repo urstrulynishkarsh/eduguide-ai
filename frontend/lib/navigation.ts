@@ -34,15 +34,13 @@ const practice: NavItem = {
   href: "/learn/practice",
   icon: PencilLine,
   emoji: "✏️",
-  soon: true,
 };
-const learn: NavItem = { label: "learn", href: "/learn/concepts", icon: Lightbulb, emoji: "💡", soon: true };
+const learn: NavItem = { label: "learn", href: "/learn/concepts", icon: Lightbulb, emoji: "💡" };
 const progress: NavItem = {
   label: "progress",
   href: "/learn/progress",
   icon: BarChart3,
   emoji: "📈",
-  soon: true,
 };
 
 /** All seven items of spec §38. */
@@ -67,8 +65,8 @@ const fullMenu: NavItem[] = [
 const STUDENT_NAV: Record<UIMode, NavItem[]> = {
   playful: [
     home,
-    { label: "playAndLearn", href: "/learn/practice", icon: PencilLine, emoji: "🎈", soon: true },
-    { label: "myStars", href: "/learn/progress", icon: BarChart3, emoji: "⭐", soon: true },
+    { label: "playAndLearn", href: "/learn/practice", icon: PencilLine, emoji: "🎈" },
+    { label: "myStars", href: "/learn/progress", icon: BarChart3, emoji: "⭐" },
   ],
   friendly: [home, practice, learn, progress],
   standard: fullMenu,
@@ -76,13 +74,13 @@ const STUDENT_NAV: Record<UIMode, NavItem[]> = {
 };
 
 export const PARENT_NAV: NavItem[] = [
-  { label: "dashboard", href: "/parent/dashboard", icon: LayoutDashboard, soon: true },
+  { label: "dashboard", href: "/parent/dashboard", icon: LayoutDashboard },
   { label: "children", href: "/parent/children", icon: Users },
-  { label: "books", href: "/parent/books", icon: BookOpen, soon: true },
-  { label: "practice", href: "/parent/practice", icon: PencilLine, soon: true },
+  { label: "books", href: "/parent/books", icon: BookOpen },
+  { label: "practice", href: "/parent/practice", icon: PencilLine },
   { label: "tests", href: "/parent/tests", icon: ClipboardCheck, soon: true },
   { label: "plans", href: "/parent/plans", icon: CalendarCheck, soon: true },
-  { label: "progress", href: "/parent/progress", icon: BarChart3, soon: true },
+  { label: "progress", href: "/parent/progress", icon: BarChart3 },
   { label: "assistant", href: "/parent/assistant", icon: Bot, soon: true },
   { label: "settings", href: "/parent/settings", icon: Settings },
 ];

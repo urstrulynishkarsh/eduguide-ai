@@ -49,7 +49,7 @@ export default async function ChildrenPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <form action={startChildMode.bind(null, child.id)}>
+              <form action={startChildMode.bind(null, child.id, null)}>
                 <SubmitButton>{text.startLearning}</SubmitButton>
               </form>
               <Button asChild variant="outline">

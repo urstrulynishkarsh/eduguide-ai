@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { api, saveSession } from "@/lib/api";
@@ -22,6 +23,7 @@ export async function addChild(
   } catch (error) {
     return formError(error);
   }
+  refresh(); // the parent area's child switcher lists the children too
   redirect(from === "onboarding" ? "/who-is-learning" : "/parent/children");
 }
 
@@ -32,11 +34,13 @@ export async function updateChild(studentId: string, _: FormState, formData: For
   } catch (error) {
     return formError(error);
   }
+  refresh(); // the parent area's child switcher lists the children too
   redirect("/parent/children");
 }
 
 export async function removeChild(studentId: string): Promise<void> {
   await api(path(studentId), { method: "DELETE" });
+  refresh(); // the parent area's child switcher lists the children too
   redirect("/parent/children");
 }
 
@@ -51,9 +55,12 @@ export async function saveOwnProfile(_: FormState, formData: FormData): Promise<
   redirect("/learn");
 }
 
-/** The parent hands the device to a child. The parent's refresh token is dropped (see lib/session.ts). */
-export async function startChildMode(studentId: string): Promise<void> {
+/**
+ * The parent hands the device to a child, optionally straight into a practice made for them.
+ * The parent's refresh token is dropped (see lib/session.ts).
+ */
+export async function startChildMode(studentId: string, practiceId: string | null): Promise<void> {
   const session = await api<ChildSession>(`${path(studentId)}/session`, { method: "POST" });
   await saveSession(session.access_token, null);
-  redirect("/learn");
+  redirect(practiceId ? `/learn/practice/${encodeURIComponent(practiceId)}` : "/learn");
 }

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
 import { ChildAvatar } from "@/components/child-avatar";
+import { ConfirmButton } from "@/components/confirm-button";
 import { LearnerProfileForm } from "@/components/learner-profile-form";
-import { RemoveChild } from "@/components/remove-child";
 import { getOptions, getStudent } from "@/lib/api";
-import { updateChild } from "@/lib/actions/students";
+import { removeChild, updateChild } from "@/lib/actions/students";
 import { copy } from "@/lib/copy";
 
 const text = copy.parent;
@@ -34,7 +34,11 @@ export default async function EditChildPage({ params }: PageProps<"/parent/child
       <section className="grid gap-3 rounded-xl border border-destructive/30 p-5">
         <h2 className="text-lg font-bold">{text.removeTitle}</h2>
         <p className="text-sm text-muted-foreground">{text.removeText(child.name)}</p>
-        <RemoveChild studentId={child.id} name={child.name} />
+        <ConfirmButton
+          label={text.remove(child.name)}
+          confirmLabel={text.removeConfirm}
+          action={removeChild.bind(null, child.id)}
+        />
       </section>
     </div>
   );

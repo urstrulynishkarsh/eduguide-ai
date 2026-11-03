@@ -1,10 +1,13 @@
+import { ChildSwitcher } from "@/components/child-switcher";
 import { Logo } from "@/components/logo";
 import { NavLinks } from "@/components/nav-links";
 import { SignOutButton } from "@/components/sign-out-button";
+import { getChosenChild } from "@/lib/api";
 import { copy } from "@/lib/copy";
 
 /** The parent area: a calm menu (a sidebar on wide screens, a scrolling strip on phones). */
-export default function ParentLayout({ children }: LayoutProps<"/parent">) {
+export default async function ParentLayout({ children }: LayoutProps<"/parent">) {
+  const { children: learners, child } = await getChosenChild();
   return (
     <div className="mx-auto min-h-dvh max-w-6xl lg:grid lg:grid-cols-[15rem_1fr] lg:gap-8 lg:px-6">
       <aside className="sticky top-0 z-10 border-b bg-background/95 px-4 backdrop-blur lg:h-dvh lg:border-r lg:border-b-0 lg:px-0 lg:py-6 lg:pr-4">
@@ -21,7 +24,14 @@ export default function ParentLayout({ children }: LayoutProps<"/parent">) {
           <SignOutButton />
         </div>
       </aside>
-      <main className="px-4 py-8 lg:px-0">{children}</main>
+      <main className="grid content-start gap-6 px-4 py-6 lg:px-0">
+        {child && (
+          <div className="flex justify-end">
+            <ChildSwitcher items={learners} chosenId={child.id} />
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

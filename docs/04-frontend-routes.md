@@ -33,18 +33,20 @@ Navigation (spec §38): Dashboard · Children · My Books · Practice · Mock Te
 |---|---|---|
 | `/parent/dashboard` | Weekly progress, strong areas, needs attention, AI recommendation with **Start Recommended Practice** | 6 basic · 9 full |
 | `/parent/children` · `/parent/children/new` · `/parent/children/[studentId]` | List, add, edit children | 5 |
-| `/parent/books` | My Learning Library | 6 |
-| `/parent/books/upload` | Upload Book with the progress checklist | 6 |
-| `/parent/books/[bookId]` | Chapters of a book | 6 |
+| `/parent/books` | My Learning Library: every family book, labelled with the child it is for | 6 |
+| `/parent/books/upload` | Upload Book: the book's details, then the file with a progress bar | 6 |
+| `/parent/books/[bookId]` | Chapters of a book, its files with the reading checklist (retry, remove), add a file, delete the book | 6 |
 | `/parent/books/[bookId]/chapters/[chapterId]` | Chapter page: **Learn · Practice · Exercise Questions · Generate Questions · Take Test** | 6 |
-| `/parent/practice` | Create Practice: number, difficulty, type, source, language | 6 |
+| `/parent/practice` | Create Practice: number, difficulty, type, source, language. `?book=&chapter=&exercise=` preselect the source | 6 |
+| `/parent/practice/[sessionId]` | A practice the parent made: "getting ready", then its questions and **Start now with {child}** (child mode straight into it) | 6 |
 | `/parent/tests` · `/parent/tests/new` · `/parent/tests/[testId]/report` | Mock tests and their reports | 9 |
 | `/parent/plans` · `/parent/plans/new` · `/parent/plans/[planId]` | Study plans | 9 |
 | `/parent/progress` | Charts by subject, chapter, topic; mistakes explained | 6 basic · 9 · 11 |
 | `/parent/assistant` | Parent AI Assistant | 9 |
 | `/parent/settings` | Account, language, sign out | 5 |
 
-A child switcher at the top of the parent area chooses whose data every screen shows.
+A child switcher at the top of the parent area (Step 6, kept in the `eg_child` cookie) chooses whose
+dashboard, practice and progress are shown. My Books always lists all of the family's books.
 
 ## 4.4 Student area
 
@@ -53,7 +55,7 @@ Navigation (spec §38): Home · Practice · Learn · Tests · Progress · Study 
 | URL | Screen | Step |
 |---|---|---|
 | `/learn` | Home: today's goal, Practice / Mock Test / Learn a Concept / Daily Challenge, streak, "Recommended for You" | 6 |
-| `/learn/practice` · `/learn/practice/[sessionId]` | Choose and do practice; **Hint → Show Steps → Show Answer** | 6 |
+| `/learn/practice` · `/learn/practice/[sessionId]` | Choose and do practice; **Hint → Show Steps → Show Answer**. Nursery–Class 2: big "Play" tiles per chapter, one tap answers, a number pad for counting, "try again" instead of a wrong mark, stars at the end | 6 |
 | `/learn/concepts` · `/learn/concepts/[chapterId]` | Learn a concept; "Explain simply / Like I'm 10 / in Hindi / in Hinglish" | 6 |
 | `/learn/tests` · `/learn/tests/[attemptId]` | Take a test, see the result | 9 |
 | `/learn/progress` | My progress | 6 basic · 9 |
@@ -117,6 +119,10 @@ Built in Step 5 (`frontend/lib/session.ts`, `frontend/proxy.ts`).
   (`/learn/exit`, "Grown-ups") asks for the parent's password, which signs the parent in again.
   When the 12-hour child session ends, the device goes to sign-in.
 - A session the backend refuses (say the child was removed) is ended through `/signout`.
+- **Uploads** (Step 6) go from the browser to one route handler, `/api/books/[bookId]/documents`,
+  which streams the file on to the backend with the cookie's token. It sits outside `proxy.ts`,
+  because the proxy buffers request bodies only up to 10 MB. Progress screens (a book being read,
+  practice being prepared) reload their data every 2 seconds until it is done.
 - Screen language follows `users.preferred_language` (from Step 11; all wording is already in
   `frontend/lib/copy.ts`); content language follows the child's `primary_language`.
 

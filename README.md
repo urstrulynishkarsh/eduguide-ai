@@ -4,10 +4,10 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 5 of 12 is complete** — the whole MVP backend (accounts and children,
-> uploading and reading books, search with the AI connected, the practice engine) and the
-> frontend foundation: landing page, sign-up, onboarding, child mode and the four age-based
-> layouts. The library and practice screens come next (Step 6).
+> **Build status: Step 6 of 12 is complete — the MVP works end to end.** A parent signs up, adds a
+> child, uploads a book, creates practice from a chapter or exercise and hands the device over;
+> the child practises (with hints, steps and answers) in a layout made for their age, and both
+> see the progress. Adaptive learning comes next (Step 7).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -18,8 +18,17 @@ from Nursery to Class 12.
 - **Add Child** with the class first: stream, goals and subject suggestions follow the class
 - **Who is learning today?** — the parent taps a child and hands over the device (child mode).
   Leaving child mode asks for the parent's password
-- Parent area: Children (add, edit, remove, start learning) and Settings. The rest of the menu
-  shows what is coming ("Soon")
+- **My Books**: upload a PDF, Word or text file with a progress bar, then watch it being read
+  (✓ Reading your book … ✓ Getting practice ready). Chapters, topics, and exercise questions exactly
+  as printed, with page numbers
+- **Chapter page**: Learn · Practice · Exercise Questions · Generate Questions (Take Test: Step 8)
+- **Create Practice**: from all books, a book, a chapter or an exercise; number, difficulty,
+  question type and language, limited by the child's class. Then **Start now with Aarav**
+- **Practice screen**: one question at a time, every answer format, **Hint → Show Steps → Show
+  Answer**, "Explain simply / like I'm 10 / in Hindi / in Hinglish", and where each generated
+  question comes from. Nursery–Class 2: big picture cards, a number pad, "try again", stars and no marks
+- **Learn a Concept** and **Progress** (My Stars for the youngest); a basic parent **Dashboard**
+- A child switcher at the top of the parent area; Children and Settings as before
 - The student area in **four layouts** chosen by the class: big and playful for Nursery–Class 2,
   roomy for Class 3–5, a regular app for Class 6–8, a compact academic one for Class 9–12. Works on
   phones, tablets and computers
@@ -142,10 +151,16 @@ book…"* instead of empty results.
 
 | Email | Password | Who |
 |---|---|---|
-| `parent@example.com` | `DemoParent123` | Sunita Sharma — children: Aarav (Class 7, CBSE) and Anaya (UKG) |
+| `parent@example.com` | `DemoParent123` | Sunita Sharma — children: Aarav (Class 7, CBSE, a sample Maths chapter) and Anaya (UKG, a sample picture book in Hindi) |
 | `student@example.com` | `DemoStudent123` | Kabir Verma — Class 12 Science, preparing for JEE |
 
 These passwords are public; the seed script refuses to run when `ENVIRONMENT=production`.
+
+**Practice without an AI key.** The seed also puts hand-written demo questions in the question
+bank: 12 for Aarav's Maths chapter (Hinglish) and 10 picture, counting and matching questions for
+Anaya's book (Hindi). A child is never given the same question twice, so they last for one or two
+practices each; after that, new questions need the AI. Already seeded before Step 6? Run
+`python -m scripts.seed` again: it adds only what is missing.
 
 ## Run the tests
 
@@ -171,6 +186,8 @@ npm run lint && npm run typecheck && npm run format:check
 ```
 
 The browser tests sign up new accounts (`…@example.com`) in your development database each run.
+The practice journeys use the demo family (run `python -m scripts.seed` once): each adds a
+temporary child, practises with the demo questions, and removes the child again.
 
 ## Where things are
 
@@ -215,6 +232,8 @@ The browser tests sign up new accounts (`…@example.com`) in your development d
 | Explain answers `503 ai_not_configured` | Switch on the AI (see above) and restart the API |
 | Explain answers `503 ai_unavailable` | The log says why: a wrong key, no internet, or Claude busy (try again in a minute) |
 | A practice stays `failed` with `generation_failed` | The AI could not write questions that passed the checks for that place; try another chapter or `mixed` type. The log shows the reasons |
+| Create Practice says *"…writing new ones needs the AI, which is not switched on yet"* | The saved questions for that choice are used up (or there are none for a new book). Switch on the AI (see above), or try another chapter, fewer questions or `Mixed` |
+| A browser practice test fails with *"You can add up to 10 children"* | Interrupted test runs left temporary children (`E2E…`) in the demo family: remove them in the parent area under Children |
 | Create Practice answers `422 question_type_not_for_class` | That question type is not used for the child's class (e.g. numerical before Class 9); use `mixed` |
 | Explain answers `422 insufficient_context` | The child's books for that class don't cover the question; upload the chapter, or choose the book with `book_id` |
 | Upload answers `413` | The file is over `MAX_UPLOAD_MB` (50 MB). Split the book, e.g. one PDF per chapter — they can all go into the same book |

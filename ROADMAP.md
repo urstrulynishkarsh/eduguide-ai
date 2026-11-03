@@ -14,13 +14,13 @@ Status: ✅ done · ⏭ next · ⬜ later
 | **3** | ✅ | **Search inside books + AI connection.** A local multilingual embedding model, vectors stored in PostgreSQL (pgvector), meaning search plus keyword search merged by rank, filters (family, book, class, chapter, exercise), context with source citations, "Explain this", and the swappable AI layer (Claude). | `backend/app/llm` · `backend/app/rag` · new columns on `document_chunks` | 9 Embeddings · 10 Vector database · 11 RAG retrieval |
 | **4** | ✅ | **Practice engine.** Class-aware question generation, automatic checking with an independent second solve and regeneration, a reusable question bank, hints → steps → answer, practice sessions, recording attempts, basic performance numbers. | `backend/app/question_generation` · `backend/app/analytics` · `backend/app/services` · `backend/app/api/v1` · tables: `questions`, `practice_sessions`, `practice_items`, `question_attempts` | 12 Question generation · 13 Solutions · 15 Basic performance tracking |
 | **5** | ✅ | **Frontend foundation.** Next.js app, design system with the four age-based layouts, landing page, sign-up / sign-in, onboarding, child mode. | `frontend/` | screens for items 1–4 |
-| **6** | ⏭ | **Frontend MVP.** My Books and upload with progress, Create Practice, the student practice screen (including the picture-based one for Nursery–Class 2), basic progress. **The MVP works end to end here.** | `frontend/` | 14 Student practice interface |
+| **6** | ✅ | **Frontend MVP.** My Books and upload with progress, Create Practice, the student practice screen (including the picture-based one for Nursery–Class 2), basic progress. **The MVP works end to end here.** | `frontend/` | 14 Student practice interface |
 
 ## Phase 2
 
 | Step | Status | What you get | Folders it fills | Spec items (§46) |
 |---|---|---|---|---|
-| **7** | ⬜ | **Adaptive learning.** Mastery per topic, difficulty that follows performance, weak-topic detection, daily recommendations. | `backend/app/adaptive_learning` · `backend/app/analytics` | 1 Adaptive difficulty · 3 Weak-topic detection · 4 Study recommendations |
+| **7** | ⏭ | **Adaptive learning.** Mastery per topic, difficulty that follows performance, weak-topic detection, daily recommendations. | `backend/app/adaptive_learning` · `backend/app/analytics` | 1 Adaptive difficulty · 3 Weak-topic detection · 4 Study recommendations |
 | **8** | ⬜ | **Mock tests and study planner** (backend). Sectioned, timed tests with a result report; study plans that update with performance. | `backend/app/services` · `backend/app/api/v1` | 5 Mock tests · 6 Study planner |
 | **9** | ⬜ | **Parent dashboard, test and plan screens, the two assistants.** Parent AI Assistant and Student AI Tutor (hint first, answer last). | `frontend/` · `backend/app/api/v1` | 2 Parent dashboard |
 
@@ -194,84 +194,95 @@ No backend changes. To update a Step 4 setup: install **Node.js 22 or 24 LTS**, 
 `frontend/`: `npm install`, `cp .env.example .env.local`, `npm run dev`. For the browser tests,
 once: `npx playwright install chromium`.
 
+## What Step 6 added
+
+```
+frontend/
+├── app/parent/dashboard · progress          basic dashboard and progress of the chosen child
+├── app/parent/books/…                        My Learning Library, Upload Book, a book, a chapter page
+├── app/parent/practice · practice/[id]       Create Practice; a prepared practice with "Start now with …"
+├── app/learn/practice · practice/[id]        choose practice; the practice screen and its results
+├── app/learn/concepts · concepts/[id]        Learn a Concept ("Explain this" with sources)
+├── app/learn/progress                        My progress / My Stars
+├── app/api/books/[bookId]/documents          the upload route (streams the file to the backend)
+├── lib/actions/books.ts · practice.ts        child switcher, books and files; practice, answers, help, explain
+├── components/                               practice-player, book-uploader, practice-chooser, explain-box,
+│                                             progress-view, document-checklist, child-switcher, …
+└── tests/unit (80) · tests/e2e (10 journeys × desktop + phone)
+backend/
+├── scripts/demo_questions.py                 hand-written practice questions for the two demo books
+├── scripts/sample_data/ukg-picture-book-sample.txt   Anaya's sample book (Hindi)
+├── scripts/seed.py                           + the UKG book and the demo questions
+├── app/services/practice_service.py          `to_question` is public (the seed reuses it)
+└── tests/unit/test_demo_questions.py         the demo questions pass the generated questions' checks
+```
+
+No API or database changes. To update a Step 5 setup: `python -m scripts.seed` (adds Anaya's book and
+the demo questions; nothing else is touched), then rebuild or restart the frontend.
+
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 5.*
+*Rewritten at the end of every step. Last updated: end of Step 6.*
 
 ### Where things stand
 
-- Steps 1–5 are done. Backend: 246 tests pass (2 live tests skipped), `ruff` clean, no changes in
-  this step. Frontend: 62 unit tests and 14 browser runs (7 journeys at desktop and phone size)
-  pass; `lint`, `typecheck`, `format:check` and `build` are clean.
-- Step 5 is not committed yet. Commit it before Step 6 starts.
+- Steps 1–6 are done: **the MVP works end to end**. Backend: 249 tests pass (2 live tests
+  skipped), `ruff` clean. Frontend: 80 unit tests and 20 browser runs (10 journeys at desktop and
+  phone size) pass; `lint`, `typecheck`, `format:check` and `build` are clean.
+- Step 6 is not committed yet. Commit it before Step 7 starts.
 
-### What Step 5 built
+### What Step 6 built
 
-- **Landing page** with the spec's hero, subheading, Get Started / See How It Works,
-  Upload → Understand → Practice → Improve, and a card per class group in that group's colours.
-- **Sign-up** ("Who are you? Parent / Student", then name, email, password) and **sign-in**. Field
-  errors from the API appear under the field they belong to; the email survives a wrong password.
-- **Onboarding.** Parent: Add Child, class first (`/onboarding/child`). Solo student: class details
-  (`/onboarding/profile`, also used later to change them). The form takes streams, goals, the
-  default goal and subject suggestions from `/meta/options`; changing the class resets the goal
-  to the new class's default. Every rule is still checked by the API, whose message shows next
-  to the field (for example JEE without Science).
-- **Who is learning today?** (`/who-is-learning`) is the parent's landing page: tap a child to start
-  child mode. Child mode deletes the parent's refresh token; **Grown-ups** (`/learn/exit`) asks
-  for the parent's password. A child session never reaches `/parent/…` (proxy redirect, and the
-  API refuses anyway).
-- **Parent area**: Children (list, add, edit name / age / class details, remove with a second
-  confirmation, start learning) and Settings (account details, sign out). Every other menu item
-  is shown with a **Soon** tag.
-- **Student area** in four layouts from `ui_mode`: `playful` (big emoji tiles, three menu items),
-  `friendly` (four), `standard` and `dense` (all seven; Tests hidden when `practice_tests` is off).
-  On phones the menu is a bottom tab bar. The home page is a placeholder with the menu as tiles.
-
-### How the frontend works (read before adding screens)
-
-- Only the Next.js server talks to the API. **Pages** read data in Server Components through
-  `lib/api.ts` (`getMe`, `getLearner`, `getStudents`, `getStudent`, `getOptions`; add a
-  `load<T>(path)` getter for new reads: 401 → `/signout`, 404 → not-found page). **Forms** are
-  Server Actions in `lib/actions/`: return `formError(error)` for API errors and `redirect()`
-  outside the `try`.
-- **Cache Components is on** (Next.js 16 default, required in Next 17). Any page that reads the
-  session renders behind `app/loading.tsx`. Next.js keeps recently visited pages mounted but
-  hidden, so a form keeps its state on Back, and browser tests must click only visible elements
-  (`tap()` in `tests/e2e/helpers.ts`).
-- Screen text goes in `lib/copy.ts`. In the student area, style per layout with the variants
-  `playful:` `friendly:` `standard:` `dense:` (and `max-sm:dense:` for phones).
-- When a screen from the menu is built, remove its `soon: true` in `lib/navigation.ts`.
+- **My Books**: every family book (labelled with its child), Upload Book (details, then the file
+  with a progress bar), the book page with the reading checklist in parent words (polling every 2 s),
+  retry / remove a file, add a file, delete the book.
+- **Chapter page**: Learn (Explain box) · Practice (one tap, class defaults) · Exercise Questions
+  (as printed, the shared instruction shown once) · Generate Questions (Create Practice
+  preselected) · Take Test ("Soon", Step 8).
+- **Create Practice** (parent and learner): source picked book → chapter → exercise with a GET form
+  (only the lists in use are loaded), then number (class default and maximum), difficulty, type
+  (the class's formats) and language. A parent's practice opens a page that waits while it is
+  prepared, lists the questions, and offers **Start now with {child}** (child mode straight into it).
+- **Practice screen** (`components/practice-player.tsx`): one question at a time; choice, number,
+  text and matching answers; Hint → Show Steps → Show Answer; explain buttons; "Generated from
+  concepts in: …". **Nursery–Class 2**: big picture cards (the emoji above the word), a tap answers,
+  a 0–10 number pad for counting, "Let's try again! 🌟", no counters or marks, stars at the end.
+- **Learn a Concept**, **progress** (numbers, accuracy by chapter and topic, recent practice; stars
+  only for the youngest), a basic **dashboard**, and the **child switcher** (cookie `eg_child`).
+- **Demo questions** in the seed: 12 for Aarav's Class 7 chapter (Hinglish), 10 picture / counting /
+  matching ones for Anaya's UKG book (Hindi). They pass the same program checks as generated ones.
 
 ### Known issues
 
-- **Node.js on this machine is still v21.5.0** (`/usr/local/bin/node`, from the nodejs.org
-  installer). Step 5 was built and tested with Node 24.22.2 from nodejs.org in a temporary folder.
-  `npm install` and Vitest need Node ≥ 22.12. A `brew install node@22` (building from source) did
-  not finish. Easiest fix: the Node 24 LTS macOS installer from nodejs.org, which replaces
-  `/usr/local/bin/node`.
-- `npm audit` reports 17 moderate warnings, all one `minimatch` advisory inside ESLint's
-  dependencies (development only, never shipped). Left as is; recheck when ESLint updates.
-- When a 12-hour child session ends, the device simply shows sign-in; there is no "ask a grown-up"
-  message yet.
-- Browser tests sign up new `…@example.com` accounts in the development database on every run.
-- Unchanged from Step 4: the real Claude API has not been tried (no key); the "not enough
-  information" threshold is narrow on the sample book; no rate limiting, token revocation or
-  security headers yet (Step 12).
+- **The real Claude API has still not been tried** (no key). Without it, new practice, Explain and
+  marking of written answers show a plain "not switched on yet" message. The demo questions last for
+  one or two practices per child (a learner never gets a question twice).
+- **Node.js on this machine is still v21.5.0.** The site runs on it, but `npm install`, Vitest and
+  Playwright need Node ≥ 22.12 (Step 6 was tested with Node 24.22.2 from nodejs.org). Install the
+  Node 24 LTS macOS installer from nodejs.org.
+- Parent practice pages show questions but there is no per-question answer review for the parent
+  yet ("Understand Mistakes" belongs to Step 9's dashboard).
+- The upload route is outside `proxy.ts`, so it does not renew tokens: a parent who leaves the upload
+  page open for over 30 minutes gets "Your session has expired" and must reload.
+- The browser practice journeys share the demo family; an interrupted run can leave `E2E…`
+  children behind (the limit is 10). The `afterEach` clean-up normally removes them.
+- `npm audit`: 17 moderate warnings, all one `minimatch` advisory inside ESLint's dependencies.
+- Unchanged: the "not enough information" threshold is narrow on the sample book; no rate limiting,
+  token revocation or security headers yet (Step 12).
 
-### What Step 6 needs to know
+### What Step 7 needs to know
 
-- **Uploads and progress polling** cannot be Server Actions alone: the browser needs a progress
-  bar and polling. Add Route Handlers under `app/api/…` that forward to the backend with the
-  cookie's token. Two limits matter for a 50 MB upload: `proxy.ts` buffers request bodies up to
-  `proxyClientMaxBodySize` (Next.js default 10 MB), so either exclude the upload route from the
-  proxy matcher or raise that setting; Server Actions have their own 1 MB `bodySizeLimit`.
-- Parent screens of Step 6 (My Books, Create Practice, Progress) need the **child switcher** from
-  docs/04 §4.3 ("whose data every screen shows"). It was left out of Step 5 because no screen
-  used it yet.
-- `/parent/dashboard` (basic) is a Step 6 screen; when it exists, decide whether the parent
-  lands there or stays on "Who is learning?" (`homeFor` in `lib/routes.ts`).
-- The picture-based practice screen for Nursery–Class 2 goes in the `playful` layout: answers
-  are `visual_choice` / `counting` / `matching`, and a wrong answer gets `try_again` (no answer
-  shown). Upload progress words are in docs/04 §4.5.
-- The API shapes for Step 6 are in docs/03 §3.3 (books, documents, chapters, exercises) and
-  §3.5 (practice, progress).
+- Step 7 is **backend**: `student_mastery` and `recommendations` tables (planned in
+  docs/02 §2.6), the adaptive rule of docs/07 §7.9 (above 85 % up, 60–85 % stay, below 60 % down
+  with revision and foundation questions), weak-topic detection, daily recommendations. Only where
+  the class profile's `adaptive_difficulty` / `weak_topic_detection` are on; younger classes get
+  gentle repetition.
+- The raw material is `question_attempts` (correctness, time, hints, solution viewed) joined to
+  `questions.topic_id` / `chapter_id` / `difficulty`. Basic progress (`analytics/progress.py`)
+  already counts first answers per session; mastery should build on the same rule.
+- Frontend hooks waiting for Step 7: the learner's home has room for "Recommended for You" (spec
+  §12), and the parent dashboard for strong areas / needs attention and **Start Recommended
+  Practice** (spec §11). Practice created from a recommendation can reuse `createPractice`
+  (`lib/actions/practice.ts`) with the recommended place and difficulty.
+- Demo data: Aarav and Anaya have no attempts yet. Mastery and recommendations will need some
+  history to show anything; a seed of a few demo attempts (as with the demo questions) would help.

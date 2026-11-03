@@ -59,6 +59,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Pages and Server Actions only: not static files, and not /signout, which clears the cookies itself.
-  matcher: ["/((?!_next/|signout|favicon\\.ico|.*\\.[a-z0-9]+$).*)"],
+  // Pages and Server Actions only: not static files, not /signout (it clears the cookies itself),
+  // and not the upload route under /api (the proxy would buffer a whole book in memory).
+  matcher: ["/((?!_next/|api/|signout|favicon\\.ico|.*\\.[a-z0-9]+$).*)"],
 };

@@ -2,10 +2,16 @@
  * Every word shown on screen, in one place. English only for now; Step 11 adds Hindi and
  * Hinglish with the same shape. Parent screens use parent words (docs/04 §4.5).
  */
+/** "1 chapter", "3 chapters". */
+function counted(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
 export const copy = {
   appName: "EduGuide AI",
   soon: "Soon",
   signOut: "Sign out",
+  cancel: "Cancel",
   loading: "Loading…",
 
   landing: {
@@ -151,7 +157,6 @@ export const copy = {
       `This deletes ${name}'s practice and progress for good. Books added for ${name} stay in your library.`,
     remove: (name: string) => `Remove ${name}`,
     removeConfirm: "Yes, remove",
-    cancel: "Cancel",
     settingsTitle: "Settings",
     account: "Account",
     name: "Name",
@@ -164,9 +169,212 @@ export const copy = {
     nav: "Learning menu",
     playfulIntro: "What shall we do today?",
     intro: "What would you like to do today?",
-    comingSoon: "Your practice will appear here very soon.",
     myClassDetails: "My class details",
     switchLearner: "Grown-ups",
+    recent: "Your recent practice",
+    continue: "Continue",
+  },
+
+  switcher: {
+    label: "Showing",
+  },
+
+  dashboard: {
+    title: (name: string) => `${name} at a glance`,
+    uploadBook: "Upload Book",
+    createPractice: "Create Practice",
+    books: (count: number) => counted(count, "book"),
+  },
+
+  library: {
+    title: "My Learning Library",
+    subtitle: "Books, notes and question papers for your family.",
+    upload: "Upload Book",
+    empty: "No books yet. Upload a textbook, notes or a question paper to get started.",
+    forChild: (name: string) => `For ${name}`,
+    forFamily: "For the whole family",
+    chapters: (count: number) => counted(count, "chapter"),
+    status: {
+      empty: "No files yet",
+      processing: "Reading…",
+      ready: "Ready",
+      failed: "Needs attention",
+    } as Record<string, string>,
+    files: "Files",
+    addFile: "Add another file",
+    retry: "Try again",
+    removeFile: "Remove",
+    deleteBook: "Delete this book",
+    deleteBookText: "This removes the book, its files, and the practice questions made from it.",
+    deleteConfirm: "Yes, delete",
+    chaptersTitle: "Chapters",
+    noChapters: "Chapters appear here once the book has been read.",
+    found: (chapters: number, exercises: number, questions: number) =>
+      `Found ${counted(chapters, "chapter")}, ${counted(exercises, "exercise")} and ${counted(questions, "question")}.`,
+  },
+
+  upload: {
+    title: "Upload Book",
+    subtitle: "Add a textbook, school notes, a question bank or old question papers.",
+    bookTitle: "Book name",
+    bookTitlePlaceholder: "For example, Class 7 Mathematics",
+    subject: "Subject",
+    subjectPlaceholder: "For example, Mathematics",
+    materialType: "What is it?",
+    forWhom: "Who is it for?",
+    family: "The whole family",
+    file: "File",
+    fileHint: (extensions: string, mb: number) => `${extensions} · up to ${mb} MB`,
+    submit: "Upload",
+    sending: (percent: number) => `Uploading… ${percent}%`,
+    failed: "The upload did not finish. Please try again.",
+    tooBig: (mb: number) =>
+      `This file is bigger than ${mb} MB. Try splitting it, for example one chapter per file.`,
+    // docs/04 §4.5: the parent never reads the technical stage names.
+    steps: {
+      extract_text: "Reading your book",
+      detect_chapters: "Finding the chapters",
+      detect_exercises: "Finding exercises and questions",
+      detect_topics: "Understanding the topics",
+      make_chunks: "Getting practice ready",
+      embed_chunks: "Getting practice ready",
+    } as Record<string, string>,
+  },
+
+  chapter: {
+    learn: "Learn",
+    practice: "Practice",
+    exerciseQuestions: "Exercise Questions",
+    generate: "Generate Questions",
+    takeTest: "Take Test",
+    topics: "Topics",
+    exercises: "Exercises",
+    questions: (count: number) => counted(count, "question"),
+    page: (page: number) => `page ${page}`,
+    fromBook: "As printed in the book",
+    noExercises: "No exercises were found in this chapter.",
+  },
+
+  practiceForm: {
+    title: "Create Practice",
+    subtitle: (name: string) => `Questions made for ${name}'s class, from your books.`,
+    source: "Practise from",
+    allBooks: "All books",
+    wholeBook: "The whole book",
+    wholeChapter: "The whole chapter",
+    book: "Book",
+    chapter: "Chapter",
+    exercise: "Exercise",
+    count: "Number of questions",
+    countHint: (max: number) => `Up to ${max}`,
+    difficulty: "Difficulty",
+    type: "Question type",
+    language: "Language",
+    submit: "Create Practice",
+    playfulTitle: "Let's play!",
+    playfulAll: "Everything",
+    noBooks: "There are no books for this class yet. A grown-up can upload one in My Books.",
+  },
+
+  difficulties: { easy: "Easy", medium: "Medium", hard: "Hard", mixed: "Mixed" } as Record<string, string>,
+
+  formats: {
+    mixed: "Mixed",
+    mcq: "MCQ",
+    visual_choice: "Picture choice",
+    matching: "Matching",
+    counting: "Counting",
+    fill_blank: "Fill in the blanks",
+    true_false: "True / False",
+    short_answer: "Short answer",
+    long_answer: "Long answer",
+    numerical: "Numerical",
+    assertion_reason: "Assertion / Reason",
+    case_based: "Case-based",
+  } as Record<string, string>,
+
+  practice: {
+    preparingTitle: "Getting your questions ready…",
+    preparingText: "Writing and checking new questions takes a minute or two. This page updates by itself.",
+    failedTitle: "This practice could not be made",
+    readyFor: (name: string) => `Ready for ${name}`,
+    startNow: (name: string) => `Start now with ${name}`,
+    questionOf: (number: number, total: number) => `Question ${number} of ${total}`,
+    check: "Check",
+    next: "Next question",
+    finish: "See results",
+    correct: "Correct! Well done 🎉",
+    playfulCorrect: "Yay! Well done! ⭐",
+    tryAgain: "Let's try again! 🌟",
+    wrong: "Not quite.",
+    correctAnswer: (answer: string) => `The answer is: ${answer}`,
+    yourAnswer: "Your answer",
+    numberPlaceholder: "Type a number",
+    textPlaceholder: "Type your answer",
+    matchPrompt: (item: string) => `${item} goes with…`,
+    hint: "Hint",
+    hintsLeft: (left: number) => `${counted(left, "hint")} left`,
+    showSteps: "Show Steps",
+    showAnswer: "Show Answer",
+    concept: "Concept",
+    finalAnswer: "Final answer",
+    explainTitle: "Explain this question",
+    explainStyles: {
+      simple: "Explain Simply",
+      like_10: "Explain Like I'm 10",
+      hindi: "Explain in Hindi",
+      hinglish: "Explain in Hinglish",
+    } as Record<string, string>,
+    generatedFrom: "Generated from concepts in:",
+    doneTitle: "Practice complete!",
+    playfulDoneTitle: "You did it! 🎉",
+    score: (correct: number, total: number) => `${correct} of ${total} correct the first time`,
+    stars: (count: number) => `You earned ${counted(count, "star")}!`,
+    again: "Practice more",
+    home: "Back home",
+    busy: "One moment…",
+  },
+
+  concepts: {
+    title: "Learn a Concept",
+    subtitle: "Pick a chapter and ask anything about it.",
+    ask: "What would you like to understand?",
+    askPlaceholder: "For example: How do I solve 2x + 4 = 10?",
+    explain: "Explain",
+    styles: {
+      normal: "Normal",
+      simple: "Explain Simply",
+      like_10: "Explain Like I'm 10",
+      hindi: "In Hindi",
+      hinglish: "In Hinglish",
+    } as Record<string, string>,
+    basedOn: "Based on:",
+    noBooks: "There are no chapters for this class yet.",
+  },
+
+  progress: {
+    title: "Progress",
+    myTitle: "My progress",
+    starsTitle: "My Stars",
+    answered: "Questions answered",
+    accuracy: "Correct the first time",
+    time: "Time practising",
+    hints: "Hints used",
+    byChapter: "By chapter",
+    byTopic: "By topic",
+    recent: "Recent practice",
+    none: "No practice yet. Results appear here after the first practice.",
+    minutes: (minutes: number) =>
+      minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`,
+    sessionLine: (answered: number, total: number, correct: number) =>
+      `${answered} of ${total} answered · ${correct} correct`,
+    status: {
+      preparing: "Being prepared",
+      ready: "Not finished",
+      completed: "Finished",
+      failed: "Could not be made",
+    } as Record<string, string>,
+    keepGoing: "Every right answer gives you a star. Keep going!",
   },
 
   exitChildMode: {
@@ -205,5 +413,9 @@ export const copy = {
   errors: {
     unreachable: "We can't reach EduGuide right now. Please try again in a minute.",
     unexpected: "Something went wrong on our side. Please try again.",
+    // Said more helpfully than the API can: what the parent can do about it.
+    ai_not_configured:
+      "There are not enough saved questions for this choice, and writing new ones needs the AI, which is not switched on yet. Try another chapter, fewer questions or a different type.",
+    explain_ai_not_configured: "Explanations need the AI, which is not switched on yet.",
   },
 };

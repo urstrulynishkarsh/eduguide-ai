@@ -42,10 +42,11 @@ backend/
     adaptive_learning/   # empty until step 7
     utils/
   alembic/versions/      # migrations
-  scripts/               # init_env, seed, reembed, eval_retrieval
+  scripts/               # init_env, seed (+ demo_questions: practice without an AI key), reembed, eval_retrieval
   tests/                 # unit/ (nothing running), api/ (needs the database), live/ (real Claude, opt-in)
 frontend/
-  app/                   # screens: (entry)/ sign-in, sign-up, onboarding, who-is-learning; parent/; learn/
+  app/                   # screens: (entry)/ sign-in, sign-up, onboarding, who-is-learning; parent/; learn/;
+                         # api/ holds the one route handler (book upload, streamed to the backend)
   proxy.ts               # before every page: renews tokens, sends each session to its area
   lib/                   # session cookies, backend calls (server only), Server Actions, copy.ts (all wording), navigation
   components/            # shared pieces; ui/ holds the shadcn components in use
@@ -84,7 +85,8 @@ npm install
 cp .env.example .env.local          # first time only
 npm run dev                         # http://localhost:3000
 npm test                            # unit tests
-npm run test:e2e                    # browser journeys; first time: npx playwright install chromium
+npm run test:e2e                    # browser journeys; needs the API and `python -m scripts.seed`;
+                                    # first time: npx playwright install chromium
 npm run lint && npm run typecheck && npm run format:check && npm run build
 
 # Database migrations
@@ -99,7 +101,8 @@ alembic upgrade head
 - Step 3: search inside books (meaning + keyword), the Claude connection, "Explain this" with sources
 - Step 4: practice engine: checked question generation, question bank, hints → steps → answer, attempts, basic progress
 - Step 5: frontend foundation: landing page, sign-up / sign-in, onboarding, "Who is learning?", child mode, Children and Settings, the four age-based layouts
-- Next: step 6, the frontend MVP (My Books, upload, Create Practice, practice screen, basic progress)
+- Step 6: frontend MVP, the app works end to end: My Books and upload with the reading checklist, chapter page, Create Practice, the practice screen (with the picture version for Nursery–Class 2), Learn a Concept, progress, basic dashboard, child switcher; demo practice questions in the seed
+- Next: step 7, adaptive learning (backend)
 
 See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff section.
 

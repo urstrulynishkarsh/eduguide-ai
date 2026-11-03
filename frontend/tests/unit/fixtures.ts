@@ -61,6 +61,8 @@ export const options: OnboardingOptions = {
     { code: "hi", label: "Hindi", native_label: "हिन्दी" },
     { code: "hinglish", label: "Hinglish", native_label: "Hinglish" },
   ],
+  material_types: [{ code: "textbook", label: "Textbook" }],
+  upload: { accepted_extensions: [".pdf", ".docx", ".txt"], max_file_mb: 50 },
   mediums: [
     { code: "en", label: "English", native_label: "English" },
     { code: "hi", label: "Hindi", native_label: "हिन्दी" },

@@ -74,6 +74,8 @@ export interface ClassOption {
 
 export interface OnboardingOptions {
   classes: ClassOption[];
+  material_types: Option[];
+  upload: { accepted_extensions: string[]; max_file_mb: number };
   boards: Option[];
   streams: Option[];
   goals: Option[];
@@ -100,6 +102,153 @@ export interface ClassProfile {
   label: string;
   ui_mode: UIMode;
   features: ClassFeatures;
+  question_formats: string[];
+  default_session_questions: number;
+  max_session_questions: number;
+}
+
+// ---- My Books (docs/03 §3.3)
+
+export interface Source {
+  book_id: string;
+  book_title: string;
+  chapter: string | null;
+  exercise: string | null;
+  page: number | null;
+}
+
+export type DocumentStatus = "queued" | "processing" | "ready" | "failed";
+
+export interface BookDocument {
+  id: string;
+  original_filename: string;
+  status: DocumentStatus;
+  progress: { step: string; state: "pending" | "active" | "done" | "failed" }[];
+  error: { code: string; message: string } | null;
+  summary: { chapters: number | null; exercises: number | null; questions: number | null };
+}
+
+export interface Book {
+  id: string;
+  title: string;
+  subject: string;
+  class_label: string;
+  student_id: string | null;
+  status: string;
+  chapter_count: number;
+  documents: BookDocument[];
+}
+
+export interface Chapter {
+  id: string;
+  book_id: string;
+  label: string;
+  page_start: number | null;
+  page_end: number | null;
+  topic_count: number;
+  exercise_count: number;
+  question_count: number;
+}
+
+export interface Exercise {
+  id: string;
+  label: string;
+  title: string;
+  page_start: number | null;
+  question_count: number;
+}
+
+export interface ChapterDetail extends Chapter {
+  topics: { id: string; number: string | null; title: string }[];
+  exercises: Exercise[];
+}
+
+export interface ExerciseDetail extends Exercise {
+  questions: {
+    id: string;
+    number: string | null;
+    text: string;
+    instructions: string | null;
+    page_start: number | null;
+  }[];
+}
+
+// ---- Practice and progress (docs/03 §3.5)
+
+export interface Question {
+  id: string;
+  number: number;
+  format: string;
+  difficulty: string;
+  case: string | null;
+  text: string;
+  options: string[];
+  match_left: string[];
+  match_right: string[];
+  unit: string | null;
+  source: Source;
+}
+
+export interface PracticeItem {
+  question: Question;
+  attempts: number;
+  correct: boolean | null;
+  hints_shown: number;
+  hints_total: number;
+  steps_shown: boolean;
+  answer_shown: boolean;
+}
+
+export interface PracticeSession {
+  id: string;
+  student_id: string;
+  status: "preparing" | "ready" | "completed" | "failed";
+  error: { code: string; message: string } | null;
+  question_count: number;
+  items: PracticeItem[];
+  answered: number;
+  correct: number;
+}
+
+export interface AnswerResult {
+  correct: boolean;
+  try_again: boolean;
+  feedback: string | null;
+  correct_answer: string | null;
+  session_completed: boolean;
+}
+
+export interface Help {
+  hint: string | null;
+  hints_left: number;
+  concept: string | null;
+  steps: string[];
+  final_answer: string | null;
+}
+
+export interface Explanation {
+  explanation: string;
+  steps: string[];
+  sources: Source[];
+}
+
+export interface Progress {
+  questions_answered: number;
+  correct_first_time: number;
+  accuracy: number | null;
+  time_spent_ms: number;
+  hints_used: number;
+  sessions_completed: number;
+  by_chapter: { id: string; name: string; attempted: number; accuracy: number }[];
+  by_topic: { id: string; name: string; attempted: number; accuracy: number }[];
+  recent_sessions: {
+    id: string;
+    status: PracticeSession["status"];
+    questions: number;
+    answered: number;
+    correct: number;
+    created_at: string;
+  }[];
 }
 
 export interface ApiErrorBody {

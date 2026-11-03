@@ -6,8 +6,12 @@ Creates (only if they do not exist yet):
 
     parent@example.com  / DemoParent123     Sunita Sharma, with two children:
                                             Aarav (Class 7, CBSE) and Anaya (UKG),
-                                            and a sample book for Aarav in "My Books"
+                                            a sample book for each in "My Books", and
+                                            demo practice questions for both books
     student@example.com / DemoStudent123    Kabir Verma, Class 12 Science, preparing for JEE
+
+The demo practice questions (scripts/demo_questions.py) let practice work without an AI key.
+Each learner is given a question only once, so they last for a few sessions per child.
 
 These passwords are public. The script refuses to run in production.
 """
@@ -25,19 +29,25 @@ from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.core.enums import Board, ClassLevel, Goal, MaterialType, Role, Stream
 from app.core.tasks import get_task_queue
-from app.models import Book, Student, User
+from app.models import Book, Chapter, DocumentChunk, Exercise, PracticeSession, Question, Student, User
+from app.question_generation.schemas import GeneratedQuestion
 from app.schemas.auth import RegisterRequest
 from app.schemas.library import BookCreate
 from app.schemas.student import StudentCreate, StudentProfileIn
-from app.services import document_service, library_service, student_service
+from app.services import document_service, library_service, practice_service, student_service
 from app.storage import get_file_storage
+from scripts.demo_questions import CLASS_7_MATHS, UKG_PICTURES
 
 PARENT_EMAIL = "parent@example.com"
 PARENT_PASSWORD = "DemoParent123"
 STUDENT_EMAIL = "student@example.com"
 STUDENT_PASSWORD = "DemoStudent123"
-SAMPLE_BOOK_TITLE = "Sample: Class 7 Mathematics"
-SAMPLE_BOOK_FILE = Path(__file__).parent / "sample_data" / "class7-maths-sample.txt"
+SAMPLE_DATA = Path(__file__).parent / "sample_data"
+# (child, title, subject, file, demo questions)
+SAMPLE_BOOKS = [
+    ("Aarav", "Sample: Class 7 Mathematics", "Mathematics", "class7-maths-sample.txt", CLASS_7_MATHS),
+    ("Anaya", "Sample: UKG Picture Book", "Hindi", "ukg-picture-book-sample.txt", UKG_PICTURES),
+]
 
 CHILDREN = [
     StudentCreate(
@@ -117,41 +127,82 @@ async def _seed_solo_student() -> None:
         print(f"+ {STUDENT_EMAIL} / {STUDENT_PASSWORD}  (Kabir - Class 12 Science, JEE)")
 
 
-async def _seed_sample_book() -> None:
-    """A small sample chapter for Aarav, so "My Books" has something to show."""
+async def _seed_sample_book(child_name: str, title: str, subject: str, file_name: str) -> Book | None:
+    """A small sample chapter for one child, read now instead of in the background."""
     async with SessionLocal() as db:
         user = await db.scalar(select(User).where(User.email == PARENT_EMAIL))
         if user is None:
-            return
-        if await db.scalar(
-            select(Book.id).where(Book.owner_user_id == user.id, Book.title == SAMPLE_BOOK_TITLE)
-        ):
-            print(f"= {SAMPLE_BOOK_TITLE} already exists")
-            return
+            return None
+        existing = await db.scalar(select(Book).where(Book.owner_user_id == user.id, Book.title == title))
+        if existing is not None:
+            print(f"= {title} already exists")
+            return existing
         principal = Principal(user=user, role=Role.PARENT)
-        aarav = next(s for s in await student_service.list_students(db, principal) if s.name == "Aarav")
+        child = next(s for s in await student_service.list_students(db, principal) if s.name == child_name)
         book = await library_service.create_book(
             db,
             principal,
             BookCreate(
-                title=SAMPLE_BOOK_TITLE,
-                subject="Mathematics",
-                material_type=MaterialType.TEXTBOOK,
-                student_id=aarav.id,
+                title=title, subject=subject, material_type=MaterialType.TEXTBOOK, student_id=child.id
             ),
         )
-        upload = UploadFile(io.BytesIO(SAMPLE_BOOK_FILE.read_bytes()), filename=SAMPLE_BOOK_FILE.name)
+        file = SAMPLE_DATA / file_name
+        upload = UploadFile(io.BytesIO(file.read_bytes()), filename=file.name)
         queue = get_task_queue()
         document = await document_service.upload_document(
             db, principal, book.id, upload, storage=get_file_storage(), queue=queue
         )
-        await queue.wait_idle()  # read the book now instead of in the background
+        await queue.wait_idle()
         await db.refresh(document)
         found = document.stats
         print(
-            f"+ {SAMPLE_BOOK_TITLE} for Aarav ({document.status}: {found.get('chapters', 0)} chapter, "
+            f"+ {title} for {child_name} ({document.status}: {found.get('chapters', 0)} chapter, "
             f"{found.get('exercises', 0)} exercises, {found.get('questions', 0)} questions)"
         )
+        return book
+
+
+async def _seed_demo_questions(book: Book, questions: list[tuple[str | None, GeneratedQuestion]]) -> None:
+    """Puts the hand-written questions in the family's question bank, as if the AI had written them."""
+    async with SessionLocal() as db:
+        if await db.scalar(select(Question.id).where(Question.book_id == book.id).limit(1)):
+            print(f"= practice questions for {book.title} already exist")
+            return
+        child = await db.get(Student, book.student_id)
+        chapter = await db.scalar(
+            select(Chapter).where(Chapter.book_id == book.id).order_by(Chapter.position)
+        )
+        if child is None or child.profile is None or chapter is None:
+            print(f"! {book.title} has no chapter; no practice questions added")
+            return
+        exercises = {
+            exercise.label: exercise
+            for exercise in await db.scalars(select(Exercise).where(Exercise.chapter_id == chapter.id))
+        }
+        for exercise_label, generated in questions:
+            exercise = exercises.get(exercise_label) if exercise_label else None
+            place = (
+                DocumentChunk.exercise_id == exercise.id
+                if exercise
+                else DocumentChunk.chapter_id == chapter.id
+            )
+            chunk = await db.scalar(
+                select(DocumentChunk)
+                .where(DocumentChunk.book_id == book.id, place)
+                .order_by(DocumentChunk.position)
+            )
+            assert chunk is not None
+            # A stand-in session: only the place and the language are read from it.
+            session = PracticeSession(
+                exercise_id=exercise.id if exercise else None, language=child.profile.primary_language
+            )
+            question = practice_service.to_question(
+                generated, book.owner_user_id, session, child, {"S1": chunk}
+            )
+            question.validation = {"checked_by": "written by hand (demo data)"}
+            db.add(question)
+        await db.commit()
+        print(f"+ {len(questions)} demo practice questions for {book.title}")
 
 
 async def main() -> None:
@@ -160,10 +211,13 @@ async def main() -> None:
     try:
         await _seed_parent()
         await _seed_solo_student()
-        await _seed_sample_book()
+        for child_name, title, subject, file_name, questions in SAMPLE_BOOKS:
+            book = await _seed_sample_book(child_name, title, subject, file_name)
+            if book is not None:
+                await _seed_demo_questions(book, questions)
     finally:
         await engine.dispose()
-    print("Done. Sign in at http://localhost:8000/docs -> POST /api/v1/auth/login")
+    print("Done. Sign in at http://localhost:3000 (or the API at http://localhost:8000/docs)")
 
 
 if __name__ == "__main__":

@@ -171,7 +171,7 @@ async def _passages(
     return retrieval.build_context(found, token_budget=budget)
 
 
-def _to_question(
+def to_question(
     generated: GeneratedQuestion,
     owner: uuid.UUID,
     session: PracticeSession,
@@ -273,7 +273,7 @@ async def prepare_session(db: AsyncSession, *, session_id: uuid.UUID) -> None:
             await _fail(db, session_id, "generation_failed")
             return
         chunks = {passage.tag: passage.chunk for passage in passages}
-        questions = [_to_question(q, owner, session, student, chunks) for q in written]
+        questions = [to_question(q, owner, session, student, chunks) for q in written]
         db.add_all(questions)
         await db.flush()
         _add_items(db, session, questions, have)
