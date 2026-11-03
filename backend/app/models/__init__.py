@@ -6,6 +6,7 @@ always knows about all tables.
 
 from app.models.adaptive import Recommendation, StudentMastery
 from app.models.base import Base
+from app.models.chat import ChatMessage, ChatSession
 from app.models.library import Book, Chapter, Document, DocumentChunk, Exercise, Topic
 from app.models.mock_test import MockTest, MockTestAttempt, MockTestQuestion
 from app.models.practice import PracticeItem, PracticeSession, Question, QuestionAttempt
@@ -17,6 +18,8 @@ __all__ = [
     "Base",
     "Book",
     "Chapter",
+    "ChatMessage",
+    "ChatSession",
     "Document",
     "DocumentChunk",
     "Exercise",

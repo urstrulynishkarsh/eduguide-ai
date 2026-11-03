@@ -239,9 +239,22 @@ Changed from the plan: real `book_id` / `chapter_id` / `topic_id` columns (`ON D
 instead of a `task` jsonb, as for recommendations — a deleted book takes its tasks with it; the
 request bodies for the screens are built when the plan is read.
 
-## 2.7 The whole picture
+## 2.7 Tables added in Step 9 — conversations
 
-Tables marked with a step number do not exist yet.
+Migration `0007`. A conversation is about one learner and goes with them (`ON DELETE CASCADE`).
+
+| Table | Columns |
+|---|---|
+| `chat_sessions` | `student_id`; `kind` `assistant` (a parent asking about this child) / `tutor` (the learner's tutor); `title` (the first question, shortened); the tutor's state: `problem` (the problem in hand), `rung` (how far up the hint ladder its help has gone, a position in `hint_1 … answer`), `hints_only` |
+| `chat_messages` | `session_id`, `role` `user` / `assistant`, `content`, `sources` jsonb (the books a reply was based on), `rung` (tutor replies: the help they gave) |
+
+Changed from the plan: no `owner_user_id` — who may see a conversation follows its learner (a
+parent sees their children's; a learner sees only their own tutor). A question and its reply are
+stored together, once the reply is complete.
+
+## 2.8 The whole picture
+
+Every table built so far (the planned ones are in 2.9).
 
 ```mermaid
 erDiagram
@@ -280,15 +293,14 @@ erDiagram
     study_plans ||--o{ study_plan_items : contains
     chapters ||--o{ study_plan_items : "points to"
 
-    users ||--o{ chat_sessions : "talks in (Step 9)"
+    students ||--o{ chat_sessions : "talked about in"
     chat_sessions ||--o{ chat_messages : contains
 ```
 
-## 2.8 Planned tables
+## 2.9 Planned tables
 
 | Table | Step | Purpose | Important columns |
 |---|---|---|---|
-| `chat_sessions`, `chat_messages` | 9 | Parent assistant and student tutor conversations | `owner_user_id`, `student_id`, `kind`, `role`, `content`, `sources` jsonb |
 | `student_misconceptions` | 10 | Repeated wrong patterns | `student_id`, `topic_id`, `pattern`, `evidence` jsonb, `status` |
 | gamification tables | 11 | Streaks, XP, badges | decided in that step |
 
@@ -302,7 +314,7 @@ parent should see *one* "Class 8 Mathematics" in the library even if it arrived 
 the same query that ranks by similarity (spec §16). Copying three short columns avoids three joins
 on the hottest query in the system.
 
-## 2.9 Changing the schema
+## 2.10 Changing the schema
 
 ```bash
 # inside backend/, after editing a model in app/models/

@@ -268,16 +268,24 @@ async def create_plan(db: AsyncSession, principal: Principal, data: StudyPlanCre
     return await _view(db, plan, student, today)
 
 
-async def get_plan(db: AsyncSession, principal: Principal, student_id: uuid.UUID) -> StudyPlanOut:
-    student = student_service.require_profile(await student_service.get_student(db, principal, student_id))
+async def current_plan(db: AsyncSession, student: Student) -> StudyPlanOut | None:
+    """The learner's plan, planned again first if this is the first visit of the day."""
     plan = await db.scalar(select(StudyPlan).where(StudyPlan.student_id == student.id))
     if plan is None:
-        raise _plan_not_found()
+        return None
     today = recommendations.today()
     if plan.planned_on < today:
         await _replan(db, plan, student, today)
         await db.commit()
     return await _view(db, plan, student, today)
+
+
+async def get_plan(db: AsyncSession, principal: Principal, student_id: uuid.UUID) -> StudyPlanOut:
+    student = student_service.require_profile(await student_service.get_student(db, principal, student_id))
+    plan = await current_plan(db, student)
+    if plan is None:
+        raise _plan_not_found()
+    return plan
 
 
 async def update_item(db: AsyncSession, principal: Principal, item_id: uuid.UUID, status: str) -> PlanItemOut:

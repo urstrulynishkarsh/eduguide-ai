@@ -60,12 +60,15 @@ class FakeEmbeddings:
 
 
 class FakeLLM:
-    """Answers each schema with the next scripted output, and records every request."""
+    """Answers each schema with the next scripted output, streams the next scripted reply word by
+    word, and records every request. A reply can be a list of text and errors, raised where they
+    stand (an error first = the stream fails at once)."""
 
     request_size = RequestSize()
 
-    def __init__(self, *outputs: BaseModel) -> None:
+    def __init__(self, *outputs: BaseModel, replies: Sequence[str | Exception | list] = ()) -> None:
         self.outputs = list(outputs)
+        self.replies = list(replies)
         self.requests: list[dict] = []
 
     async def generate_structured(self, *, system, messages, schema, tier="default", max_output_tokens=16000):
@@ -73,6 +76,15 @@ class FakeLLM:
         output = next(item for item in self.outputs if isinstance(item, schema))
         self.outputs.remove(output)
         return LLMResult(output=output, model="fake", input_tokens=0, output_tokens=0, latency_ms=0.0)
+
+    async def stream_text(self, *, system, messages, tier="default", max_output_tokens=16000):
+        self.requests.append({"system": system, "messages": list(messages), "schema": None, "tier": tier})
+        reply = self.replies.pop(0)
+        for part in reply if isinstance(reply, list) else [reply]:
+            if isinstance(part, Exception):
+                raise part
+            for piece in re.findall(r"\S+\s*", part):
+                yield piece
 
 
 def make_question(**overrides: object) -> GeneratedQuestion:

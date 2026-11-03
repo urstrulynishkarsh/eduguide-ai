@@ -163,9 +163,14 @@ async def _seed_sample_book(child_name: str, title: str, subject: str, file_name
 
 
 async def _seed_demo_questions(book: Book, questions: list[tuple[str | None, GeneratedQuestion]]) -> None:
-    """Puts the hand-written questions in the family's question bank, as if the AI had written them."""
+    """Puts the hand-written questions in the family's question bank, as if the AI had written them.
+    Run again, it adds only those not there yet (new demo questions reach an existing database)."""
     async with SessionLocal() as db:
-        if await db.scalar(select(Question.id).where(Question.book_id == book.id).limit(1)):
+        there = set(
+            (await db.scalars(select(Question.body["text"].astext).where(Question.book_id == book.id))).all()
+        )
+        questions = [(label, question) for label, question in questions if question.text not in there]
+        if not questions:
             print(f"= practice questions for {book.title} already exist")
             return
         child = await db.get(Student, book.student_id)

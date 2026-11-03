@@ -57,7 +57,7 @@ Every error, from every endpoint, has this shape:
 | 404 | `practice_not_found` · `question_not_found` | No such practice (or another family's), or the question is not in it |
 | 422 | `question_type_not_for_class` | The question type is not used for the learner's class (e.g. `numerical` in Class 7) |
 | 422 | `practice_not_ready` · `answer_does_not_fit` | The practice is still `preparing`; the answer does not fit the question's format (practice and tests) |
-| 404 | `test_not_found` · `test_attempt_not_found` · `study_plan_not_found` · `plan_item_not_found` | No such test, sitting, plan or plan task (or another family's) |
+| 404 | `test_not_found` · `test_attempt_not_found` · `study_plan_not_found` · `plan_item_not_found` · `chat_not_found` | No such test, sitting, plan, plan task or conversation (or another family's) |
 | 422 | `test_not_for_class` | The kind of test, or a time limit, is not used for the learner's class (`details` names `kind` or `duration_minutes`) |
 | 422 | `test_not_ready` · `test_time_over` · `test_already_submitted` · `test_not_submitted` | Started while still `preparing`; an answer after the deadline; an answer after submitting; a report before submitting |
 | 422 | `ai_declined` | The AI declined the request for safety reasons |
@@ -595,14 +595,85 @@ the task `done`; learn tasks are ticked off with `PATCH`.
 `practice` goes as-is to `POST /practice/sessions`, `revise` to `POST /learn/explain`, `test` to
 `POST /mock-tests`.
 
-## 3.8 Planned endpoints
+## 3.8 Endpoints added in Step 9 — Dashboard, assistant and tutor
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| GET | `/api/v1/students/{id}/dashboard` | owner | The parent dashboard in one call |
+| POST | `/api/v1/chat/sessions` | see below | A new conversation: `{"kind": "assistant" \| "tutor", "student_id"}` |
+| GET | `/api/v1/chat/sessions?kind=&student_id=` | see below | Conversations, newest first (`?limit=&cursor=`) |
+| GET | `/api/v1/chat/sessions/{id}` | see below | A conversation with its messages, oldest first |
+| DELETE | `/api/v1/chat/sessions/{id}` | see below | Remove it |
+| POST | `/api/v1/chat/sessions/{id}/messages` | see below | `{"text"}`; the reply **streams back** (Server-Sent Events) |
+
+### Dashboard
+
+```json
+{
+  "student_id": "…",
+  "week": [ { "day": "2026-10-29", "answered": 0, "correct": 0, "minutes": 0 }, "… 7 days, oldest first" ],
+  "strong": [ "AreaMastery, up to 3, strongest first (as in GET …/mastery)" ],
+  "needs_attention": [ "AreaMastery, up to 3, weakest first" ],
+  "recommendations": [ "today's RecommendationOut list; the first is the one to start with" ],
+  "tests": [ { "attempt_id": "…", "mock_test_id": "…", "kind": "chapter", "place": "Chapter 4 …",
+               "score": 6.5, "total_marks": 12, "percentage": 54.2, "submitted_at": "…" } ],
+  "plan": { "plan_id": "…", "exam_date": "2026-12-10", "days_left": 36, "done": 3, "total": 24,
+            "today": [ "PlanItemOut …" ] }
+}
+```
+
+`week` counts first answers (practice and tests) by day in India time, and minutes from every
+answer. Reading the dashboard makes today's recommendations and re-plans the study plan on the
+first visit of a day, as their own endpoints do. `plan` is `null` without a plan.
+
+### Conversations
+
+**Who:** `assistant` conversations are for a parent, about one of their children (a student or
+child-mode session gets `403 parent_required`). `tutor` conversations belong to a learner: a child
+in child mode or a student who signed up alone uses its own, and the parent may read them too.
+Anyone else gets `404 chat_not_found`.
+
+**A message.** A small, fast AI call first works out what was asked; the child's books are searched
+when needed; then the reply streams back as Server-Sent Events:
+
+```
+event: delta
+data: {"text": "Equation ek balance hai"}
+
+event: done
+data: {"question": {ChatMessageOut}, "answer": {ChatMessageOut}}
+```
+
+or `event: error` with `{"code", "message"}` (busy, declined). The question and the reply are saved
+together only with `done`: after an `error` nothing is saved and the text can be sent again. Errors
+found before the reply starts are ordinary JSON errors: `503 ai_not_configured`, `422
+insufficient_context` (the tutor asked about something the books do not cover).
+
+```json
+{ "id": "…", "role": "assistant", "content": "Equation ek balance hai…",
+  "sources": [ { "book_title": "Class 7 Mathematics", "chapter": "Chapter 4 Simple Equations", "page": 61, "…": "…" } ],
+  "rung": "hint_1", "created_at": "…" }
+```
+
+Replies mark the book passages they use (`[S1]`); the marks are taken out of `content` and become
+`sources`.
+
+**The tutor's hint ladder** (docs/06 §6.5): `rung` says how much help a reply gave —
+`hint_1` → `hint_2` → `concept` → `steps` → `answer`. A new problem starts at `hint_1`; each request
+for more help, "just tell me the answer" included, moves one rung; "hints only" stops at `hint_2`
+for that problem; an attempt is checked, and if wrong, answered with the next rung. Concept
+questions, chat and off-topic messages have `rung: null`.
+
+**The parent assistant** answers from the app's own numbers (the dashboard, every topic practised,
+overall progress) and, for questions about the books, from the child's books with sources. The
+child's name is not sent to the AI.
+
+## 3.9 Planned endpoints
 
 Paths may still change slightly in the step that builds them; the shape of the plan will not.
 
 | Step | Method and path | Purpose |
 |---|---|---|
-| 9 | `POST /chat/sessions` · `POST /chat/sessions/{id}/messages` (streamed) | Parent assistant and student tutor |
-| 9 | `GET /students/{id}/dashboard` | Parent dashboard in one call |
 | 10 | `POST /books/{id}/paper-analysis` | Previous-year paper trends and a matching practice test |
 
 Rules that will hold for all of them:

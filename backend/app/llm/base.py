@@ -4,7 +4,7 @@ Business code imports only from here. Every answer is parsed into a Pydantic mod
 anyone uses it; free text is never trusted as structured data.
 """
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Generic, Literal, Protocol, TypeVar
 
@@ -54,6 +54,19 @@ class LLMProvider(Protocol):
         tier: ModelTier = "default",
         max_output_tokens: int = 16000,
     ) -> LLMResult[T]: ...
+
+    def stream_text(
+        self,
+        *,
+        system: str,
+        messages: Sequence[Message],
+        tier: ModelTier = "default",
+        max_output_tokens: int = 16000,
+    ) -> AsyncIterator[str]:
+        """A chat reply, piece by piece as it is written: free text shown directly to a person.
+        Raises AIUnavailableError, or AIDeclinedError when the model declines (possibly after some
+        pieces: the caller discards them)."""
+        ...
 
 
 class AINotConfiguredError(AppError):

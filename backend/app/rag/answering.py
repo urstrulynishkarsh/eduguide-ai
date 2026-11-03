@@ -57,6 +57,11 @@ class Explanation(BaseModel):
     sources_used: list[str] = Field(description='Tags of the passages used, e.g. ["S1", "S3"].')
 
 
+def write_in(language: str) -> str:
+    """The instruction for the language of a reply ("en", "hi", "hinglish")."""
+    return f"Write in {_LANGUAGE.get(language, 'English')}."
+
+
 def learner_profile(profile: ClassProfile, student: StudentProfile) -> str:
     lines = [
         f"Class: {ClassLevel(student.class_level).label} (age {profile.age_range}), "
@@ -124,7 +129,7 @@ async def explain(
         for part in (
             "Explain the student's question using only the passages.",
             _STYLE[style],
-            f"Write in {_LANGUAGE.get(language, 'English')}.",
+            write_in(language),
         )
         if part
     )

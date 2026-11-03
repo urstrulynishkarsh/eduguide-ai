@@ -6,13 +6,16 @@ same rule. Test answers count like practice answers; the sessions listed are pra
 """
 
 import uuid
+from datetime import date, timedelta
 
-from sqlalchemy import Integer, Subquery, cast, func, select
+from sqlalchemy import ColumnElement, Date, Integer, Subquery, cast, func, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Chapter, PracticeItem, PracticeSession, Question, QuestionAttempt, Topic
+from app.models.base import utcnow
 from app.rag.ingestion.labels import chapter_label
+from app.schemas.dashboard import DayProgress
 from app.schemas.practice import AreaProgress, ProgressOut, SessionSummary
 
 _RECENT_SESSIONS = 5
@@ -114,3 +117,47 @@ async def progress(db: AsyncSession, student_id: uuid.UUID) -> ProgressOut:
             for session, count, answered_count, correct_count in recent
         ],
     )
+
+
+def _india_day(moment: ColumnElement) -> ColumnElement[date]:
+    return cast(func.timezone("Asia/Kolkata", moment), Date)
+
+
+async def week(db: AsyncSession, student_id: uuid.UUID, today: date) -> list[DayProgress]:
+    """The 7 days up to `today` (India time), oldest first: first answers, how many were right,
+    and the minutes spent answering (every attempt, as in `progress`)."""
+    since = utcnow() - timedelta(days=8)  # a little more than a week, whatever the time zone
+    first = first_answers(student_id)
+    day = _india_day(first.c.created_at).label("day")
+    answers = {
+        row.day: row
+        for row in await db.execute(
+            select(
+                day,
+                func.count().label("answered"),
+                func.sum(cast(first.c.is_correct, Integer)).label("right"),
+            )
+            .where(first.c.created_at >= since)
+            .group_by(day)
+        )
+    }
+    attempt_day = _india_day(QuestionAttempt.created_at).label("day")
+    time_spent = dict(
+        (
+            await db.execute(
+                select(attempt_day, func.sum(QuestionAttempt.time_taken_ms))
+                .where(QuestionAttempt.student_id == student_id, QuestionAttempt.created_at >= since)
+                .group_by(attempt_day)
+            )
+        ).all()
+    )
+    days = [today - timedelta(days=back) for back in range(6, -1, -1)]
+    return [
+        DayProgress(
+            day=day,
+            answered=answers[day].answered if day in answers else 0,
+            correct=answers[day].right if day in answers else 0,
+            minutes=round((time_spent.get(day) or 0) / 60000),
+        )
+        for day in days
+    ]

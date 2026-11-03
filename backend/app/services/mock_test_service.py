@@ -43,6 +43,7 @@ from app.models import (
 from app.models.base import utcnow
 from app.question_generation import checking, paper
 from app.rag.ingestion.labels import chapter_label, topic_label
+from app.schemas.dashboard import TestResult
 from app.schemas.library import DocumentError
 from app.schemas.mock_test import (
     AreaResult,
@@ -309,6 +310,38 @@ async def list_tests(
         db, select(MockTest).where(MockTest.student_id == student.id), MockTest, limit=limit, cursor=cursor
     )
     return MockTestPage(items=await _summaries(db, tests), next_cursor=next_cursor)
+
+
+async def recent_results(db: AsyncSession, student_id: uuid.UUID, limit: int = 3) -> list[TestResult]:
+    """The learner's last submitted sittings, newest first."""
+    rows = (
+        await db.execute(
+            select(MockTestAttempt, MockTest)
+            .join(MockTest, MockTest.id == MockTestAttempt.mock_test_id)
+            .where(MockTestAttempt.student_id == student_id, MockTestAttempt.submitted_at.is_not(None))
+            .order_by(MockTestAttempt.submitted_at.desc())
+            .limit(limit)
+        )
+    ).all()
+    tests = {test.id: test for _, test in rows}
+    summaries = {summary.id: summary for summary in await _summaries(db, list(tests.values()))}
+    results = []
+    for attempt, test in rows:
+        summary = summaries[test.id]
+        assert attempt.submitted_at is not None and attempt.score is not None
+        results.append(
+            TestResult(
+                attempt_id=attempt.id,
+                mock_test_id=test.id,
+                kind=test.kind,
+                place=summary.topic or summary.chapter or summary.book_title,
+                score=attempt.score,
+                total_marks=summary.total_marks,
+                percentage=round(attempt.score / summary.total_marks * 100, 1) if summary.total_marks else 0,
+                submitted_at=attempt.submitted_at,
+            )
+        )
+    return results
 
 
 # ---------------------------------------------------------------------------- taking it

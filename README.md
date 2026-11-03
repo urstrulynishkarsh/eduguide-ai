@@ -240,7 +240,7 @@ temporary child, practises with the demo questions, and removes the child again.
 |---|---|
 | Start the API | `uvicorn app.main:app --reload` |
 | Apply database changes | `alembic upgrade head` |
-| Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0007` (the next free number) |
+| Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0008` (the next free number) |
 | Undo the last migration | `alembic downgrade -1` |
 | Make every book searchable again (after an upgrade or a search-model change) | `python -m scripts.reembed` |
 | Measure search quality on the sample book | `python -m scripts.eval_retrieval` |

@@ -272,7 +272,78 @@ machine's database at the end of the step), `pytest`. No new libraries and no fr
 
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 8.*
+*Rewritten at the end of every step. Last updated: end of Step 8, plus the Step 9 progress note below.*
+
+### Step 9 in progress: Part A (backend) done — say "continue step 9" for Part B (frontend)
+
+Step 9 was split in two (agreed plan). **Part A is done and tested**: 343 backend tests pass
+(`pytest`), `ruff` clean. Commit it before Part B. To update a Step 8 setup: `alembic upgrade head`
+(migration 0007), `python -m scripts.seed` (adds the 7 new demo questions; nothing else changes).
+This machine's database is already upgraded and seeded.
+
+What Part A added:
+
+```
+backend/
+├── alembic/versions/0007_chat.py         chat_sessions, chat_messages
+├── app/llm/base.py · anthropic_provider.py · groq_provider.py
+│                                         stream_text(): chat replies piece by piece (same fallback,
+│                                         effort and caching settings as the structured calls)
+├── app/analytics/progress.py             week(): the last 7 days (India time)
+├── app/schemas/dashboard.py · services/dashboard_service.py · api/v1/dashboard.py
+│                                         GET /students/{id}/dashboard (snapshot() is shared)
+├── app/chat/tutor.py                     the hint ladder (next_step: code decides the rung) + prompts
+├── app/chat/assistant.py                 the parent assistant's prompts and <child_data> facts
+├── app/models/chat.py · schemas/chat.py · services/chat_service.py · api/v1/chat.py
+│                                         conversations; POST …/messages streams Server-Sent Events
+├── app/services/learn_service.py         learner_books(), book_languages(), find_passages() shared
+├── app/services/mock_test_service.py     recent_results()
+├── app/services/study_plan_service.py    current_plan() (the plan, re-planned if a new day)
+├── scripts/demo_questions.py · seed.py   4 short + 3 long Class 7 questions; the seed adds only
+│                                         the demo questions not there yet
+└── tests/                                test_dashboard, test_chat, test_tutor, test_citations;
+                                          streaming in test_llm / test_groq / tests/live
+```
+
+Endpoints: docs/03 §3.8. Tables: docs/02 §2.7. How the tutor and the assistant work: docs/06 §6.5.
+SSE events: `delta {"text"}`, then `done {"question", "answer"}` (both saved, the answer with
+`sources` and the tutor's `rung`) or `error {"code", "message"}` (nothing saved). Errors before the
+reply starts are JSON (503 `ai_not_configured`, 422 `insufficient_context`, 404 `chat_not_found`,
+403 `parent_required` for a learner opening an assistant conversation).
+
+Checked on the real server with Groq: the dashboard, an assistant answer (first text after 1.7 s),
+tutor Hint 1 then — for "just tell me the answer" — Hint 2. After that run the rung instructions
+were made stricter ("Not allowed: …", two to four sentences) and citations like "(see [S1])" are
+now removed whole; **neither change has been tried on a real model yet**, because Groq's free daily
+allowance for `gpt-oss-120b` (200,000 tokens) ran out during the check. It resets over 24 hours.
+
+**Part B — the frontend (the agreed plan):**
+- **First, Node 24** (Vitest needs ≥ 22; this Mac has 21.5). Still to be answered: may Claude run
+  `brew install node@24` (keg-only: `node` stays 21 and 24 is used only for this project's
+  commands), or will you install Node 24 LTS from nodejs.org?
+- Menus: Mock Tests, Study Plans, AI Assistant (parent) and Tests, Study Plan, AI Tutor (learner)
+  lose "Soon". The tutor stays in the Class 6–12 menus only (docs/04 §4.4).
+- Parent: the full dashboard (`GET …/dashboard`: week bars, strong / needs attention, Recommended
+  with **Start Recommended Practice** → the practice page with "Start now with …", recent tests,
+  today's plan); Mock Tests (list, Create Test, a test with **Start now with {child}** — child mode,
+  then `POST /mock-tests/{id}/attempts` as the child — its sittings and reports); Study Plans (the
+  plan by day, Make a plan); AI Assistant (conversations, streamed answers with sources, suggested
+  questions); the chapter page's **Take Test** (chapter test from Class 6, practice test of the
+  chapter in Class 3–5, hidden below); Progress + topics and recent tests.
+- Learner: home **Recommended for You** and **Today's plan**; Tests (list, the test screen: timer
+  from `deadline` / `seconds_left` for Class 9+, sections, a question grid, `PUT` each answer as
+  chosen, auto-submit at 0, `GET /test-attempts/{id}` after a reload, then the report); Study Plan
+  (today's tasks with Start and ✓ Done; learn tasks open Learn a Concept with the question filled
+  in; a solo student can make a plan); AI Tutor (streamed replies, the rung as a label).
+- Streaming: a route handler `app/api/chat/[chatId]/messages/route.ts` passes the backend's stream
+  through, like the upload route; include `/api/chat` in the proxy's matcher so tokens are renewed
+  (it excludes all of `/api/` today because the upload must not be buffered).
+- Tests: unit (the stream reader, the test timer and answers, the report, the plan view, the
+  dashboard) and browser journeys (a parent makes a chapter test and the child takes it — answer only
+  objective questions, written ones need the AI — then the report; a plan and today's tasks; Start
+  Recommended Practice; assistant and tutor say the AI is off). Every new page gets `loading.tsx`;
+  all wording in `lib/copy.ts`.
+- At the end: docs/04 routes, README, CLAUDE.md "What exists so far", this file (Step 9 ✅).
 
 ### Where things stand
 

@@ -7,6 +7,8 @@ from app.api.v1 import (
     auth,
     books,
     chapters,
+    chat,
+    dashboard,
     documents,
     learn,
     meta,
@@ -34,6 +36,8 @@ api_v1_router.include_router(chapters.router)
 api_v1_router.include_router(learn.router)
 api_v1_router.include_router(practice.router)
 api_v1_router.include_router(adaptive.router)
+api_v1_router.include_router(dashboard.router)
+api_v1_router.include_router(chat.router)
 api_v1_router.include_router(mock_tests.router)
 api_v1_router.include_router(study_plans.router)
 api_v1_router.include_router(meta.router)

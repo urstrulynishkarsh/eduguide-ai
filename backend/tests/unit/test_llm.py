@@ -26,11 +26,38 @@ def _response(parsed: Answer | None, stop_reason: str = "end_turn") -> SimpleNam
     )
 
 
-class StubClient:
-    def __init__(self, result: object) -> None:
+class StubStream:
+    """What `client.beta.messages.stream(...)` gives inside `async with`."""
+
+    request_id = "req_2"
+
+    def __init__(self, result: object, pieces: list[str]) -> None:
         self.result = result
+        self.pieces = pieces
+
+    async def __aenter__(self) -> "StubStream":
+        if isinstance(self.result, Exception):  # the request is sent on entering
+            raise self.result
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+    @property
+    async def text_stream(self):
+        for piece in self.pieces:
+            yield piece
+
+    async def get_final_message(self) -> object:
+        return self.result
+
+
+class StubClient:
+    def __init__(self, result: object, pieces: list[str] | None = None) -> None:
+        self.result = result
+        self.pieces = pieces or []
         self.calls: list[dict] = []
-        self.beta = SimpleNamespace(messages=SimpleNamespace(parse=self._parse))
+        self.beta = SimpleNamespace(messages=SimpleNamespace(parse=self._parse, stream=self._stream))
 
     async def _parse(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
@@ -38,9 +65,13 @@ class StubClient:
             raise self.result
         return self.result
 
+    def _stream(self, **kwargs: object) -> StubStream:
+        self.calls.append(kwargs)
+        return StubStream(self.result, self.pieces)
 
-def _provider(result: object) -> tuple[AnthropicProvider, StubClient]:
-    client = StubClient(result)
+
+def _provider(result: object, pieces: list[str] | None = None) -> tuple[AnthropicProvider, StubClient]:
+    client = StubClient(result, pieces)
     models = {"fast": "claude-haiku-5-5", "default": "claude-opus-5-5", "strong": "claude-opus-5-5"}
     return AnthropicProvider(client, models), client  # type: ignore[arg-type]
 
@@ -104,3 +135,35 @@ async def test_provider_failures_become_ai_unavailable(error: Exception):
     provider, _ = _provider(error)
     with pytest.raises(AIUnavailableError):
         await _ask(provider)
+
+
+async def _streamed(provider: AnthropicProvider, received: list[str]) -> None:
+    async for piece in provider.stream_text(system="rules", messages=[Message("user", "hi")]):
+        received.append(piece)
+
+
+async def test_a_streamed_reply_arrives_piece_by_piece_with_the_same_settings():
+    provider, client = _provider(_response(None), pieces=["Pehle ", "dono taraf ", "4 ghatao."])
+
+    received: list[str] = []
+    await _streamed(provider, received)
+
+    assert received == ["Pehle ", "dono taraf ", "4 ghatao."]
+    request = client.calls[0]
+    assert (request["model"], request["output_config"]) == ("claude-opus-5-5", {"effort": "medium"})
+    assert (request["fallbacks"], request["cache_control"]) == ("default", {"type": "ephemeral"})
+    assert request["system"] == "rules" and "output_format" not in request
+
+
+async def test_a_streamed_refusal_is_raised_after_what_was_sent():
+    provider, _ = _provider(_response(None, stop_reason="refusal"), pieces=["Let me"])
+    received: list[str] = []
+    with pytest.raises(AIDeclinedError):
+        await _streamed(provider, received)
+    assert received == ["Let me"]  # the caller discards it
+
+
+async def test_a_failed_stream_becomes_ai_unavailable():
+    provider, _ = _provider(_status_error(anthropic.RateLimitError, 429))
+    with pytest.raises(AIUnavailableError):
+        await _streamed(provider, [])

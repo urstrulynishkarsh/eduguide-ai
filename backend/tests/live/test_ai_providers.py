@@ -101,3 +101,38 @@ async def test_questions_are_written_and_pass_the_independent_review(
 
     assert questions
     assert all(q.format is QuestionFormat.MCQ and q.source_tags == ["S1"] for q in questions)
+
+
+async def test_a_tutor_hint_streams_without_giving_the_answer(provider: LLMProvider):
+    """Streaming on a real model, with the tutor's first rung: a nudge, not the solution."""
+    from app.chat import tutor
+
+    chunk = DocumentChunk(
+        content="To solve an equation we do the same operation on both sides.",
+        context_label="Class 7 · Mathematics · Chapter 4 Simple Equations",
+        page_start=None,
+        position=0,
+        token_count=20,
+        document_id=None,
+    )
+    student = StudentProfile(
+        class_level="class_7", board="cbse", medium="en", primary_language="en", goal="school_exam"
+    )
+    understood = tutor.Understanding(intent="new_problem", hints_only=False, search_query="")
+    step = tutor.next_step(tutor.State(), understood, "Solve 2x + 4 = 10")
+
+    pieces = [
+        piece
+        async for piece in provider.stream_text(
+            system=tutor.system_prompt(get_class_profile(ClassLevel.CLASS_7), student),
+            messages=[
+                Message(
+                    "user", tutor.task(step, "Solve 2x + 4 = 10", build_context([Passage(chunk, 1.0)]), "en")
+                )
+            ],
+        )
+    ]
+
+    reply = "".join(pieces)
+    assert len(pieces) > 1 and reply.strip()
+    assert "x=3" not in reply.replace(" ", "")  # the answer waits for the last rung

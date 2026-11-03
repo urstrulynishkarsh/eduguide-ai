@@ -9,20 +9,56 @@ Logs carry ids, counts, scores and timings only.
 
 import logging
 import time
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import llm
 from app.auth.principal import Principal
-from app.class_profiles import get_class_profile
-from app.core.enums import ClassLevel
 from app.models import Book, Student
 from app.rag import answering, embeddings, retrieval
 from app.schemas.learn import ExplainRequest, ExplainResponse
 from app.services import library_service, student_service
 
 logger = logging.getLogger(__name__)
+
+
+async def learner_books(db: AsyncSession, owner: uuid.UUID, student: Student) -> retrieval.ChunkFilter:
+    """Every book of the learner's class that they may use (the family's and their own)."""
+    book_ids = (
+        await db.scalars(select(Book.id).where(library_service.books_for_learner(owner, student.id)))
+    ).all()
+    assert student.profile is not None
+    return retrieval.ChunkFilter(owner, book_ids=book_ids, class_level=student.profile.class_level)
+
+
+async def book_languages(db: AsyncSession, where: retrieval.ChunkFilter) -> set[str]:
+    return set((await db.scalars(select(Book.language).where(Book.id.in_(where.book_ids or [])))).all())
+
+
+async def find_passages(
+    db: AsyncSession,
+    where: retrieval.ChunkFilter,
+    query: str,
+    *,
+    token_budget: int = retrieval.CONTEXT_TOKEN_BUDGET,
+) -> list[retrieval.Passage]:
+    """The passages that answer `query`, tagged S1, S2...; none when the books do not cover it."""
+    started = time.perf_counter()
+    embedder = embeddings.get_embedding_provider()
+    vector = await embedder.embed_query(query)
+    found = await retrieval.search(db, query_vector=vector, query_text=query, where=where)
+    best = max((passage.similarity for passage in found), default=0.0)
+    logger.info(
+        "Search: %d candidates, best similarity %.3f, %.0f ms",
+        len(found),
+        best,
+        (time.perf_counter() - started) * 1000,
+    )
+    if best < embedder.min_similarity:
+        return []
+    return retrieval.build_context(found, token_budget)
 
 
 async def _filter(
@@ -35,12 +71,7 @@ async def _filter(
     if data.book_id is not None:
         book = await library_service.get_book(db, principal, data.book_id)
         return retrieval.ChunkFilter(principal.user.id, book_ids=[book.id])
-    owner = principal.user.id
-    book_ids = (
-        await db.scalars(select(Book.id).where(library_service.books_for_learner(owner, student.id)))
-    ).all()
-    assert student.profile is not None
-    return retrieval.ChunkFilter(owner, book_ids=book_ids, class_level=student.profile.class_level)
+    return await learner_books(db, principal.user.id, student)
 
 
 async def explain(db: AsyncSession, principal: Principal, data: ExplainRequest) -> ExplainResponse:
@@ -50,30 +81,17 @@ async def explain(db: AsyncSession, principal: Principal, data: ExplainRequest) 
     assert profile is not None
     where = await _filter(db, principal, student, data)
 
-    languages = set((await db.scalars(select(Book.language).where(Book.id.in_(where.book_ids or [])))).all())
-    understood = await answering.understand(data.question, book_languages=languages)
+    understood = await answering.understand(data.question, book_languages=await book_languages(db, where))
     if not understood.on_topic:
         raise retrieval.InsufficientContextError()
-
-    started = time.perf_counter()
-    embedder = embeddings.get_embedding_provider()
-    vector = await embedder.embed_query(understood.search_query)
-    found = await retrieval.search(db, query_vector=vector, query_text=understood.search_query, where=where)
-    best = max((passage.similarity for passage in found), default=0.0)
-    logger.info(
-        "Explain: %d candidates, best similarity %.3f, retrieval %.0f ms",
-        len(found),
-        best,
-        (time.perf_counter() - started) * 1000,
-    )
-    if best < embedder.min_similarity:
+    passages = await find_passages(db, where, understood.search_query)
+    if not passages:
         raise retrieval.InsufficientContextError()
 
-    passages = retrieval.build_context(found)
     answer = await answering.explain(
         data.question,
         passages=passages,
-        profile=get_class_profile(ClassLevel(profile.class_level)),
+        profile=student_service.class_profile(student),
         student=profile,
         style=data.style,
     )

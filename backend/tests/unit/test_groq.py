@@ -40,7 +40,14 @@ class StubClient:
         self.calls.append(kwargs)
         if isinstance(self.result, Exception):
             raise self.result
+        if kwargs.get("stream"):
+            return self._chunks(self.result)
         return self.result
+
+    @staticmethod
+    async def _chunks(pieces: Any):
+        for piece in pieces:
+            yield piece
 
 
 def _provider(result: object, **models: str) -> tuple[GroqProvider, StubClient]:
@@ -151,3 +158,34 @@ def test_groq_is_chosen_with_its_own_models_unless_a_tier_is_set(monkeypatch: py
         "default": "openai/gpt-oss-120b",
         "strong": "qwen/qwen3.8-27b",
     }
+
+
+def _chunk(content: str | None, finish: str | None = None, usage: object = None) -> SimpleNamespace:
+    delta = SimpleNamespace(content=content)
+    x_groq = SimpleNamespace(usage=usage) if usage else None
+    return SimpleNamespace(
+        choices=[SimpleNamespace(delta=delta, finish_reason=finish)], usage=None, x_groq=x_groq
+    )
+
+
+async def test_a_streamed_reply_arrives_piece_by_piece():
+    usage = SimpleNamespace(prompt_tokens=200, completion_tokens=12)
+    provider, client = _provider([_chunk("Pehle "), _chunk("4 ghatao."), _chunk(None, "stop", usage)])
+
+    received = [
+        piece async for piece in provider.stream_text(system="rules", messages=[Message("user", "hi")])
+    ]
+
+    assert received == ["Pehle ", "4 ghatao."]
+    request = client.calls[0]
+    assert request["stream"] is True and "response_format" not in request
+    assert request["messages"][0] == {"role": "system", "content": "rules"}
+    assert request["max_completion_tokens"] == 3500
+
+
+async def test_a_failed_stream_becomes_ai_unavailable():
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    provider, _ = _provider(groq.APIConnectionError(request=request))
+    with pytest.raises(AIUnavailableError):
+        async for _ in provider.stream_text(system="rules", messages=[Message("user", "hi")]):
+            pass

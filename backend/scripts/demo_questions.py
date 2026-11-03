@@ -2,7 +2,9 @@
 
 They have the shape the AI fills in (GeneratedQuestion) and pass the same program checks
 (tests/unit/test_demo_questions.py). `python -m scripts.seed` stores them in the demo family's
-question bank, filed under the exercise named next to each question (None = the chapter).
+question bank, filed under the exercise named next to each question (None = the chapter). The Class 7
+set has enough short and long answers for a chapter test (sections C and D); marking written answers
+needs the AI, the rest does not.
 
 Each list is in the language of the child it is for: Aarav learns in Hinglish, Anaya in Hindi.
 """
@@ -34,6 +36,7 @@ def _q(fmt: QuestionFormat, style: QuestionStyle, difficulty: str, **fields: Any
 
 
 MCQ, CASE, AR = QuestionFormat.MCQ, QuestionFormat.CASE_BASED, QuestionFormat.ASSERTION_REASON
+SHORT, LONG = QuestionFormat.SHORT_ANSWER, QuestionFormat.LONG_ANSWER
 PICTURE, COUNT, MATCH = QuestionFormat.VISUAL_CHOICE, QuestionFormat.COUNTING, QuestionFormat.MATCHING
 RECALL, CONCEPT, APPLY, HOTS = (
     QuestionStyle.RECALL,
@@ -240,6 +243,163 @@ CLASS_7_MATHS: list[tuple[str | None, GeneratedQuestion]] = [
             concept="Perimeter ke formula se equation bana kar width nikalte hain.",
             steps=["2 × (w + w + 4) = 32", "4w + 8 = 32, to 4w = 24", "w = 6"],
             final_answer="6 cm",
+        ),
+    ),
+]
+
+CLASS_7_MATHS += [
+    (
+        None,
+        _q(
+            SHORT,
+            CONCEPT,
+            "easy",
+            text="Equation aur expression mein kya fark hai? Ek example do.",
+            model_answer=(
+                "Equation mein barabar (=) ka nishaan hota hai, jaise x + 2 = 5. "
+                "Expression mein nahi hota, jaise x + 2."
+            ),
+            key_points=[
+                "equation mein barabar ka nishaan hota hai",
+                "expression mein barabar ka nishaan nahi hota",
+            ],
+            hints=["Dekho kis mein barabar (=) ka nishaan hai."],
+            concept="Equation do cheezon ko barabar batata hai; expression sirf ek cheez hai.",
+            steps=["x + 2 = 5 mein = hai, to yeh equation hai", "x + 2 mein = nahi, to yeh expression hai"],
+            final_answer="Equation mein = hota hai, expression mein nahi.",
+        ),
+    ),
+    (
+        "4.1",
+        _q(
+            SHORT,
+            RECALL,
+            "easy",
+            text="3x = 12 solve karo aur apna answer check karo.",
+            model_answer="Dono taraf 3 se bhaag do: x = 4. Check: 3 × 4 = 12, dono sides barabar hain.",
+            key_points=["dono taraf 3 se bhaag", "x = 4", "x = 4 daal kar check"],
+            hints=["x ko 3 se guna kiya gaya hai. Ulta kaam kya hoga?"],
+            concept="Guna ka ulta bhaag hai, isliye dono taraf usi number se bhaag dete hain.",
+            steps=["Dono taraf 3 se bhaag do: x = 4", "Check: 3 × 4 = 12"],
+            final_answer="x = 4",
+        ),
+    ),
+    (
+        None,
+        _q(
+            SHORT,
+            CONCEPT,
+            "medium",
+            text="Equation solve karte waqt dono taraf ek hi kaam kyon karte hain?",
+            model_answer="Taaki dono sides barabar rahein, jaise taraazu ke dono palde barabar rehte hain.",
+            key_points=["dono sides barabar rehti hain", "taraazu jaisa balance"],
+            hints=["Taraazu ke baare mein socho."],
+            concept="Equation ek balance hai: dono taraf ek jaisa badlaav balance ko bana kar rakhta hai.",
+            steps=[
+                "Equation ki dono sides barabar hoti hain",
+                "Ek hi kaam dono taraf karne se woh barabar rehti hain",
+            ],
+            final_answer="Taaki dono sides barabar rahein.",
+        ),
+    ),
+    (
+        "4.1",
+        _q(
+            SHORT,
+            RECALL,
+            "easy",
+            text="x - 5 = 3 ka solution kya hai? Ek line mein samjhao.",
+            model_answer="Dono taraf 5 jodo, to x = 8.",
+            key_points=["dono taraf 5 jodo", "x = 8"],
+            hints=["x mein se 5 ghataya gaya hai. Use wapas kaise laoge?"],
+            concept="Ghatane ka ulta jodna hai.",
+            steps=["Dono taraf 5 jodo: x = 3 + 5", "x = 8"],
+            final_answer="x = 8",
+        ),
+    ),
+    (
+        "4.2",
+        _q(
+            LONG,
+            APPLY,
+            "medium",
+            text=(
+                "Ek number ke 4 guna mein 7 jodne par 31 milta hai. "
+                "Equation banao aur number nikalo. Har step samjhao."
+            ),
+            model_answer=(
+                "Number ko n maano. Equation: 4n + 7 = 31. Dono taraf se 7 ghatao: 4n = 24. "
+                "Dono taraf 4 se bhaag do: n = 6. Check: 4 × 6 + 7 = 31."
+            ),
+            key_points=[
+                "4n + 7 = 31 likhna",
+                "7 ghata kar 4n = 24",
+                "4 se bhaag de kar n = 6",
+                "answer check karna",
+            ],
+            hints=[
+                "Number ko n maano. 4 guna aur 7 jodna kaise likhoge?",
+                "Pehle 7 hatao, phir 4 se bhaag do.",
+            ],
+            concept="Shabdon se equation bana kar ulte kaam se variable nikalte hain.",
+            steps=[
+                "Number = n, to 4n + 7 = 31",
+                "Dono taraf se 7 ghatao: 4n = 24",
+                "Dono taraf 4 se bhaag do: n = 6",
+                "Check: 4 × 6 + 7 = 31",
+            ],
+            final_answer="Number 6 hai.",
+        ),
+    ),
+    (
+        "4.2",
+        _q(
+            LONG,
+            HOTS,
+            "hard",
+            text=(
+                "Ek rectangle ki length uski width ki do guna hai. Uska perimeter 36 cm hai. "
+                "Length aur width nikalo."
+            ),
+            model_answer=(
+                "Width w maano, to length 2w. Perimeter = 2 × (2w + w) = 6w. "
+                "6w = 36, to w = 6 cm aur length = 12 cm."
+            ),
+            key_points=["width w aur length 2w", "6w = 36", "width 6 cm", "length 12 cm"],
+            hints=["Width w maano. Length kitni hogi?", "Perimeter = 2 × (length + width)."],
+            concept="Perimeter ke formula se ek variable ki equation banti hai.",
+            steps=[
+                "Width = w, length = 2w",
+                "2 × (2w + w) = 36, to 6w = 36",
+                "w = 6 cm",
+                "Length = 2 × 6 = 12 cm",
+            ],
+            final_answer="Width 6 cm, length 12 cm",
+        ),
+    ),
+    (
+        None,
+        _q(
+            LONG,
+            APPLY,
+            "medium",
+            text=(
+                "Rohan ne apne bhai ko 8 sikke diye. Ab uske paas 15 sikke bache hain. "
+                "Equation banao, solve karo aur check karo."
+            ),
+            model_answer=(
+                "Sikke s maano. Equation: s - 8 = 15. Dono taraf 8 jodo: s = 23. Check: 23 - 8 = 15."
+            ),
+            key_points=["s - 8 = 15 likhna", "dono taraf 8 jodna", "s = 23", "answer check karna"],
+            hints=["Shuru ke sikke s maano. 8 dene ke baad kitne bache?"],
+            concept="Jo cheez kam hoti hai uske liye ghatana (-) likhte hain.",
+            steps=[
+                "Shuru mein s sikke, 8 dene par s - 8",
+                "s - 8 = 15",
+                "Dono taraf 8 jodo: s = 23",
+                "Check: 23 - 8 = 15",
+            ],
+            final_answer="Rohan ke paas shuru mein 23 sikke the.",
         ),
     ),
 ]

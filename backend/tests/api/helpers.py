@@ -140,15 +140,16 @@ async def bank(
     fmt: str = "mcq",
     difficulty: str = "medium",
 ) -> None:
-    """Checked questions in the family's question bank for the chapter's last topic, as if written
-    earlier - so practice and tests need no AI."""
+    """Checked questions in the family's question bank for the chapter's last topic (the chapter
+    itself when it has none), as if written earlier - so practice and tests need no AI."""
     body, answer = _BANK_FORMATS[fmt]
+    topics = chapter["topics"]
     db.add_all(
         Question(
             owner_user_id=uuid.UUID(parent.user["id"]),
             book_id=uuid.UUID(chapter["book_id"]),
             chapter_id=uuid.UUID(chapter["id"]),
-            topic_id=uuid.UUID(chapter["topics"][-1]["id"]),
+            topic_id=uuid.UUID(topics[-1]["id"]) if topics else None,
             origin="generated",
             class_level=child["profile"]["class_level"],
             subject="Mathematics",

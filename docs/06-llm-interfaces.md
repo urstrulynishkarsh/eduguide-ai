@@ -17,8 +17,8 @@ How the application talks to AI models. Built in Step 3; used by everything afte
 
 ## 6.2 The interfaces
 
-As built in Step 3 (`backend/app/llm/base.py`, `backend/app/rag/embeddings.py`). Methods are added
-when a step first needs them - plain text and streaming arrive with the chat features in Step 9.
+As built in Step 3 (`backend/app/llm/base.py`, `backend/app/rag/embeddings.py`); `stream_text` was
+added with the chat features in Step 9. Methods are added when a step first needs them.
 
 ```python
 class LLMProvider(Protocol):
@@ -31,6 +31,12 @@ class LLMProvider(Protocol):
         tier: ModelTier = "default",        # "fast" | "default" | "strong"
         max_output_tokens: int = 16000,
     ) -> LLMResult[T]: ...                  # parsed object + model + token usage + latency
+
+    def stream_text(                        # Step 9: chat replies, shown directly to a person
+        self, *, system: str, messages: Sequence[Message],
+        tier: ModelTier = "default", max_output_tokens: int = 16000,
+    ) -> AsyncIterator[str]: ...            # the reply, piece by piece; AIDeclinedError at the end
+                                            # if the model declined (the caller drops what it sent)
 
 
 class EmbeddingProvider(Protocol):
@@ -141,7 +147,42 @@ In practice (Step 4) the rungs are the buttons of spec §20 - `help` with `hint`
 opened before it. The chat tutor (Step 9) walks the same ladder in conversation.
 
 "Hint do, answer mat batao" keeps the tutor on the hint rungs even if the child asks again.
-For Nursery–Class 2 the ladder is shorter and gentler: encouragement → show with pictures → the answer together.
+For Nursery–Class 2 the ladder was planned shorter and gentler (encouragement → show with pictures →
+the answer together); their layouts have no tutor screen (docs/04 §4.4), so it is not built.
+
+### The chat tutor (Step 9, `app/chat/tutor.py`)
+
+Every message from the learner goes through two calls:
+
+1. **Understanding** (fast tier, structured): what the learner wants — `new_problem`, `more_help`,
+   `attempt`, `show_answer`, `concept`, `chat`, `off_topic` — whether they ask for hints only, and a
+   search query for their books.
+2. **The reply** (default tier, streamed text). **Code** decides how much help it may give, from
+   the conversation's problem in hand and the rung reached (`chat_sessions.problem`, `.rung`,
+   `.hints_only`), with the rules of `tutor.next_step`:
+   - a new problem → Hint 1;
+   - more help, "show me the answer", or an attempt → one rung up, never more (an attempt is
+     checked first: right → praise; not right → what is off, then that rung);
+   - "hints only" → the ladder stops at Hint 2 for that problem;
+   - a concept question → an explanation from the books; chat and off-topic → a short friendly reply.
+
+   The reply's instructions name the rung and what it may not show ("Not allowed: worked steps…").
+   The problem, the passages from the learner's books and the conversation so far (the last 6
+   messages) go with it; the learner's words are marked as material, never instructions. A problem
+   or concept the books do not cover gets `insufficient_context` instead of a guess.
+
+### The Parent AI Assistant (Step 9, `app/chat/assistant.py`)
+
+1. **Understanding** (fast tier): is it about the child's learning, and does the answer need what
+   the books say (then a search query)?
+2. **The reply** (default tier, streamed), built only from `<child_data>` — the dashboard snapshot,
+   every topic practised and overall progress, as compact JSON without ids or the child's name — and,
+   when needed, passages from the child's books. Rules: never invent numbers, plain words (docs/04
+   §4.5), suggest one next step that exists in the app, reply in the parent's language.
+
+Both mark the passages they use as `[S1]`; `chat_service.citations` takes the marks out of the saved
+text and turns them into `sources`. A question and its reply are saved together when the reply is
+complete, so a reply that fails half-way leaves nothing behind.
 
 ## 6.6 Cost and speed
 

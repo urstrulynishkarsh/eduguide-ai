@@ -66,6 +66,7 @@ modules talk to each other through small interfaces, not through each other's ta
 | `question_generation` | Generate → validate → review → regenerate; solutions, hints, marking answers (part marks in tests); the sections of a test paper | Steps 4, 8 |
 | `adaptive_learning` | Mastery, adaptive difficulty, weak topics, recommendations, the study planner's rules, misconceptions | Steps 7, 8, 10 |
 | `analytics` | Progress numbers for students and parents | Steps 4, 9, 11 |
+| `chat` | The Student AI Tutor (the hint ladder, decided in code) and the Parent AI Assistant: what each may say | Step 9 |
 | `utils` | Small helpers without business rules | as needed |
 
 ### Rules of the codebase
