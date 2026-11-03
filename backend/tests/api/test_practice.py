@@ -128,7 +128,10 @@ async def test_create_practice_for_one_topic(client: AsyncClient, writer, db_ses
 
 async def test_answers_help_and_completion(client: AsyncClient, writer, db_session: AsyncSession):
     parent, child, chapter = await _family(client)
-    writer(_three(), extra=[Grade(is_correct=True, feedback="Yes - both sides stay equal.")])
+    writer(
+        _three(),
+        extra=[Grade(is_correct=True, key_points_covered=1, feedback="Yes - both sides stay equal.")],
+    )
     session = (await _create(client, parent, child, chapter)).json()
     q1, q2, q3 = (item["question"]["id"] for item in session["items"])
     base = f"{API}/practice/sessions/{session['id']}"

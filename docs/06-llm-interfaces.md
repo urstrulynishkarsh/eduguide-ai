@@ -121,7 +121,7 @@ The structured shape of a question follows spec §43 (`question`, `type`, `diffi
 | Mix | `strategy.py` | formats the class allows, the difficulty mix, the goal strategy table (doc 7, 7.10) |
 | Deterministic checks | `validation.py` | everything in the table above that a program can decide; returns the reason |
 | The loop | `generator.py` | write ≤ 10 per call (default tier) → checks → one review call (strong tier) → compare → reasons back to the writer for replacements; at most 2 extra rounds, then fewer questions rather than a wrong one |
-| Marking | `checking.py` | exact for choice, number, blank and matching; written answers marked by the fast tier against the model answer and key points |
+| Marking | `checking.py` | exact for choice, number, blank and matching; written answers marked by the fast tier against the model answer and key points, which it also counts: in a test a written answer earns that share of its marks (Step 8) |
 
 The reviewer never sees the proposed answer of a choice, number or blank question - it solves
 them itself. Matching and written answers are shown to it and judged. A numeric answer is not

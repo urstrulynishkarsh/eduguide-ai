@@ -1,15 +1,27 @@
 """Practice: the question bank, practice sessions, and every answer a learner gives.
 
 Questions belong to the family (`owner_user_id`) and to the chapter they were written from, so a
-saved question is reused by later sessions instead of being generated again. Sessions and
-attempts belong to one learner.
+saved question is reused by later sessions and tests instead of being generated again. Sessions
+and attempts belong to one learner.
 """
 
 import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -52,21 +64,29 @@ class Question(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     validation: Mapped[dict[str, Any]] = mapped_column(JSONB)  # what the independent check found
 
 
-class PracticeSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    __tablename__ = "practice_sessions"
+class QuestionSettings:
+    """What a practice session or a mock test asks for (services/question_bank.py reads these).
+
+    The place the questions come from is at most one of book, chapter, topic, exercise (the wider
+    ones are filled in too); all empty = every book of the learner's class.
+    """
 
     student_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), index=True)
-    # Where the questions come from; all empty = every book of the learner's class.
     book_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("books.id", ondelete="SET NULL"))
     chapter_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("chapters.id", ondelete="SET NULL"))
     topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("topics.id", ondelete="SET NULL"))
     exercise_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("exercises.id", ondelete="SET NULL"))
-    question_count: Mapped[int] = mapped_column(SmallInteger)
+    question_count: Mapped[int] = mapped_column(SmallInteger)  # asked for; the questions can be fewer
     difficulty: Mapped[str] = mapped_column(String(8))  # easy | medium | hard | mixed
-    question_type: Mapped[str] = mapped_column(String(24))  # a format, or "mixed"
     language: Mapped[str] = mapped_column(String(16))
-    status: Mapped[str] = mapped_column(String(16))  # preparing | ready | completed | failed
+    status: Mapped[str] = mapped_column(String(16))  # preparing | ready | failed (practice: + completed)
     error_code: Mapped[str | None] = mapped_column(String(64))
+
+
+class PracticeSession(QuestionSettings, UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "practice_sessions"
+
+    question_type: Mapped[str] = mapped_column(String(24))  # a format, or "mixed"
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -88,16 +108,25 @@ class PracticeItem(Base):
 
 
 class QuestionAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Every answer a learner gives - the raw material for progress and, later, mastery."""
+    """Every answer a learner gives, in a practice or a test - the raw material for progress and
+    mastery."""
 
     __tablename__ = "question_attempts"
-    __table_args__ = (Index("ix_question_attempts_student_created", "student_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_question_attempts_student_created", "student_id", "created_at"),
+        CheckConstraint("num_nonnulls(practice_session_id, test_attempt_id) = 1", name="practice_or_test"),
+    )
 
     student_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"))
     question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"), index=True)
-    practice_session_id: Mapped[uuid.UUID] = mapped_column(
+    # Exactly one of the two: the practice or the test the answer was given in.
+    practice_session_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("practice_sessions.id", ondelete="CASCADE"), index=True
     )
+    test_attempt_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("test_attempts.id", ondelete="CASCADE"), index=True
+    )
+    marks: Mapped[float | None] = mapped_column(Float)  # tests only: the marks given
     response: Mapped[dict[str, Any]] = mapped_column(JSONB)
     is_correct: Mapped[bool] = mapped_column(Boolean)
     feedback: Mapped[str | None] = mapped_column(Text)  # from the AI, for written answers

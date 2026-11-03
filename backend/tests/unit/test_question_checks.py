@@ -6,7 +6,7 @@ from app.class_profiles import get_class_profile
 from app.core.enums import ClassLevel, QuestionFormat
 from app.models import Question
 from app.question_generation import checking, validation
-from app.question_generation.schemas import Review
+from app.question_generation.schemas import Grade, Review
 from tests.fakes import make_question
 
 CLASS_8 = get_class_profile(ClassLevel.CLASS_8)
@@ -147,4 +147,12 @@ def test_an_answer_of_the_wrong_shape_is_refused():
     with pytest.raises(checking.AnswerShapeError):
         checking.is_correct(_stored("mcq", {"option": 2}), {"text": "two"})
     with pytest.raises(checking.AnswerShapeError):
-        checking.is_correct(_stored("short_answer", {"model_answer": "x"}), {"text": "x"})
+        checking.is_correct(_stored("short_answer", {"model_answer": "x"}), {"option": 1})
+
+
+def test_written_answers_are_left_to_the_tutor_and_earn_part_marks():
+    question = _stored("long_answer", {"model_answer": "x", "key_points": ["a", "b", "c"]})
+    assert checking.is_correct(question, {"text": "an answer"}) is None
+    grade = Grade(is_correct=False, key_points_covered=2, feedback="Add the third point.")
+    assert checking.written_marks(question, grade, 5) == 3.5  # 2 of 3 points of 5 marks, to half a mark
+    assert checking.written_marks(question, grade.model_copy(update={"key_points_covered": 9}), 5) == 5

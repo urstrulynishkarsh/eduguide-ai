@@ -44,7 +44,7 @@ Every error, from every endpoint, has this shape:
 | 404 | `not_found` | Unknown URL |
 | 409 | `email_already_registered` | Sign-up with an email that already has an account |
 | 409 | `student_limit_reached` | More children than `MAX_STUDENTS_PER_PARENT` |
-| 404 | `book_not_found` · `document_not_found` · `chapter_not_found` · `exercise_not_found` | No such thing — **or it belongs to another family** |
+| 404 | `book_not_found` · `document_not_found` · `chapter_not_found` · `topic_not_found` · `exercise_not_found` | No such thing — **or it belongs to another family** |
 | 409 | `book_limit_reached` · `document_limit_reached` | More than `MAX_BOOKS_PER_ACCOUNT` / `MAX_DOCUMENTS_PER_BOOK` |
 | 409 | `document_already_uploaded` | The same file (same content) is already in this book |
 | 409 | `document_not_failed` | Retry asked for a document that did not fail |
@@ -56,7 +56,10 @@ Every error, from every endpoint, has this shape:
 | 422 | `profile_required` | The learner has no class details yet |
 | 404 | `practice_not_found` · `question_not_found` | No such practice (or another family's), or the question is not in it |
 | 422 | `question_type_not_for_class` | The question type is not used for the learner's class (e.g. `numerical` in Class 7) |
-| 422 | `practice_not_ready` · `answer_does_not_fit` | The practice is still `preparing`; the answer does not fit the question's format |
+| 422 | `practice_not_ready` · `answer_does_not_fit` | The practice is still `preparing`; the answer does not fit the question's format (practice and tests) |
+| 404 | `test_not_found` · `test_attempt_not_found` · `study_plan_not_found` · `plan_item_not_found` | No such test, sitting, plan or plan task (or another family's) |
+| 422 | `test_not_for_class` | The kind of test, or a time limit, is not used for the learner's class (`details` names `kind` or `duration_minutes`) |
+| 422 | `test_not_ready` · `test_time_over` · `test_already_submitted` · `test_not_submitted` | Started while still `preparing`; an answer after the deadline; an answer after submitting; a report before submitting |
 | 422 | `ai_declined` | The AI declined the request for safety reasons |
 | 503 | `ai_not_configured` · `ai_unavailable` | AI switched off (`LLM_PROVIDER=none`); provider busy or unreachable |
 | 422 | `validation_error` | A field is missing or malformed; see `details` |
@@ -465,14 +468,139 @@ practised for 7 days) · `new_chapter` (never practised). **Start Recommended Pr
 `practice` as-is to `POST /practice/sessions`; `revise` (strengthen only) goes as-is to
 `POST /learn/explain`. Finishing a practice of that place turns `status` to `done`.
 
-## 3.7 Planned endpoints
+## 3.7 Endpoints added in Step 8 — Mock tests and study planner
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/mock-tests` | signed in | Make a test: kind, place, count, difficulty, time limit, language |
+| GET | `/api/v1/mock-tests/{id}` | owner | The paper: sections and questions (never their answers), status, sittings |
+| GET | `/api/v1/students/{id}/mock-tests` | owner | A learner's tests, newest first (`?limit=&cursor=`) |
+| POST | `/api/v1/mock-tests/{id}/attempts` | owner | Start a sitting (the clock starts); the one in progress is returned if there is one |
+| GET | `/api/v1/test-attempts/{id}` | owner | The sitting: the paper, the answers saved so far, `deadline`, `seconds_left` |
+| PUT | `/api/v1/test-attempts/{id}/answers/{question_id}` | owner | Save or change an answer (`204`); the body is an answer as in practice, without `question_id` |
+| POST | `/api/v1/test-attempts/{id}/submit` | owner | Mark everything; returns the report. Again: the same report |
+| GET | `/api/v1/test-attempts/{id}/report` | owner | The report |
+| POST | `/api/v1/study-plans` | parent, solo student | Make the learner's plan (replaces the one they have) |
+| GET | `/api/v1/students/{id}/study-plan` | owner | The plan, by day |
+| PATCH | `/api/v1/study-plan-items/{id}` | owner | `{"status": "done" \| "skipped" \| "pending"}` |
+| DELETE | `/api/v1/study-plans/{id}` | parent, solo student | Remove the plan |
+
+Changed from the plan: a learner has **one** plan (their minutes a day can only be planned once), so
+it is read as `GET /students/{id}/study-plan` instead of `GET /study-plans/{id}`.
+
+### Mock tests
+
+```http
+POST /api/v1/mock-tests
+{ "student_id": "6ecc2ac7-…", "kind": "chapter", "chapter_id": "…", "count": 15 }
+```
+
+| `kind` | From | Place | Default questions | Time limit |
+|---|---|---|---|---|
+| `practice` | Class 3 (`practice_tests`) | any one of book / chapter / topic / exercise, or none (all books) | the class's usual number | optional, Class 9+ |
+| `chapter` | Class 6 (`chapter_tests`) | `chapter_id`, required | 15 | optional, Class 9+ |
+| `full_mock` | Class 9 (`full_mock_tests`) | `book_id`, or none | 30 | always; about 2 minutes a mark unless `duration_minutes` is given |
+
+A time limit (`duration_minutes`, 5–240) needs `timed_tests` (Class 9+). The paper has sections
+like a board paper, each kept only when the class uses one of its formats: **A** objective
+(MCQ, true/false, fill in the blank, assertion-reason, case-based, 1 mark each), **B** numerical
+(2 marks), **C** short answer (2 marks), **D** long answer (5 marks). Questions come as in practice:
+saved questions the learner has never been given (in a practice or a test) first, the rest written
+in the background — `status: "preparing"` until `ready` (or `failed` with `error`), and
+`503 ai_not_configured` at once when the AI is off and the bank is short.
+
+```json
+{
+  "id": "…", "kind": "chapter", "status": "ready", "chapter": "Chapter 4 Simple Equations",
+  "book_id": "…", "book_title": "Class 7 Mathematics", "topic": null, "exercise": null,
+  "question_count": 15, "total_marks": 31, "duration_minutes": null, "difficulty": "mixed",
+  "sections": [
+    { "code": "A", "title": "Objective questions", "marks": 1, "questions": [ { "number": 1, "format": "mcq", "…": "…" } ] },
+    { "code": "C", "title": "Short answer questions", "marks": 2, "questions": [ "…" ] },
+    { "code": "D", "title": "Long answer questions", "marks": 5, "questions": [ "…" ] }
+  ],
+  "attempts": [ { "id": "…", "started_at": "…", "submitted_at": null, "score": null } ]
+}
+```
+
+**Taking it.** `POST /mock-tests/{id}/attempts` starts the clock (`deadline` = start + time limit).
+Answers are saved one at a time with `PUT …/answers/{question_id}` and can be changed until
+submitted, so a reload loses nothing. A test has no hints, steps or explanations. After the deadline
+and one minute of grace, saving answers `422 test_time_over`; the screen submits when the time runs
+out, and a late `submit` still marks what was saved. After a submitted sitting, `POST …/attempts`
+is a retake of the same paper.
+
+**Marking.** Choice, number, blank and matching answers exactly; written answers by the AI, which
+also counts the key points covered: a written answer earns that share of its marks, to the nearest
+half mark (2 of 4 key points of a 5-mark answer = 2.5). One AI call per written answer; if the AI
+fails, nothing is stored and `submit` can be sent again. Every answer becomes a question attempt with
+its marks, so progress and mastery count it; questions left out earn nothing and are not counted.
+
+```json
+{
+  "attempt_id": "…", "mock_test_id": "…", "kind": "chapter",
+  "score": 6.5, "total_marks": 12, "percentage": 54.2, "time_taken_ms": 1520000,
+  "answered": 4, "correct": 3, "wrong": 1, "unanswered": 2,
+  "sections": [ { "code": "D", "title": "Long answer questions", "score": 2.5, "total_marks": 5, "answered": 1, "correct": 0 } ],
+  "areas": [ { "chapter": "Chapter 2 …", "topic": "2.2 Solving Equations", "questions": 6, "correct": 3, "accuracy": 0.5, "…": "…" } ],
+  "questions": [ { "question": { "…": "…" }, "section": "D", "marks": 5, "marks_awarded": 2.5, "correct": false,
+                   "response": { "text": "…" }, "feedback": "Add the other two points.",
+                   "solution": { "concept": "…", "steps": ["…"], "final_answer": "…" } } ]
+}
+```
+
+### Study planner
+
+```http
+POST /api/v1/study-plans
+{ "student_id": "6ecc2ac7-…", "exam_date": "2026-12-10", "daily_minutes": 45, "target_score": 80,
+  "chapter_ids": [] }
+```
+
+`exam_date` after today (India time), at most a year ahead; `daily_minutes` 10–300 (default 30);
+`target_score` 40–100 (default 80); `chapter_ids` empty = every chapter of the learner's books for
+their class. Not in child mode (`403 parent_required`); a child can tick tasks off.
+
+The tasks are made by rules from the learner's mastery, not by the AI: a weak topic first (learn the
+idea, then practise at its lowered level); each new chapter (learn, then practise); a chapter below
+the target practised at its level as often as it needs to get there — about one practice for every
+25 points of mastery it lacks, the second and later ones in rounds through the chapters so they are
+spread out; a chapter at or above the target (one review near the end); and on the last day a test
+of each book — a full mock test from Class 9, a practice test in
+Class 3–8, none below. Learn takes 15 minutes, practice 20, a test its length. The final tasks go on
+the last days, the rest are spread evenly before them within `daily_minutes`; what does not fit is
+counted in `unscheduled`.
+
+**It follows performance.** On the first `GET` of each day (India time) the days from today on are
+planned again from the latest mastery: tasks of past days still pending become `missed`, done and
+skipped ones stay. Finishing a practice of a task's place, or submitting a test of its book, marks
+the task `done`; learn tasks are ticked off with `PATCH`.
+
+```json
+{
+  "id": "…", "exam_date": "2026-12-10", "daily_minutes": 45, "target_score": 80, "status": "active",
+  "days_left": 36, "planned_on": "2026-11-04", "unscheduled": 0, "done": 3, "missed": 1, "total": 24,
+  "days": [
+    { "day": "2026-11-04", "minutes": 35, "items": [
+      { "id": "…", "kind": "learn", "status": "pending", "minutes": 15, "difficulty": "mixed",
+        "reason": "20% right in the last 5 answers. Revise the idea.",
+        "book_title": "Class 7 Mathematics", "chapter": "Chapter 4 …", "topic": "4.3 …",
+        "revise": { "question": "4.3 …", "chapter_id": "…", "…": "…" }, "practice": null, "test": null },
+      { "kind": "practice", "difficulty": "easy", "practice": { "topic_id": "…", "difficulty": "easy", "…": "…" }, "…": "…" }
+    ] }
+  ]
+}
+```
+
+`practice` goes as-is to `POST /practice/sessions`, `revise` to `POST /learn/explain`, `test` to
+`POST /mock-tests`.
+
+## 3.8 Planned endpoints
 
 Paths may still change slightly in the step that builds them; the shape of the plan will not.
 
 | Step | Method and path | Purpose |
 |---|---|---|
-| 8 | `POST /mock-tests` · `POST /mock-tests/{id}/attempts` · `GET /test-attempts/{id}/report` | Mock tests |
-| 8 | `POST /study-plans` · `GET /study-plans/{id}` · `PATCH /study-plan-items/{id}` | Study planner |
 | 9 | `POST /chat/sessions` · `POST /chat/sessions/{id}/messages` (streamed) | Parent assistant and student tutor |
 | 9 | `GET /students/{id}/dashboard` | Parent dashboard in one call |
 | 10 | `POST /books/{id}/paper-analysis` | Previous-year paper trends and a matching practice test |

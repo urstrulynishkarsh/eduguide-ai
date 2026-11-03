@@ -2,12 +2,13 @@
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 from app.core.enums import QuestionFormat, QuestionStyle
 from app.core.languages import is_content_language
+from app.models import Question
 from app.rag.answering import ExplainStyle
 from app.schemas.library import DocumentError, Source
 
@@ -16,8 +17,9 @@ SessionStatus = Literal["preparing", "ready", "completed", "failed"]
 HelpLevel = Literal["hint", "steps", "answer"]
 
 
-class PracticeCreate(BaseModel):
-    """Leave book, chapter, topic and exercise empty to practise from all of the learner's books."""
+class QuestionRequest(BaseModel):
+    """Which questions, for practice or a test. Leave book, chapter, topic and exercise empty to use
+    all of the learner's books."""
 
     student_id: uuid.UUID | None = Field(default=None, description="Which child (parents only).")
     book_id: uuid.UUID | None = None
@@ -30,9 +32,6 @@ class PracticeCreate(BaseModel):
         default=None, description="Number of questions; the class's usual number when left out."
     )
     difficulty: SessionDifficulty = "mixed"
-    question_type: QuestionFormat | Literal["mixed"] = Field(
-        default="mixed", description='"mixed", or one format the class allows (e.g. "mcq", "numerical").'
-    )
     language: str | None = Field(
         default=None, description="en, hi or hinglish; the learner's language if empty."
     )
@@ -45,11 +44,17 @@ class PracticeCreate(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _one_place_at_most(self) -> "PracticeCreate":
+    def _one_place_at_most(self) -> Self:
         places = (self.book_id, self.chapter_id, self.topic_id, self.exercise_id)
         if sum(place is not None for place in places) > 1:
             raise ValueError("Choose a book, a chapter, a topic or an exercise - not more than one.")
         return self
+
+
+class PracticeCreate(QuestionRequest):
+    question_type: QuestionFormat | Literal["mixed"] = Field(
+        default="mixed", description='"mixed", or one format the class allows (e.g. "mcq", "numerical").'
+    )
 
 
 class QuestionView(BaseModel):
@@ -70,6 +75,24 @@ class QuestionView(BaseModel):
         default="generated", description="Written by the AI from the book - not the book's own question."
     )
     source: Source = Field(description='Shown as "Generated from concepts in: …".')
+
+    @classmethod
+    def of(cls, question: Question, number: int, source: Source) -> "QuestionView":
+        body = question.body
+        return cls(
+            id=question.id,
+            number=number,
+            format=question.format,
+            style=question.style,
+            difficulty=question.difficulty,
+            case=body.get("case"),
+            text=body["text"],
+            options=body.get("options", []),
+            match_left=body.get("left", []),
+            match_right=body.get("right", []),
+            unit=body.get("unit"),
+            source=source,
+        )
 
 
 class ItemView(BaseModel):
@@ -98,17 +121,20 @@ class SessionOut(BaseModel):
     completed_at: datetime | None
 
 
-class AnswerIn(BaseModel):
+class Response(BaseModel):
     """Fill the field that fits the question: `option` (choice formats), `value` (numerical,
     counting), `text` (fill_blank, short_answer, long_answer) or `pairs` (matching: for each
     left item, the index of its right item)."""
 
-    question_id: uuid.UUID
     option: int | None = None
     value: float | None = None
     text: Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)] | None = None
     pairs: list[int] | None = Field(default=None, max_length=5)
     time_taken_ms: Annotated[int, Field(ge=0, le=3_600_000)] | None = None
+
+
+class AnswerIn(Response):
+    question_id: uuid.UUID
 
 
 class AnswerResult(BaseModel):

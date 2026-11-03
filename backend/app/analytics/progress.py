@@ -1,7 +1,8 @@
 """Basic performance of one learner (spec §32): how much, how well, where.
 
-Accuracy uses the first answer to each question in a session, so trying again (encouraged for the
-youngest children) does not inflate it. Mastery (adaptive_learning/mastery.py) uses the same rule.
+Accuracy uses the first answer to each question in a practice or a test, so trying again (encouraged
+for the youngest children) does not inflate it. Mastery (adaptive_learning/mastery.py) uses the
+same rule. Test answers count like practice answers; the sessions listed are practice sessions.
 """
 
 import uuid
@@ -18,14 +19,18 @@ _RECENT_SESSIONS = 5
 
 
 def first_answers(student_id: uuid.UUID) -> Subquery:
-    """The learner's first answer to each question in each practice (every attempt column)."""
+    """The learner's first answer to each question in each practice and each test sitting (every
+    attempt column). One of the two ids is always empty, and DISTINCT ON treats empty ones as equal."""
+    answered_in = (
+        QuestionAttempt.practice_session_id,
+        QuestionAttempt.test_attempt_id,
+        QuestionAttempt.question_id,
+    )
     return (
         select(QuestionAttempt)
         .where(QuestionAttempt.student_id == student_id)
-        .ext(distinct_on(QuestionAttempt.practice_session_id, QuestionAttempt.question_id))
-        .order_by(
-            QuestionAttempt.practice_session_id, QuestionAttempt.question_id, QuestionAttempt.created_at
-        )
+        .ext(distinct_on(*answered_in))
+        .order_by(*answered_in, QuestionAttempt.created_at)
         .subquery()
     )
 

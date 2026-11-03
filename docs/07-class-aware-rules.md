@@ -113,7 +113,8 @@ How the names in spec §17 map to these codes:
 ## 7.6 Which features exist
 
 The frontend hides whatever is switched off, and each backend feature checks its switch when it
-is built (tests in Step 8, adaptive difficulty in Step 7, and so on).
+is built (tests in Step 8, adaptive difficulty in Step 7, and so on). A test the class does not
+have, or a time limit below Class 9, is refused with `422 test_not_for_class`.
 
 | Feature | Nursery – UKG | Class 1 – 2 | Class 3 – 5 | Class 6 – 8 | Class 9 – 10 | Class 11 – 12 |
 |---|---|---|---|---|---|---|
@@ -258,7 +259,7 @@ values like those in 7.4, to tune after watching real children.
 | 4 Goal strategy (Class 11–12) | The goal changes the mix, as in spec §9: **JEE** → conceptual, numerical, application, higher difficulty, multi-concept. **NEET** → NCERT-focused, conceptual MCQs, assertion-reason, application MCQs. **Board exam** → board pattern and marking. Implemented as a small strategy table next to the question generator (`question_generation/strategy.py`) |
 | 5–6 Frontend | `ui_mode` picks the layout; `features` hides screens; goals and stream come from `/meta/options` |
 | 7 Adaptive learning | Levels only where `adaptive_difficulty` is on, the "needs attention" label only where `weak_topic_detection` is on; younger classes get gentle repetition instead (7.9). Built: `adaptive_learning/` |
-| 8 Tests and plans | Timed and full mock tests only where the profile allows them |
+| 8 Tests and plans | Practice tests from Class 3, chapter tests from Class 6, full mock tests and time limits from Class 9 (`practice_tests`, `chapter_tests`, `full_mock_tests`, `timed_tests`); a paper's sections are the formats the class uses (Class 3–5: objective and short answers; Class 6–8 add long answers; Class 9–12 add numerical problems); a test's size is capped like a practice (7.4). The study plan's final test is the biggest the class has; Nursery–Class 2 plans have none. Built: `question_generation/paper.py`, `services/mock_test_service.py`, `adaptive_learning/planner.py` |
 
 ## 7.11 Changing a rule
 

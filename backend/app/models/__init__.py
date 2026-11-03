@@ -7,8 +7,10 @@ always knows about all tables.
 from app.models.adaptive import Recommendation, StudentMastery
 from app.models.base import Base
 from app.models.library import Book, Chapter, Document, DocumentChunk, Exercise, Topic
+from app.models.mock_test import MockTest, MockTestAttempt, MockTestQuestion
 from app.models.practice import PracticeItem, PracticeSession, Question, QuestionAttempt
 from app.models.student import Student, StudentProfile
+from app.models.study_plan import StudyPlan, StudyPlanItem
 from app.models.user import Parent, User
 
 __all__ = [
@@ -18,6 +20,9 @@ __all__ = [
     "Document",
     "DocumentChunk",
     "Exercise",
+    "MockTest",
+    "MockTestAttempt",
+    "MockTestQuestion",
     "Parent",
     "PracticeItem",
     "PracticeSession",
@@ -27,6 +32,8 @@ __all__ = [
     "Student",
     "StudentMastery",
     "StudentProfile",
+    "StudyPlan",
+    "StudyPlanItem",
     "Topic",
     "User",
 ]

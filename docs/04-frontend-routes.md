@@ -39,8 +39,8 @@ Navigation (spec §38): Dashboard · Children · My Books · Practice · Mock Te
 | `/parent/books/[bookId]/chapters/[chapterId]` | Chapter page: **Learn · Practice · Exercise Questions · Generate Questions · Take Test** | 6 |
 | `/parent/practice` | Create Practice: number, difficulty, type, source, language. `?book=&chapter=&exercise=` preselect the source | 6 |
 | `/parent/practice/[sessionId]` | A practice the parent made: "getting ready", then its questions and **Start now with {child}** (child mode straight into it) | 6 |
-| `/parent/tests` · `/parent/tests/new` · `/parent/tests/[testId]/report` | Mock tests and their reports | 9 |
-| `/parent/plans` · `/parent/plans/new` · `/parent/plans/[planId]` | Study plans | 9 |
+| `/parent/tests` · `/parent/tests/new` · `/parent/tests/[testId]` | Mock tests, making one, a test with its sittings and their reports | 9 |
+| `/parent/plans` · `/parent/plans/new` | The chosen child's study plan (one per learner, API: `GET /students/{id}/study-plan`), and making a new one | 9 |
 | `/parent/progress` | Charts by subject, chapter, topic; mistakes explained | 6 basic · 9 · 11 |
 | `/parent/assistant` | Parent AI Assistant | 9 |
 | `/parent/settings` | Account, language, sign out | 5 |

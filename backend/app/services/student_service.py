@@ -11,9 +11,9 @@ from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.principal import Principal
-from app.class_profiles import check_learning_choices, resolve_goal
+from app.class_profiles import ClassProfile, check_learning_choices, get_class_profile, resolve_goal
 from app.core.config import get_settings
-from app.core.enums import Board, Role
+from app.core.enums import Board, ClassLevel, Role
 from app.core.errors import ConflictError, InvalidInputError, NotFoundError, PermissionDeniedError
 from app.models import Parent, Student, StudentProfile
 from app.schemas.student import StudentCreate, StudentProfileIn, StudentUpdate
@@ -112,6 +112,12 @@ def require_profile(student: Student) -> Student:
     if student.profile is None:
         raise InvalidInputError("Please fill in the class details first.", code="profile_required")
     return student
+
+
+def class_profile(student: Student) -> ClassProfile:
+    """The rules of the learner's class (the learner must have class details)."""
+    assert student.profile is not None
+    return get_class_profile(ClassLevel(student.profile.class_level))
 
 
 async def account_of(db: AsyncSession, student: Student) -> uuid.UUID:

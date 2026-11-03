@@ -34,7 +34,7 @@ from app.question_generation.schemas import GeneratedQuestion
 from app.schemas.auth import RegisterRequest
 from app.schemas.library import BookCreate
 from app.schemas.student import StudentCreate, StudentProfileIn
-from app.services import document_service, library_service, practice_service, student_service
+from app.services import document_service, library_service, question_bank, student_service
 from app.storage import get_file_storage
 from scripts.demo_questions import CLASS_7_MATHS, UKG_PICTURES
 
@@ -196,9 +196,7 @@ async def _seed_demo_questions(book: Book, questions: list[tuple[str | None, Gen
             session = PracticeSession(
                 exercise_id=exercise.id if exercise else None, language=child.profile.primary_language
             )
-            question = practice_service.to_question(
-                generated, book.owner_user_id, session, child, {"S1": chunk}
-            )
+            question = question_bank.to_question(generated, book.owner_user_id, session, child, {"S1": chunk})
             question.validation = {"checked_by": "written by hand (demo data)"}
             db.add(question)
         await db.commit()

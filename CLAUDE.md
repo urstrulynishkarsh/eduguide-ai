@@ -12,7 +12,7 @@ User roles: parent and student. A student is either a child profile under a pare
 
 - Backend: Python 3.12 (3.11+ works) + FastAPI, fully async
 - Database: PostgreSQL 16 with pgvector, run in Docker (`pgvector/pgvector:pg16`)
-- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0005` so far)
+- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0006` so far)
 - Auth: JWT access tokens (30 min) + refresh tokens (14 days) with PyJWT; passwords hashed with Argon2. Child mode is a parent token limited to one child.
 - Frontend: Next.js 16 (App Router, Cache Components on) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui (radix), Node.js 22/24 LTS. Versions are pinned exactly in `frontend/package.json`. Next.js 16 differs from older versions: read `frontend/node_modules/next/dist/docs/` before using an API you are unsure of (`middleware` is now `proxy.ts`)
 - Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API), ESLint, Prettier (print width 110), `tsc`
@@ -37,9 +37,9 @@ backend/
     storage/             # where uploaded files are kept
     rag/                 # reading books (ingestion/), OCR, embeddings, search, explanations
     llm/                 # AI provider interface + Claude adapter
-    question_generation/ # write -> check -> independent review of questions; marking answers
+    question_generation/ # write -> check -> independent review of questions; marking answers; test papers
     analytics/           # progress numbers
-    adaptive_learning/   # mastery per topic, difficulty that follows it, daily recommendations
+    adaptive_learning/   # mastery per topic, difficulty that follows it, daily recommendations, study planner
     utils/
   alembic/versions/      # migrations
   scripts/               # init_env, seed (+ demo_questions: practice without an AI key), reembed, eval_retrieval
@@ -90,7 +90,7 @@ npm run test:e2e                    # browser journeys; needs the API and `pytho
 npm run lint && npm run typecheck && npm run format:check && npm run build
 
 # Database migrations
-alembic revision --autogenerate -m "what changed" --rev-id 0006   # next free number; review the file
+alembic revision --autogenerate -m "what changed" --rev-id 0007   # next free number; review the file
 alembic upgrade head
 ```
 
@@ -104,7 +104,10 @@ alembic upgrade head
 - Step 6: frontend MVP, the app works end to end: My Books and upload with the reading checklist, chapter page, Create Practice, the practice screen (with the picture version for Nursery–Class 2), Learn a Concept, progress, basic dashboard, child switcher; demo practice questions in the seed
 - Step 7: adaptive learning (backend): mastery per topic after every answer, difficulty that follows it,
   weak-topic detection, daily recommendations, practice for one topic
-- Next: step 8, mock tests and study planner (backend)
+- Step 8: mock tests and study planner (backend): sectioned papers from the question bank (practice,
+  chapter, full mock; timed from Class 9), saved answers, marking with part marks, the result report;
+  one study plan per learner, planned again each morning from mastery
+- Next: step 9, parent dashboard, test and plan screens, Parent AI Assistant and Student AI Tutor
 
 See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff section.
 

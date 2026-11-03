@@ -2,87 +2,33 @@
 
 Creating a session first reuses checked questions from the family's question bank that this
 learner has not seen; only the shortfall is written by the AI, in the background (`preparing` ->
-`ready`). Every answer is stored as an attempt, with the help the learner opened before answering,
-and updates the learner's mastery of the question's topic (adaptive_learning).
+`ready`; services/question_bank.py). Every answer is stored as an attempt, with the help the
+learner opened before answering, and updates the learner's mastery of the question's topic
+(adaptive_learning). A finished practice ticks off today's recommendation and study-plan task for
+its place.
 
 Who sees what: a session belongs to one learner and is visible to whoever may see that learner.
 """
 
-import logging
-import random
 import uuid
 
-from sqlalchemy import ColumnElement, and_, exists, func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import llm
 from app.adaptive_learning import mastery, recommendations
 from app.auth.principal import Principal
-from app.class_profiles import ClassProfile, get_class_profile
-from app.core.enums import ClassLevel, LearningBand, QuestionFormat
+from app.core.enums import LearningBand
 from app.core.errors import InvalidInputError, NotFoundError
 from app.core.tasks import TaskQueue
-from app.models import Book, DocumentChunk, PracticeItem, PracticeSession, Question, QuestionAttempt, Student
+from app.models import DocumentChunk, PracticeItem, PracticeSession, Question, QuestionAttempt, Student
 from app.models.base import utcnow
-from app.question_generation import checking, generator, strategy
-from app.question_generation.schemas import CHOICE_FORMATS, NUMBER_FORMATS, WRITTEN_FORMATS, GeneratedQuestion
+from app.question_generation import checking, strategy
 from app.rag import answering, retrieval
 from app.rag.answering import ExplainStyle
 from app.schemas.learn import ExplainResponse
 from app.schemas.practice import AnswerIn, AnswerResult, HelpLevel, HelpOut, PracticeCreate
-from app.services import library_service, student_service
-
-logger = logging.getLogger(__name__)
-
-SESSION_ERROR_MESSAGES = {
-    "insufficient_context": retrieval.InsufficientContextError.message,
-    "ai_unavailable": llm.AIUnavailableError.message,
-    "generation_failed": "We couldn't create practice questions this time. Please try again.",
-}
-
-
-def _profile(student: Student) -> ClassProfile:
-    assert student.profile is not None
-    return get_class_profile(ClassLevel(student.profile.class_level))
-
-
-def _place_filter(owner: uuid.UUID, session: PracticeSession, student: Student) -> ColumnElement[bool]:
-    """SQL conditions on Question for the session's place (bank reuse)."""
-    if session.exercise_id:
-        return Question.exercise_id == session.exercise_id
-    if session.topic_id:
-        return Question.topic_id == session.topic_id
-    if session.chapter_id:
-        return Question.chapter_id == session.chapter_id
-    if session.book_id:
-        return Question.book_id == session.book_id
-    assert student.profile is not None
-    learner_books = select(Book.id).where(library_service.books_for_learner(owner, student.id))
-    return and_(Question.book_id.in_(learner_books), Question.class_level == student.profile.class_level)
-
-
-async def _from_bank(
-    db: AsyncSession,
-    owner: uuid.UUID,
-    session: PracticeSession,
-    student: Student,
-    formats: list[str],
-    limit: int,
-) -> list[Question]:
-    """Checked questions for this place that this learner has never been given (in any session)."""
-    learner_sessions = select(PracticeSession.id).where(PracticeSession.student_id == student.id)
-    query = select(Question).where(
-        Question.owner_user_id == owner,
-        _place_filter(owner, session, student),
-        Question.language == session.language,
-        Question.format.in_(formats),
-        ~exists().where(
-            PracticeItem.question_id == Question.id, PracticeItem.session_id.in_(learner_sessions)
-        ),
-    )
-    if session.difficulty != "mixed":
-        query = query.where(Question.difficulty == session.difficulty)
-    return list((await db.scalars(query.order_by(Question.created_at).limit(limit))).all())
+from app.services import library_service, question_bank, student_service, study_plan_service
 
 
 def _add_items(db: AsyncSession, session: PracticeSession, questions: list[Question], start: int) -> None:
@@ -96,15 +42,11 @@ async def create_session(
     db: AsyncSession, principal: Principal, data: PracticeCreate, *, queue: TaskQueue
 ) -> PracticeSession:
     student = await student_service.learner_for(db, principal, data.student_id)
-    profile = _profile(student)
+    profile = student_service.class_profile(student)
     assert student.profile is not None
 
     count = data.count or profile.default_session_questions
-    if count > profile.max_session_questions:
-        raise InvalidInputError(
-            f"{profile.label} practice has at most {profile.max_session_questions} questions.",
-            details=[{"field": "count", "message": f"At most {profile.max_session_questions}."}],
-        )
+    question_bank.check_count(profile, count)
     formats = strategy.allowed_formats(profile, data.question_type)
     if not formats:
         raise InvalidInputError(
@@ -121,23 +63,12 @@ async def create_session(
         language=data.language or student.profile.primary_language,
         status="preparing",
     )
-    # The chosen place must be one this session may see (404 otherwise).
-    if data.exercise_id:
-        exercise, chapter, book = await library_service.get_exercise(db, principal, data.exercise_id)
-        session.exercise_id, session.chapter_id, session.book_id = exercise.id, chapter.id, book.id
-    elif data.topic_id:
-        topic, chapter = await library_service.get_topic(db, principal, data.topic_id)
-        session.topic_id, session.chapter_id, session.book_id = topic.id, chapter.id, chapter.book_id
-    elif data.chapter_id:
-        chapter = await library_service.get_chapter(db, principal, data.chapter_id)
-        session.chapter_id, session.book_id = chapter.id, chapter.book_id
-    elif data.book_id:
-        session.book_id = (await library_service.get_book(db, principal, data.book_id)).id
+    await question_bank.set_place(db, principal, session, data)
     db.add(session)
     await db.flush()
 
     owner = await student_service.account_of(db, student)
-    reused = await _from_bank(db, owner, session, student, formats, count)
+    reused = await question_bank.from_bank(db, owner, session, student, formats, count)
     _add_items(db, session, reused, 0)
     if len(reused) < count:
         llm.get_llm_provider()  # 503 now, rather than a failed session later, when AI is switched off
@@ -149,164 +80,29 @@ async def create_session(
     return session
 
 
-# ---------------------------------------------------------------------------- the background job
-
-
-async def _passages(
-    db: AsyncSession, owner: uuid.UUID, session: PracticeSession, student: Student, budget: int
-) -> list[retrieval.Passage]:
-    """The book text for the session's place (at most `budget` tokens), exercise or topic first when
-    one was chosen."""
-    places: list[retrieval.ChunkFilter] = []
-    if session.exercise_id:
-        places.append(retrieval.ChunkFilter(owner, exercise_id=session.exercise_id))
-    if session.topic_id:
-        places.append(retrieval.ChunkFilter(owner, topic_id=session.topic_id))
-    if session.chapter_id:
-        places.append(retrieval.ChunkFilter(owner, chapter_id=session.chapter_id))
-    elif session.book_id:
-        places.append(retrieval.ChunkFilter(owner, book_ids=[session.book_id]))
-    else:
-        assert student.profile is not None
-        books = (
-            await db.scalars(select(Book.id).where(library_service.books_for_learner(owner, student.id)))
-        ).all()
-        places.append(retrieval.ChunkFilter(owner, book_ids=books, class_level=student.profile.class_level))
-    found: list[retrieval.Passage] = []
-    for where in places:
-        found += await retrieval.passages_at(db, where, token_budget=budget)
-    return retrieval.build_context(found, token_budget=budget)
-
-
-def to_question(
-    generated: GeneratedQuestion,
-    owner: uuid.UUID,
-    session: PracticeSession,
-    student: Student,
-    chunks: dict[str, DocumentChunk],
-) -> Question:
-    cited = [chunks[tag] for tag in generated.source_tags]
-    first = cited[0]
-    fmt = generated.format
-    body: dict = {"text": generated.text}
-    if generated.case:
-        body["case"] = generated.case
-    if generated.unit:
-        body["unit"] = generated.unit
-    if fmt in CHOICE_FORMATS:
-        body["options"] = generated.options
-        answer: dict = {"option": generated.correct_option}
-    elif fmt in NUMBER_FORMATS:
-        answer = {"value": generated.numeric_answer}
-    elif fmt is QuestionFormat.FILL_BLANK:
-        answer = {"accepted": [a for a in generated.accepted_answers if a.strip()]}
-    elif fmt is QuestionFormat.MATCHING:
-        order = list(range(len(generated.match_right)))
-        random.shuffle(order)  # shown in a mixed-up order; pairs[i] is where left[i]'s match ended up
-        body["left"] = generated.match_left
-        body["right"] = [generated.match_right[i] for i in order]
-        answer = {"pairs": [order.index(i) for i in range(len(order))]}
-    else:
-        answer = {"model_answer": generated.model_answer, "key_points": generated.key_points}
-    assert student.profile is not None
-    return Question(
-        owner_user_id=owner,
-        book_id=first.book_id,
-        chapter_id=first.chapter_id,
-        # Written for a topic or an exercise: filed under it, so the next session for it finds it.
-        topic_id=session.topic_id or first.topic_id,
-        exercise_id=session.exercise_id or first.exercise_id,
-        origin="generated",
-        class_level=student.profile.class_level,
-        subject=first.subject,
-        format=fmt.value,
-        style=generated.style.value,
-        difficulty=generated.difficulty,
-        language=session.language,
-        body=body,
-        answer=answer,
-        hints=generated.hints,
-        solution={
-            "concept": generated.concept,
-            "steps": generated.steps,
-            "final_answer": generated.final_answer,
-        },
-        source_chunk_ids=[str(chunk.id) for chunk in cited],
-        page=first.page_start,
-        validation={"checked_by": "independent review"},
+async def _write_the_rest(
+    db: AsyncSession, session: PracticeSession, student: Student, owner: uuid.UUID
+) -> int:
+    have = await db.scalar(select(func.count()).where(PracticeItem.session_id == session.id)) or 0
+    formats = strategy.allowed_formats(student_service.class_profile(student), session.question_type)
+    written = await question_bank.write(
+        db, owner, session, student, formats=formats, count=session.question_count - have
     )
-
-
-async def _fail(db: AsyncSession, session_id: uuid.UUID, code: str) -> None:
-    await db.rollback()
-    session = await db.get(PracticeSession, session_id, populate_existing=True)
-    if session is not None:
-        session.status, session.error_code = "failed", code
-        await db.commit()
+    _add_items(db, session, written, have)
+    return have + len(written)
 
 
 async def prepare_session(db: AsyncSession, *, session_id: uuid.UUID) -> None:
     """The background job that writes the questions a session still needs. Safe to run again."""
-    session = await db.get(PracticeSession, session_id)
-    if session is None or session.status != "preparing":
-        return
-    student = await db.get(Student, session.student_id)
-    assert student is not None and student.profile is not None
-    profile = _profile(student)
-    owner = await student_service.account_of(db, student)
-    try:
-        have = await db.scalar(select(func.count()).where(PracticeItem.session_id == session.id)) or 0
-        budget = llm.get_llm_provider().request_size.passage_tokens
-        passages = await _passages(db, owner, session, student, budget)
-        if not passages:
-            await _fail(db, session_id, "insufficient_context")
-            return
-        existing = (
-            await db.scalars(
-                select(Question.body["text"].astext).where(
-                    Question.owner_user_id == owner, _place_filter(owner, session, student)
-                )
-            )
-        ).all()
-        request = generator.Request(
-            count=session.question_count - have,
-            difficulty=session.difficulty,
-            formats=strategy.allowed_formats(profile, session.question_type),
-            language=session.language,
-        )
-        written = await generator.generate(
-            passages, profile=profile, student=student.profile, request=request, existing=list(existing)
-        )
-        if not written and have == 0:
-            await _fail(db, session_id, "generation_failed")
-            return
-        chunks = {passage.tag: passage.chunk for passage in passages}
-        questions = [to_question(q, owner, session, student, chunks) for q in written]
-        db.add_all(questions)
-        await db.flush()
-        _add_items(db, session, questions, have)
-        session.status = "ready"
-        await db.commit()
-        logger.info("Practice session %s ready: %d reused, %d written", session_id, have, len(questions))
-    except (llm.AIUnavailableError, llm.AINotConfiguredError):
-        await _fail(db, session_id, "ai_unavailable")
-    except Exception:
-        logger.exception("Preparing practice session %s failed", session_id)
-        await _fail(db, session_id, "generation_failed")
+    await question_bank.prepare(db, PracticeSession, session_id, _write_the_rest)
 
 
 async def resume_unfinished_sessions(
     session_factory: async_sessionmaker[AsyncSession], queue: TaskQueue
 ) -> None:
     """At start-up: sessions whose questions were being written when the server stopped are queued again."""
-    async with session_factory() as db:
-        ids = (
-            await db.scalars(select(PracticeSession.id).where(PracticeSession.status == "preparing"))
-        ).all()
-    for session_id in ids:
+    for session_id in await question_bank.preparing(session_factory, PracticeSession):
         await queue.enqueue(prepare_session, session_id=session_id)
-    if ids:
-        logger.info("Resumed preparing %d practice session(s)", len(ids))
 
 
 # ---------------------------------------------------------------------------- doing the practice
@@ -374,20 +170,16 @@ async def answer(
     item, question = await _item(db, session, data.question_id)
     student = await db.get(Student, session.student_id)
     assert student is not None and student.profile is not None
-    profile = _profile(student)
+    profile = student_service.class_profile(student)
 
     response = data.model_dump(include={"option", "value", "text", "pairs"}, exclude_none=True)
+    correct = checking.is_correct(question, response)
     feedback = None
-    if question.format in WRITTEN_FORMATS:
-        if not data.text:
-            raise InvalidInputError("Please write an answer.", code="answer_does_not_fit")
-        grade = await checking.mark_written(question, data.text, profile=profile, student=student.profile)
+    if correct is None:
+        grade = await checking.mark_written(
+            question, response["text"], profile=profile, student=student.profile
+        )
         correct, feedback = grade.is_correct, grade.feedback
-    else:
-        try:
-            correct = checking.is_correct(question, response)
-        except checking.AnswerShapeError as exc:
-            raise InvalidInputError(str(exc), code="answer_does_not_fit") from None
 
     db.add(
         QuestionAttempt(
@@ -419,6 +211,7 @@ async def answer(
     if unanswered == 0 and session.status != "completed":
         session.status, session.completed_at = "completed", utcnow()
         await recommendations.mark_done(db, session)
+        await study_plan_service.practice_done(db, session)
     await db.commit()
 
     # Nursery - Class 2: never "wrong" - an invitation to try again, answer kept back.
@@ -477,7 +270,7 @@ async def explain_question(
     answer_ = await answering.explain(
         question.body["text"],
         passages=passages,
-        profile=_profile(student),
+        profile=student_service.class_profile(student),
         student=student.profile,
         style=style,
         worked_solution="\n".join([solution["concept"], *solution["steps"], solution["final_answer"]]),
@@ -493,7 +286,3 @@ async def explain_question(
             db, [(c.book_id, c.chapter_id, c.exercise_id, c.page_start) for c in cited]
         ),
     )
-
-
-def session_error_message(code: str) -> str:
-    return SESSION_ERROR_MESSAGES.get(code, SESSION_ERROR_MESSAGES["generation_failed"])

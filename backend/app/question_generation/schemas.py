@@ -70,4 +70,5 @@ class Grade(BaseModel):
     """Marking of a written answer."""
 
     is_correct: bool
+    key_points_covered: int = Field(description="How many of the key points the answer contains.")
     feedback: str = Field(description="One or two kind sentences: what was right and what to add.")

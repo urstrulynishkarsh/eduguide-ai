@@ -4,7 +4,6 @@ Practice here comes from questions put straight into the family's question bank,
 answering goes through the API, as a learner would.
 """
 
-import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -14,62 +13,18 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adaptive_learning import recommendations
-from app.models import Question, StudentMastery
+from app.models import StudentMastery
 from app.models.base import utcnow
 from tests.api.helpers import (
     API,
     Account,
     add_child,
-    create_book,
+    bank,
     error_code,
+    family_with_book,
     register,
     start_child_session,
-    upload,
 )
-from tests.samples import NOTES_TEXT, make_pdf
-
-
-async def _family(client: AsyncClient, class_level: str = "class_7") -> tuple[Account, dict, dict]:
-    """A parent, a child, the child's book; returns the chapter whose topics are practised."""
-    parent = await register(client)
-    child = await add_child(client, parent, class_level=class_level)
-    book = await create_book(client, parent.headers, student_id=child["id"], class_level=None)
-    if class_level == "ukg":
-        await upload(client, parent.headers, book["id"], NOTES_TEXT.encode(), "water.txt", "text/plain")
-    else:
-        await upload(client, parent.headers, book["id"], make_pdf())
-    chapters = (await client.get(f"{API}/books/{book['id']}/chapters", headers=parent.headers)).json()
-    chapter = (await client.get(f"{API}/chapters/{chapters[-1]['id']}", headers=parent.headers)).json()
-    return parent, child, chapter
-
-
-async def _bank(
-    db: AsyncSession, parent: Account, child: dict, chapter: dict, *, count: int, difficulty: str = "medium"
-) -> None:
-    """Checked questions for the chapter's last topic; option 0 is the right answer."""
-    db.add_all(
-        Question(
-            owner_user_id=uuid.UUID(parent.user["id"]),
-            book_id=uuid.UUID(chapter["book_id"]),
-            chapter_id=uuid.UUID(chapter["id"]),
-            topic_id=uuid.UUID(chapter["topics"][-1]["id"]),
-            origin="generated",
-            class_level=child["profile"]["class_level"],
-            subject="Mathematics",
-            format="mcq",
-            style="recall",
-            difficulty=difficulty,
-            language=child["profile"]["primary_language"],
-            body={"text": f"Question {uuid.uuid4().hex[:6]}", "options": ["right", "wrong", "no"]},
-            answer={"option": 0},
-            hints=["A nudge."],
-            solution={"concept": "The idea.", "steps": ["A step."], "final_answer": "right"},
-            source_chunk_ids=[],
-            validation={"checked_by": "test"},
-        )
-        for _ in range(count)
-    )
-    await db.commit()
 
 
 async def _practise(client: AsyncClient, headers: dict, body: dict[str, Any], results: list[bool]) -> dict:
@@ -108,8 +63,8 @@ async def _recommendations(client: AsyncClient, headers: dict, child: dict) -> l
 async def test_the_level_rises_after_right_answers_and_falls_after_wrong_ones(
     client: AsyncClient, db_session: AsyncSession
 ):
-    parent, child, chapter = await _family(client)
-    await _bank(db_session, parent, child, chapter, count=20)
+    parent, child, chapter = await family_with_book(client)
+    await bank(db_session, parent, child, chapter, count=20)
 
     await _topic_practice(client, parent, child, chapter, [True] * 4)
     area = await _area(client, parent, child)
@@ -135,8 +90,8 @@ async def test_the_level_rises_after_right_answers_and_falls_after_wrong_ones(
 async def test_a_weak_topic_gets_easier_practice_and_a_revision_until_it_is_done(
     client: AsyncClient, db_session: AsyncSession
 ):
-    parent, child, chapter = await _family(client)
-    await _bank(db_session, parent, child, chapter, count=5)
+    parent, child, chapter = await family_with_book(client)
+    await bank(db_session, parent, child, chapter, count=5)
     await _topic_practice(client, parent, child, chapter, [True, False, False, False, False])
 
     first, new_chapter = await _recommendations(client, parent.headers, child)
@@ -167,7 +122,7 @@ async def test_a_weak_topic_gets_easier_practice_and_a_revision_until_it_is_done
     assert new_chapter["practice"]["chapter_id"] == new_chapter["chapter_id"]
 
     # Start Recommended Practice, as the screen will: the body as it came, 10 easy questions (Class 7).
-    await _bank(db_session, parent, child, chapter, count=10, difficulty="easy")
+    await bank(db_session, parent, child, chapter, count=10, difficulty="easy")
     await _practise(client, parent.headers, first["practice"], [True] * 10)
 
     again = await _recommendations(client, parent.headers, child)
@@ -178,8 +133,8 @@ async def test_a_weak_topic_gets_easier_practice_and_a_revision_until_it_is_done
 async def test_the_youngest_get_gentle_repetition_without_levels_or_labels(
     client: AsyncClient, db_session: AsyncSession
 ):
-    parent, child, chapter = await _family(client, class_level="ukg")
-    await _bank(db_session, parent, child, chapter, count=5)
+    parent, child, chapter = await family_with_book(client, class_level="ukg")
+    await bank(db_session, parent, child, chapter, count=5)
     session = await _topic_practice(client, parent, child, chapter, [True, False, False, False, False])
     # Trying again until right is encouraged; only the first answer counts.
     retry = await client.post(
@@ -201,8 +156,8 @@ async def test_the_youngest_get_gentle_repetition_without_levels_or_labels(
 async def test_an_area_being_learned_continues_and_one_left_for_a_week_is_reviewed(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):
-    parent, child, chapter = await _family(client)
-    await _bank(db_session, parent, child, chapter, count=3)
+    parent, child, chapter = await family_with_book(client)
+    await bank(db_session, parent, child, chapter, count=3)
     await _topic_practice(client, parent, child, chapter, [True, True, False])
 
     continuing, new_chapter = await _recommendations(client, parent.headers, child)
@@ -222,7 +177,7 @@ async def test_an_area_being_learned_continues_and_one_left_for_a_week_is_review
 
 
 async def test_a_new_learner_is_offered_the_chapters_of_their_own_books(client: AsyncClient):
-    parent, child, _ = await _family(client)
+    parent, child, _ = await family_with_book(client)
     sibling = await add_child(client, parent, class_level="class_7")
 
     items = await _recommendations(client, parent.headers, child)
@@ -237,7 +192,7 @@ async def test_a_new_learner_is_offered_the_chapters_of_their_own_books(client: 
 
 
 async def test_only_those_who_may_see_the_learner_get_their_mastery(client: AsyncClient):
-    parent, child, _ = await _family(client)
+    parent, child, _ = await family_with_book(client)
     sibling = await add_child(client, parent, class_level="class_7")
     stranger = await register(client)
     child_mode = await start_child_session(client, parent, child["id"])

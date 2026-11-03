@@ -21,8 +21,8 @@ Status: ✅ done · ⏭ next · ⬜ later
 | Step | Status | What you get | Folders it fills | Spec items (§46) |
 |---|---|---|---|---|
 | **7** | ✅ | **Adaptive learning.** Mastery per topic, difficulty that follows performance, weak-topic detection, daily recommendations. | `backend/app/adaptive_learning` · `backend/app/analytics` | 1 Adaptive difficulty · 3 Weak-topic detection · 4 Study recommendations |
-| **8** | ⏭ | **Mock tests and study planner** (backend). Sectioned, timed tests with a result report; study plans that update with performance. | `backend/app/services` · `backend/app/api/v1` | 5 Mock tests · 6 Study planner |
-| **9** | ⬜ | **Parent dashboard, test and plan screens, the two assistants.** Parent AI Assistant and Student AI Tutor (hint first, answer last). | `frontend/` · `backend/app/api/v1` | 2 Parent dashboard |
+| **8** | ✅ | **Mock tests and study planner** (backend). Sectioned, timed tests with a result report; study plans that update with performance. | `backend/app/services` · `backend/app/api/v1` | 5 Mock tests · 6 Study planner |
+| **9** | ⏭ | **Parent dashboard, test and plan screens, the two assistants.** Parent AI Assistant and Student AI Tutor (hint first, answer last). | `frontend/` · `backend/app/api/v1` | 2 Parent dashboard |
 
 ## Phase 3
 
@@ -243,81 +243,136 @@ backend/
 To update a Step 6 setup: `alembic upgrade head` (migration 0005), `pytest`. No new libraries and
 no frontend changes.
 
+## What Step 8 added
+
+```
+backend/
+├── alembic/versions/0006_…py            mock_tests, mock_test_questions, test_attempts, study_plans,
+│                                        study_plan_items; question_attempts: test_attempt_id, marks
+├── tests/unit/test_paper.py · test_planner.py
+├── tests/api/test_mock_tests.py · test_study_plans.py
+├── tests/api/helpers.py                 + family_with_book(), bank() (shared with test_adaptive.py)
+└── app/
+    ├── models/practice.py               QuestionSettings: the columns a practice and a test share
+    ├── models/mock_test.py · study_plan.py · schemas/mock_test.py · study_plan.py
+    ├── services/question_bank.py        unseen questions from the bank, writing the rest, the
+    │                                    background job frame - moved out of practice_service, shared
+    ├── question_generation/paper.py     which tests a class has; sections, marks, default size and time
+    ├── question_generation/checking.py  is_correct() → None for written answers; written_marks() (part marks)
+    ├── services/mock_test_service.py    make the paper, sittings, saved answers, marking, the report
+    ├── adaptive_learning/planner.py     the study planner's rules (tasks, then days) - no database
+    ├── services/study_plan_service.py   one plan per learner, planned again each morning; ticked off
+    ├── api/v1/mock_tests.py · study_plans.py
+    ├── analytics/progress.py            first_answers() also per test sitting
+    └── utils/pagination.py              the cursor pages of the books list, now shared with tests
+```
+
+To update a Step 7 setup: `alembic upgrade head` (migration 0006 - already applied to this
+machine's database at the end of the step), `pytest`. No new libraries and no frontend changes.
+
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 7.*
+*Rewritten at the end of every step. Last updated: end of Step 8.*
 
 ### Where things stand
 
-- Steps 1–7 are done. Backend: 286 tests pass (live tests skipped), `ruff` clean. The frontend
-  did not change in Step 7 (its 80 unit tests and 10 browser journeys passed at the end of Step 6).
-- **Added after Step 7: Groq as a second AI provider** (free plan). `app/llm/groq_provider.py`,
-  `groq==1.7.0` in requirements, `LLM_PROVIDER=groq` + `GROQ_API_KEY` in `backend/.env`;
-  `LLM_MODEL_*` now default to empty = the provider's own models (`DEFAULT_MODELS` in each
-  adapter). Live tests (`tests/live/test_ai_providers.py`) run for every provider with a key.
-  To update: `pip install -r requirements-dev.txt`.
+- Steps 1–8 are done. Backend: 325 tests pass (live tests skipped), `ruff` clean. The frontend did
+  not change in Steps 7 and 8 (its 80 unit tests and 10 browser journeys passed at the end of Step 6).
+- Checked on the real server with the demo data (Aarav): a test made from saved questions, an answer
+  saved, the test submitted and its report; a two-week plan made and read back. What that run added
+  to the demo data was removed again.
 
-### What Step 7 built
+### What Step 8 built
 
-- **Areas.** Mastery is kept per *area*: a topic of a chapter, or the chapter itself for questions
-  without a topic (most of Anaya's demo questions have none). One `student_mastery` row per learner
-  and area, worked out again after every answer, in the answer's transaction
-  (`mastery.record_answer`, called from `practice_service.answer`).
-- **The numbers** (doc 7, 7.9) come from the last 10 *first* answers in the area
-  (`analytics.progress.first_answers`, shared with basic progress): accuracy; mastery (credit 1 for
-  right, −0.25 per hint, 0.25 after the solution, 0 for wrong; recent and harder answers weigh more);
-  confidence (answers ÷ 10). Status: `needs_attention` below 60 % over ≥ 5 answers (Class 6–12 only),
-  `strong` at mastery ≥ 0.85 over ≥ 5 answers, otherwise `learning`.
-- **Adaptive difficulty** (Class 6–12): each area has a level, starting at medium, moved by the rule
-  (> 85 % up, < 60 % down) only on ≥ 5 answers given since it last moved (`difficulty_since`).
-  Nursery–Class 5: no levels, no weak label; gentle repetition with easy questions.
-- **Recommendations**: at most 3 a day, made on the first `GET` of the day (India time, fixed
-  +05:30) and kept for the day; in order `strengthen` (weak area: revise + practice at its lowered
-  level) · `continue` (being learned, practised this week) · `review` (not practised for 7 days) ·
-  `new_chapter` (never practised, books of the learner's class). Each carries a ready
-  `PracticeCreate` body (`practice`) and, for strengthen, an `ExplainRequest` (`revise`). Finishing a
-  practice of the same place marks it `done` (`recommendations.mark_done`).
-- **Practice for one topic**: `PracticeCreate.topic_id` (one place at most, as before); the bank
-  filters by topic, the writer gets the topic's text first, and new questions are filed under it.
-- New endpoints: `GET /students/{id}/mastery`, `GET /students/{id}/recommendations` (docs/03 §3.6).
-  New tables: `student_mastery`, `recommendations`; new column `practice_sessions.topic_id`
-  (docs/02 §2.5).
+- **Mock tests** (docs/03 §3.7). Kinds: `practice` (Class 3+, any one place or all books), `chapter`
+  (Class 6+, one chapter), `full_mock` (Class 9+, a book or all books, always timed: about 2 minutes a
+  mark). A time limit needs Class 9+. Otherwise `422 test_not_for_class` (`details` says `kind` or
+  `duration_minutes`). Default size: practice = the class's usual number, chapter 15, full mock 30;
+  capped by the class's maximum.
+- **The paper** (`paper.py`): sections A objective (MCQ, true/false, fill blank, assertion-reason,
+  case-based; 1 mark), B numerical (2), C short answer (2), D long answer (5), each only where the
+  class uses one of its formats; every section gets at least one question, the rest by share. Stored
+  in `mock_tests.sections`; each question's section, position and marks in `mock_test_questions`.
+- **Questions** come exactly as for practice: `question_bank.from_bank` (never a question the learner
+  was given in a practice **or a test** - practice now skips test questions too), then the AI writes
+  each section's shortfall in the background (`prepare_test`, resumed at start-up), committing after
+  each section so written questions stay in the bank even if a later section fails.
+- **A sitting** (`test_attempts`): `POST /mock-tests/{id}/attempts` starts it (or returns the one in
+  progress; after a submitted one it is a retake). Answers are saved one by one into `responses`
+  (`PUT …/answers/{question_id}`, one atomic `||` update) and can be changed until submitted; refused
+  after the deadline + 1 minute (`test_time_over`). No hints/steps in a test.
+- **Marking on submit**: exact formats as in practice; written answers by the AI, whose `Grade` now
+  also gives `key_points_covered` → that share of the marks, to the nearest half mark. All AI calls
+  happen before anything is stored, so a failure leaves the sitting as it was and submit can be sent
+  again. Each answer becomes a `question_attempts` row with `test_attempt_id` and `marks`
+  (`practice_session_id` is now optional; a check constraint wants exactly one). Mastery is worked out
+  again for every area answered, so **tests count for progress, mastery and recommendations**.
+  Unanswered questions earn 0 and are not counted. Submitting twice returns the same report.
+- **The report**: score / total / percentage, time taken, answered / correct / wrong / unanswered,
+  by section, by chapter and topic (weakest first), and every question with the response, marks,
+  feedback and the worked solution.
+- **Study plans** (one per learner, `study_plans.student_id` unique; a new plan replaces the old one;
+  not in child mode, but a child can tick tasks off). Built by rules (`planner.py`), not the AI:
+  weak areas first (learn + practise at the lowered level), then each chapter in book order - new:
+  learn + practise; below the target: practise, **as many times as it needs** (one per 25 points of
+  mastery it lacks, the later ones in rounds through the chapters, so they are spread out); at the
+  target: one review at the end. The last day: one test per book - full mock (Class 9+), practice
+  test (Class 3–8), none below. Learn 15 minutes, practice 20, a test its length. Final tasks are
+  placed backwards from the last day, the rest spread evenly before within `daily_minutes`; what does
+  not fit is counted in `unscheduled`.
+- **It follows performance**: on the first `GET /students/{id}/study-plan` of a day (India time), past
+  pending tasks become `missed`, pending tasks from today on are replaced by a new plan from the
+  latest mastery; done / skipped tasks stay and their minutes count. Finishing a practice of a task's
+  place, or submitting a whole-book test of its book, marks it `done` (`practice_done`,
+  `book_test_done`); learn tasks are ticked with `PATCH /study-plan-items/{id}`.
+- Shared now: `QuestionView.of()`, `QuestionRequest` (base of `PracticeCreate` and `MockTestCreate`),
+  `Response` (base of `AnswerIn`), `student_service.class_profile()`, `mastery.practice_level()` /
+  `right_lately()`, `recommendations.practice_body()` / `revise_body()`, `checking.AnswerShapeError` is
+  itself the `422 answer_does_not_fit`.
 
 ### Known issues
 
-- **Groq (free plan) works, slowly.** `pytest -m live` passes on it. Its 8,000 tokens a minute
-  forced small requests (`RequestSize` per provider: Groq 1,500 tokens of book text, 3 questions per
-  call, replies capped at 3,500): Groq sizes a request as input + the largest recent reply and
-  refuses (413) anything over 8,000. Measured: a 5-question hard practice = 8 requests, ~4 minutes,
-  4 of 12 written questions passed the checks. Advise 5 questions per practice on the free plan; the
-  daily allowance covers only a few practices. Claude has still not been tried (no key).
-- Practice from a recommendation needs unseen saved questions at that place and difficulty;
-  otherwise it needs the AI.
-- **Recommendations are fixed for the day.** If a child fixes a weak topic in the morning, its
-  "strengthen" item stays (it turns `done` only when a practice of that place is finished) until the
-  next day's list. There is no "dismiss" yet.
-- Answers given before Step 7 are not in mastery until the learner answers again in that area (then
-  the area is worked out from all its history). The demo data has no answers, so nothing is lost there.
-- The reasons are English sentences built from fixed wording (translated screens: Step 11).
-- **Node.js on this machine is still v21.5.0**: the site and `next build` run, but Vitest does not
-  start (it needs Node ≥ 22). Install the Node 24 LTS macOS installer from nodejs.org.
-- Unchanged: the upload route does not renew tokens; `E2E…` children can be left behind by an
-  interrupted browser run; `npm audit` (17 moderate, one ESLint dependency); no rate limiting, token
-  revocation or security headers yet (Step 12).
+- **The demo data has only objective questions.** Without an AI key a demo test can only be a
+  1-question one (any second question falls in the short-answer section). Step 9's browser tests
+  will need a few short- and long-answer demo questions in `scripts/demo_questions.py`.
+- **The server does not submit a test when time runs out**; the screen must call `submit` when the
+  timer reaches 0. A sitting left in a closed tab stays `in_progress` with `seconds_left: 0`, and
+  starting the test again returns it: the screen should then submit it and show the report.
+- **Marking runs inside the submit request**, one AI call per written answer, one after another. On
+  the Groq free plan a paper with many written answers is slow and can hit the per-minute limit
+  (`503 ai_unavailable`; the answers are kept, submit again).
+- The plan is made again only once a day: practice finished today shows in tomorrow's plan, and a
+  task already planned for later stays until then. Plans work per chapter (per topic only for weak
+  topics); the minutes per task are fixed estimates. A replaced plan is gone, with its history.
+- There is no endpoint to delete a test (they stay in the list).
+- No negative marking or JEE / NEET paper patterns yet (Step 10).
+- Unchanged from Step 7: recommendations are fixed for the day; answers given before Step 7 enter
+  mastery only when the learner answers again in that area; reasons are English sentences built from
+  fixed wording; **Node.js on this machine is still v21.5.0** (Vitest needs ≥ 22); the upload route
+  does not renew tokens; `E2E…` children can be left behind by an interrupted browser run (the dev
+  database has many); `npm audit` (17 moderate); no rate limiting, token revocation or security
+  headers yet (Step 12). Groq free plan: about 4 minutes for a 5-question hard practice.
 
-### What Step 8 needs to know
+### What Step 9 needs to know
 
-- Step 8 is **backend**: mock tests (sections, timing, a result report) and the study planner
-  (plans that update with performance). Planned tables: `mock_tests`, `mock_test_questions`,
-  `test_attempts`, `study_plans`, `study_plan_items` (docs/02 §2.7). Check the class profile:
-  `practice_tests` (Class 3+), `chapter_tests` (6+), `timed_tests` and `full_mock_tests` (9+).
-- **Questions**: reuse the question bank and the writer (`practice_service._from_bank`,
-  `generator.generate`, `to_question`); a test place can be a book, chapter, topic or exercise.
-- **Mastery should count test answers.** `mastery.record_answer` reads `question_attempts` through
-  `first_answers`, which groups by `practice_session_id`. Either store test answers there too (one
-  attempt per question) or teach `first_answers` about tests; then call `record_answer` per answer.
-- **Study plans** can build on `student_mastery` (weak areas, levels, last practised) and on the
-  recommendation order; `recommendations.today()` gives the India-time day.
-- Frontend hooks waiting for Step 9: "Recommended for You" on the learner home, strong areas / needs
-  attention and **Start Recommended Practice** (post `practice` as-is) on the parent dashboard.
-  Every new page that loads data needs its own `loading.tsx` (see `frontend/app/loading.tsx`).
+- Step 9 is **frontend + two assistants**: the parent dashboard (`GET /students/{id}/dashboard`,
+  planned), the test and plan screens, the Parent AI Assistant and the Student AI Tutor (hint first,
+  answer last; `chat_sessions`, `chat_messages`, docs/02 §2.8).
+- **Test screens** (docs/04): `/parent/tests` (`GET /students/{id}/mock-tests`, cursor pages, each with
+  its sittings), `/parent/tests/new` (kinds and the timer shown by the profile's `practice_tests`,
+  `chapter_tests`, `full_mock_tests`, `timed_tests`), `/parent/tests/[testId]` (poll while `preparing`,
+  then the sittings and their reports); `/learn/tests` and `/learn/tests/[attemptId]`: start with
+  `POST /mock-tests/{id}/attempts`, show the countdown from `deadline` / `seconds_left`, `PUT` each
+  answer as it is chosen, `GET /test-attempts/{id}` after a reload, submit at 0 or on the button, then
+  show `TestReport`. The chapter page's **Take Test**: `kind: "chapter"` from Class 6, a `practice` test
+  with `chapter_id` in Class 3–5; hidden for Nursery–Class 2.
+- **Plan screens**: `/parent/plans` (`GET /students/{id}/study-plan`; `404 study_plan_not_found` = no
+  plan yet) and `/parent/plans/new` (exam date, minutes a day, target, chapters); `/learn/plan` shows
+  today's day of the plan: each task's `practice` / `revise` / `test` body goes as-is to
+  `POST /practice/sessions` / `POST /learn/explain` / `POST /mock-tests`; a learn task is ticked off
+  with `PATCH` after the explanation. Show `unscheduled` as "Not everything fits: add minutes a day or
+  choose fewer chapters".
+- Frontend hooks still waiting from Step 7: "Recommended for You" on the learner home, strong areas /
+  needs attention and **Start Recommended Practice** on the parent dashboard.
+- Every new page that loads data needs its own `loading.tsx`; all wording in `frontend/lib/copy.ts`
+  (parent words: docs/04 §4.5).

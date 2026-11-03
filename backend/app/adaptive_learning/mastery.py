@@ -92,6 +92,16 @@ def status(area: StudentMastery, features: ClassFeatures) -> MasteryStatus:
     return "strong" if is_strong(area) else "learning"
 
 
+def practice_level(area: StudentMastery, features: ClassFeatures, without_levels: str) -> str:
+    """The difficulty to practise an area at: its level where the class has levels."""
+    return (area.difficulty or START_LEVEL) if features.adaptive_difficulty else without_levels
+
+
+def right_lately(area: StudentMastery) -> str:
+    """e.g. "33% right in the last 6 answers"."""
+    return f"{round(area.accuracy * 100)}% right in the last {min(area.attempts, WINDOW)} answers"
+
+
 async def record_answer(db: AsyncSession, student: Student, question: Question) -> None:
     """Works out the numbers of the question's area again, after an answer to it (not committed)."""
     if question.chapter_id is None:
@@ -162,13 +172,14 @@ def with_names(table: type[StudentMastery] | type[Recommendation]) -> Select[Any
 
 
 def names(row: Row[Any]) -> dict[str, Any]:
-    """The `Area` fields of a `with_names` row."""
+    """The `Area` fields of a `with_names` row (or of a row of the same shape, where the chapter can be
+    missing)."""
     item, book_id, book_title, chapter_number, chapter_title, topic_number, topic_title = row
     return {
         "book_id": book_id,
         "book_title": book_title,
         "chapter_id": item.chapter_id,
-        "chapter": chapter_label(chapter_number, chapter_title),
+        "chapter": chapter_label(chapter_number, chapter_title) if chapter_title is not None else None,
         "topic_id": item.topic_id,
         "topic": topic_label(topic_number, topic_title) if topic_title is not None else None,
     }

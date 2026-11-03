@@ -4,12 +4,13 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 7 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
+> **Build status: Step 8 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
 > child, uploads a book, creates practice from a chapter or exercise and hands the device over;
 > the child practises (with hints, steps and answers) in a layout made for their age, and both
-> see the progress. Since Step 7 the API also knows each child's mastery of every topic, moves the
-> difficulty with their results and recommends what to do next (screens for it come in Step 9).
-> Mock tests and the study planner come next (Step 8).
+> see the progress. The API also knows each child's mastery of every topic, moves the difficulty
+> with their results and recommends what to do next (Step 7), and runs sectioned, timed mock tests
+> with a result report and study plans that follow performance (Step 8). Their screens, the parent
+> dashboard and the two AI assistants come next (Step 9).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -23,7 +24,7 @@ from Nursery to Class 12.
 - **My Books**: upload a PDF, Word or text file with a progress bar, then watch it being read
   (✓ Reading your book … ✓ Getting practice ready). Chapters, topics, and exercise questions exactly
   as printed, with page numbers
-- **Chapter page**: Learn · Practice · Exercise Questions · Generate Questions (Take Test: Step 8)
+- **Chapter page**: Learn · Practice · Exercise Questions · Generate Questions (Take Test: Step 9)
 - **Create Practice**: from all books, a book, a chapter or an exercise; number, difficulty,
   question type and language, limited by the child's class. Then **Start now with Aarav**
 - **Practice screen**: one question at a time, every answer format, **Hint → Show Steps → Show
@@ -69,7 +70,17 @@ from Nursery to Class 12.
 - **Recommended for You** (`GET /api/v1/students/{id}/recommendations`): up to three things to do
   today, each with its reason and a ready Create Practice request — strengthen a weak topic (revise,
   then easier questions), continue one, review one not practised for a week, or start a new chapter
-- Database migrations, demo data (including a sample book), automatic API documentation, 272 automated tests
+- **Mock tests** (`POST /api/v1/mock-tests`): practice tests from Class 3, chapter tests from Class 6,
+  full mock tests and time limits from Class 9. A paper in board-style sections (objective, numerical,
+  short and long answers, with marks), answers saved as the child goes and changeable until submitted,
+  then marked — written answers with part marks for the key points covered — and a **result report**:
+  score, sections, the weakest chapters and topics, and every question with its solution. Test
+  answers count towards progress and mastery
+- **Study planner** (`POST /api/v1/study-plans`): from today to the exam within the minutes a day —
+  weak topics first, new chapters (learn, then practise), more practice below the target score,
+  reviews and a test of each book at the end. Planned again every morning from the latest mastery;
+  finishing a practice or a test ticks its task off
+- Database migrations, demo data (including a sample book), automatic API documentation, 324 automated tests
 
 ## Run it on your computer
 
@@ -229,7 +240,7 @@ temporary child, practises with the demo questions, and removes the child again.
 |---|---|
 | Start the API | `uvicorn app.main:app --reload` |
 | Apply database changes | `alembic upgrade head` |
-| Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0005` (the next free number) |
+| Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0007` (the next free number) |
 | Undo the last migration | `alembic downgrade -1` |
 | Make every book searchable again (after an upgrade or a search-model change) | `python -m scripts.reembed` |
 | Measure search quality on the sample book | `python -m scripts.eval_retrieval` |

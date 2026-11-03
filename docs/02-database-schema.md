@@ -170,7 +170,7 @@ solution, so the solution lives on the question; "explain in Hindi" is generated
 |---|---|
 | `practice_sessions` | `student_id`; place `book_id` / `chapter_id` / `topic_id` (Step 7) / `exercise_id` (all empty = the learner's books of their class, `SET NULL` on delete); `question_count`, `difficulty` (+ `mixed`), `question_type` (a format or `mixed`), `language`; `status` `preparing` → `ready` → `completed` (or `failed` + `error_code`); `completed_at` |
 | `practice_items` | (`session_id`, `question_id`) primary key, `position`, and the help opened: `hints_shown`, `steps_shown`, `answer_shown` |
-| `question_attempts` | every answer: `student_id`, `question_id`, `practice_session_id`, `response` jsonb, `is_correct`, `feedback` (written answers), `time_taken_ms`, `hints_used`, `solution_viewed`, `difficulty` |
+| `question_attempts` | every answer: `student_id`, `question_id`, `practice_session_id` (or, from Step 8, `test_attempt_id`: exactly one of the two), `response` jsonb, `is_correct`, `feedback` (written answers), `time_taken_ms`, `hints_used`, `solution_viewed`, `difficulty`, `marks` (tests) |
 
 `practice_items` is not in the original plan: it keeps the order of a session and the help opened
 before answering, which the attempt then records.
@@ -210,7 +210,36 @@ Worked out again from `question_attempts` after every answer, in the same transa
 Changed from the plan: real `chapter_id` / `topic_id` columns instead of a `payload` jsonb (so the
 database removes a recommendation with its book), and `day` instead of `valid_until`.
 
-## 2.6 The whole picture
+## 2.6 Tables added in Step 8 — mock tests and study plans
+
+Migration `0006`.
+
+### `mock_tests`, `mock_test_questions`, `test_attempts`
+
+| Table | Columns |
+|---|---|
+| `mock_tests` | `student_id`; `kind` `practice` / `chapter` / `full_mock`; the same question settings as a practice session (place `book_id` / `chapter_id` / `topic_id` / `exercise_id`, `question_count`, `difficulty`, `language`, `status`, `error_code` — one shared model mixin); `duration_minutes` (empty = untimed); `sections` jsonb, the paper's plan: `[{code, title, marks, count, formats}]` |
+| `mock_test_questions` | (`mock_test_id`, `question_id`) primary key, `section` (`A`–`D`), `position` inside the section, `marks` |
+| `test_attempts` | one sitting: `mock_test_id`, `student_id`, `started_at`, `submitted_at`, `responses` jsonb (answers saved while the test is taken, `{question_id: {option / value / text / pairs, time_taken_ms}}`), `score` |
+
+Submitting turns every saved answer into a `question_attempts` row with `test_attempt_id` and its
+`marks`, so progress and mastery count test answers like practice answers. A check constraint keeps
+exactly one of `practice_session_id` / `test_attempt_id` filled. The plan named the settings column
+`settings`; it holds the sections, so it is called `sections`. The deadline is not stored: it is
+`started_at + duration_minutes`.
+
+### `study_plans`, `study_plan_items`
+
+| Table | Columns |
+|---|---|
+| `study_plans` | `student_id` (**unique**: one plan per learner), `exam_date`, `daily_minutes`, `target_score` (percent), `chapter_ids` uuid[] (empty = every chapter of the learner's books for their class), `planned_on` (the India-time day the rest was last planned), `unscheduled` (tasks that did not fit) |
+| `study_plan_items` | `plan_id`, `day`, `position`, `kind` `learn` / `practice` / `test`, `book_id`, `chapter_id` (empty for a test of the whole book), `topic_id`, `difficulty`, `minutes`, `reason`, `status` `pending` → `done` / `skipped` / `missed` |
+
+Changed from the plan: real `book_id` / `chapter_id` / `topic_id` columns (`ON DELETE CASCADE`)
+instead of a `task` jsonb, as for recommendations — a deleted book takes its tasks with it; the
+request bodies for the screens are built when the plan is read.
+
+## 2.7 The whole picture
 
 Tables marked with a step number do not exist yet.
 
@@ -242,22 +271,23 @@ erDiagram
     students ||--o{ recommendations : gets
     chapters ||--o{ recommendations : "points to"
 
-    students ||--o{ mock_tests : "takes (Step 8)"
+    students ||--o{ mock_tests : takes
     mock_tests ||--o{ mock_test_questions : contains
-    mock_tests ||--o{ test_attempts : "attempted in"
-    students ||--o{ study_plans : follows
+    questions ||--o{ mock_test_questions : "used in"
+    mock_tests ||--o{ test_attempts : "sat in"
+    test_attempts ||--o{ question_attempts : records
+    students ||--o| study_plans : follows
     study_plans ||--o{ study_plan_items : contains
+    chapters ||--o{ study_plan_items : "points to"
 
     users ||--o{ chat_sessions : "talks in (Step 9)"
     chat_sessions ||--o{ chat_messages : contains
 ```
 
-## 2.7 Planned tables
+## 2.8 Planned tables
 
 | Table | Step | Purpose | Important columns |
 |---|---|---|---|
-| `mock_tests`, `mock_test_questions`, `test_attempts` | 8 | Tests with sections and timing; results | `student_id`, `settings` jsonb, `section`, `position`, `marks`, `score`, `started_at`, `submitted_at` |
-| `study_plans`, `study_plan_items` | 8 | Plan and its daily tasks | `student_id`, `exam_date`, `daily_minutes`, `target_score`, `day`, `task` jsonb, `status` |
 | `chat_sessions`, `chat_messages` | 9 | Parent assistant and student tutor conversations | `owner_user_id`, `student_id`, `kind`, `role`, `content`, `sources` jsonb |
 | `student_misconceptions` | 10 | Repeated wrong patterns | `student_id`, `topic_id`, `pattern`, `evidence` jsonb, `status` |
 | gamification tables | 11 | Streaks, XP, badges | decided in that step |
@@ -272,7 +302,7 @@ parent should see *one* "Class 8 Mathematics" in the library even if it arrived 
 the same query that ranks by similarity (spec §16). Copying three short columns avoids three joins
 on the hottest query in the system.
 
-## 2.8 Changing the schema
+## 2.9 Changing the schema
 
 ```bash
 # inside backend/, after editing a model in app/models/

@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Question
+from tests.samples import NOTES_TEXT, make_pdf
 
 API = "/api/v1"
 PASSWORD = "Str0ng-Passw0rd"
@@ -100,3 +104,65 @@ async def upload(
         files={"file": (filename, data, content_type)},
         headers=headers,
     )
+
+
+async def family_with_book(client: AsyncClient, class_level: str = "class_7") -> tuple[Account, dict, dict]:
+    """A parent, a child of the class, and the child's book (the sample maths book; a short text for
+    UKG). Returns the last chapter, with its topics and exercises."""
+    parent = await register(client)
+    child = await add_child(client, parent, class_level=class_level)
+    book = await create_book(client, parent.headers, student_id=child["id"], class_level=None)
+    if class_level == "ukg":
+        await upload(client, parent.headers, book["id"], NOTES_TEXT.encode(), "water.txt", "text/plain")
+    else:
+        await upload(client, parent.headers, book["id"], make_pdf())
+    chapters = (await client.get(f"{API}/books/{book['id']}/chapters", headers=parent.headers)).json()
+    chapter = (await client.get(f"{API}/chapters/{chapters[-1]['id']}", headers=parent.headers)).json()
+    return parent, child, chapter
+
+
+# What is shown and the right answer, by format: option 0, the number 1, or a written answer.
+_BANK_FORMATS: dict[str, tuple[dict, dict]] = {
+    "mcq": ({"options": ["right", "wrong", "no"]}, {"option": 0}),
+    "numerical": ({"unit": "cm"}, {"value": 1}),
+    "short_answer": ({}, {"model_answer": "Both sides stay equal.", "key_points": ["equal", "both sides"]}),
+    "long_answer": ({}, {"model_answer": "A long answer.", "key_points": ["one", "two", "three", "four"]}),
+}
+
+
+async def bank(
+    db: AsyncSession,
+    parent: Account,
+    child: dict,
+    chapter: dict,
+    *,
+    count: int,
+    fmt: str = "mcq",
+    difficulty: str = "medium",
+) -> None:
+    """Checked questions in the family's question bank for the chapter's last topic, as if written
+    earlier - so practice and tests need no AI."""
+    body, answer = _BANK_FORMATS[fmt]
+    db.add_all(
+        Question(
+            owner_user_id=uuid.UUID(parent.user["id"]),
+            book_id=uuid.UUID(chapter["book_id"]),
+            chapter_id=uuid.UUID(chapter["id"]),
+            topic_id=uuid.UUID(chapter["topics"][-1]["id"]),
+            origin="generated",
+            class_level=child["profile"]["class_level"],
+            subject="Mathematics",
+            format=fmt,
+            style="recall",
+            difficulty=difficulty,
+            language=child["profile"]["primary_language"],
+            body={"text": f"Question {uuid.uuid4().hex[:6]}", **body},
+            answer=answer,
+            hints=["A nudge."],
+            solution={"concept": "The idea.", "steps": ["A step."], "final_answer": "right"},
+            source_chunk_ids=[],
+            validation={"checked_by": "test"},
+        )
+        for _ in range(count)
+    )
+    await db.commit()

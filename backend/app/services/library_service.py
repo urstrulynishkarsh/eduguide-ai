@@ -10,15 +10,12 @@ Who may do what:
   add, change or delete anything.
 """
 
-import base64
-import binascii
 import logging
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import ColumnElement, Select, and_, func, or_, select, tuple_, update
+from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.principal import Principal
@@ -32,6 +29,7 @@ from app.rag.ingestion.labels import build_context_label, chapter_label
 from app.schemas.library import BookCreate, BookUpdate, ChapterUpdate, Source
 from app.services import student_service
 from app.storage import FileStorage
+from app.utils import pagination
 
 logger = logging.getLogger(__name__)
 
@@ -87,24 +85,6 @@ async def chapter_counts(db: AsyncSession, book_ids: list[uuid.UUID]) -> dict[uu
     return {book_id: count for book_id, count in rows}
 
 
-def _encode_cursor(book: Book) -> str:
-    raw = f"{book.created_at.isoformat()}|{book.id}".encode()
-    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
-
-
-def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
-    try:
-        raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode()
-        created, book_id = raw.split("|")
-        return datetime.fromisoformat(created), uuid.UUID(book_id)
-    except (ValueError, binascii.Error, UnicodeDecodeError):
-        raise InvalidInputError(
-            "This page link is not valid.",
-            code="invalid_cursor",
-            details=[{"field": "cursor", "message": "Invalid cursor."}],
-        ) from None
-
-
 async def list_books(
     db: AsyncSession, principal: Principal, *, limit: int, cursor: str | None, student_id: uuid.UUID | None
 ) -> tuple[list[Book], str | None]:
@@ -112,14 +92,7 @@ async def list_books(
     query = select(Book).where(book_visible_to(principal))
     if student_id is not None:
         query = query.where(or_(Book.student_id.is_(None), Book.student_id == student_id))
-    if cursor:
-        created, book_id = _decode_cursor(cursor)
-        query = query.where(tuple_(Book.created_at, Book.id) < tuple_(created, book_id))
-    rows = list(
-        (await db.scalars(query.order_by(Book.created_at.desc(), Book.id.desc()).limit(limit + 1))).all()
-    )
-    next_cursor = _encode_cursor(rows[limit - 1]) if len(rows) > limit else None
-    return rows[:limit], next_cursor
+    return await pagination.newest_first(db, query, Book, limit=limit, cursor=cursor)
 
 
 async def create_book(db: AsyncSession, principal: Principal, data: BookCreate) -> Book:

@@ -21,7 +21,7 @@ from app.schemas.practice import (
     QuestionView,
     SessionOut,
 )
-from app.services import library_service, practice_service, student_service
+from app.services import library_service, practice_service, question_bank, student_service
 
 router = APIRouter(tags=["Practice"])
 
@@ -33,23 +33,9 @@ async def _session_out(db: DbSession, session: PracticeSession) -> SessionOut:
     )
     items = []
     for (item, question, attempts, correct), source in zip(rows, sources, strict=True):
-        body = question.body
         items.append(
             ItemView(
-                question=QuestionView(
-                    id=question.id,
-                    number=item.position + 1,
-                    format=question.format,
-                    style=question.style,
-                    difficulty=question.difficulty,
-                    case=body.get("case"),
-                    text=body["text"],
-                    options=body.get("options", []),
-                    match_left=body.get("left", []),
-                    match_right=body.get("right", []),
-                    unit=body.get("unit"),
-                    source=source,
-                ),
+                question=QuestionView.of(question, item.position + 1, source),
                 attempts=attempts,
                 correct=correct,
                 hints_shown=item.hints_shown,
@@ -61,7 +47,7 @@ async def _session_out(db: DbSession, session: PracticeSession) -> SessionOut:
     error = None
     if session.status == "failed" and session.error_code:
         error = DocumentError(
-            code=session.error_code, message=practice_service.session_error_message(session.error_code)
+            code=session.error_code, message=question_bank.error_message(session.error_code)
         )
     return SessionOut(
         id=session.id,

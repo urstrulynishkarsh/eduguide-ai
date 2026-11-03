@@ -13,6 +13,7 @@ and books, in this order:
 Each one carries what Create Practice needs. Finishing a practice of its place marks it done.
 """
 
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -37,10 +38,6 @@ def today() -> date:
     return datetime.now(INDIA).date()
 
 
-def _right_lately(area: StudentMastery) -> str:
-    return f"{round(area.accuracy * 100)}% right in the last {min(area.attempts, mastery.WINDOW)} answers"
-
-
 async def _plan(
     db: AsyncSession, student: Student, learner_books: ColumnElement[bool]
 ) -> list[dict[str, Any]]:
@@ -56,9 +53,6 @@ async def _plan(
     ).all()
     week_ago = utcnow() - REVIEW_AFTER
 
-    def level(area: StudentMastery, without_levels: str) -> str:
-        return (area.difficulty or mastery.START_LEVEL) if adaptive else without_levels
-
     def item(kind: str, area: StudentMastery, difficulty: str, reason: str) -> dict[str, Any]:
         return {
             "kind": kind,
@@ -70,9 +64,9 @@ async def _plan(
 
     plan = []
     for area in filter(mastery.is_weak, areas):
-        difficulty = level(area, "easy")
+        difficulty = mastery.practice_level(area, features, "easy")
         if features.weak_topic_detection:
-            reason = f"{_right_lately(area)}. Revise the idea, then practise {difficulty} questions."
+            reason = f"{mastery.right_lately(area)}. Revise the idea, then practise {difficulty} questions."
         else:
             reason = "Let's practise this again, with easy questions."
         plan.append(item("strengthen", area, difficulty, reason))
@@ -80,16 +74,16 @@ async def _plan(
         # Strong (at the hardest level, where there are levels): nothing to do until it is due a review.
         learnt = mastery.is_strong(area) and (not adaptive or area.difficulty == "hard")
         if not mastery.is_weak(area) and not learnt and area.last_practised_at >= week_ago:
-            difficulty = level(area, "mixed")
+            difficulty = mastery.practice_level(area, features, "mixed")
             ahead = (
                 f"Next: {difficulty} questions." if adaptive else "A little more practice makes it strong."
             )
-            plan.append(item("continue", area, difficulty, f"{_right_lately(area)}. {ahead}"))
+            plan.append(item("continue", area, difficulty, f"{mastery.right_lately(area)}. {ahead}"))
     for area in sorted(areas, key=lambda a: a.last_practised_at):
         if not mastery.is_weak(area) and area.last_practised_at < week_ago:
             days = (utcnow() - area.last_practised_at).days
             reason = f"Last practised {days} days ago. A short practice keeps it fresh."
-            plan.append(item("review", area, level(area, "mixed"), reason))
+            plan.append(item("review", area, mastery.practice_level(area, features, "mixed"), reason))
     if len(plan) < PER_DAY:
         practised = select(StudentMastery.chapter_id).where(StudentMastery.student_id == student.id)
         chapters = await db.scalars(
@@ -148,19 +142,7 @@ async def for_today(
     for row in rows:
         recommendation: Recommendation = row[0]
         place = mastery.names(row)
-        practice = PracticeCreate(
-            student_id=student.id,
-            topic_id=recommendation.topic_id,
-            chapter_id=None if recommendation.topic_id else recommendation.chapter_id,
-            difficulty=recommendation.difficulty,
-        )
-        revise = None
-        if recommendation.kind == "strengthen":
-            revise = ExplainRequest(
-                question=place["topic"] or place["chapter"],
-                student_id=student.id,
-                chapter_id=recommendation.chapter_id,
-            )
+        revise = revise_body(student.id, place) if recommendation.kind == "strengthen" else None
         items.append(
             RecommendationOut(
                 **place,
@@ -168,11 +150,28 @@ async def for_today(
                 kind=recommendation.kind,
                 status=recommendation.status,
                 reason=recommendation.reason,
-                practice=practice,
+                practice=practice_body(student.id, place, recommendation.difficulty),
                 revise=revise,
             )
         )
     return RecommendationsOut(student_id=student.id, day=day, items=items)
+
+
+def practice_body(student_id: uuid.UUID, place: dict[str, Any], difficulty: str) -> PracticeCreate:
+    """Create Practice for an area (`mastery.names`): its topic, or the chapter in general."""
+    return PracticeCreate(
+        student_id=student_id,
+        topic_id=place["topic_id"],
+        chapter_id=None if place["topic_id"] else place["chapter_id"],
+        difficulty=difficulty,
+    )
+
+
+def revise_body(student_id: uuid.UUID, place: dict[str, Any]) -> ExplainRequest:
+    """The "Explain this" request for an area (`mastery.names`), searched in its chapter."""
+    return ExplainRequest(
+        question=place["topic"] or place["chapter"], student_id=student_id, chapter_id=place["chapter_id"]
+    )
 
 
 async def mark_done(db: AsyncSession, session: PracticeSession) -> None:

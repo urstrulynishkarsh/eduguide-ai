@@ -2,7 +2,19 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import adaptive, auth, books, chapters, documents, learn, meta, practice, students
+from app.api.v1 import (
+    adaptive,
+    auth,
+    books,
+    chapters,
+    documents,
+    learn,
+    meta,
+    mock_tests,
+    practice,
+    students,
+    study_plans,
+)
 from app.schemas.common import ErrorResponse
 
 api_v1_router = APIRouter(
@@ -22,4 +34,6 @@ api_v1_router.include_router(chapters.router)
 api_v1_router.include_router(learn.router)
 api_v1_router.include_router(practice.router)
 api_v1_router.include_router(adaptive.router)
+api_v1_router.include_router(mock_tests.router)
+api_v1_router.include_router(study_plans.router)
 api_v1_router.include_router(meta.router)

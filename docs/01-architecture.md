@@ -63,8 +63,8 @@ modules talk to each other through small interfaces, not through each other's ta
 | `rag` | Reading documents, structure detection, chunking, OCR interface, embeddings, retrieval ([doc 5](05-rag-pipeline.md)) | Steps 2–3 |
 | `storage` | The `FileStorage` interface and the local-folder adapter for uploaded files | Step 2 |
 | `llm` | One interface to language models; the Claude adapter behind it ([doc 6](06-llm-interfaces.md)) | Step 3 |
-| `question_generation` | Generate → validate → review → regenerate; solutions, hints, marking answers | Step 4 |
-| `adaptive_learning` | Mastery, adaptive difficulty, weak topics, recommendations, misconceptions | Steps 7, 10 |
+| `question_generation` | Generate → validate → review → regenerate; solutions, hints, marking answers (part marks in tests); the sections of a test paper | Steps 4, 8 |
+| `adaptive_learning` | Mastery, adaptive difficulty, weak topics, recommendations, the study planner's rules, misconceptions | Steps 7, 8, 10 |
 | `analytics` | Progress numbers for students and parents | Steps 4, 9, 11 |
 | `utils` | Small helpers without business rules | as needed |
 
