@@ -17,6 +17,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
 from app.core.tasks import get_task_queue
 from app.services.document_service import resume_unfinished_documents
+from app.services.practice_service import resume_unfinished_sessions
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,11 @@ press **Authorize** and paste it.
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     queue = get_task_queue()
     try:
-        # Books that were being read when the server last stopped are read again.
+        # Books being read, and practice being prepared, when the server last stopped are picked up again.
         await resume_unfinished_documents(SessionLocal, queue)
+        await resume_unfinished_sessions(SessionLocal, queue)
     except Exception:
-        logger.warning("Could not resume unfinished documents (is the database running?)", exc_info=True)
+        logger.warning("Could not resume unfinished work (is the database running?)", exc_info=True)
     yield
     await queue.shutdown()
     await engine.dispose()

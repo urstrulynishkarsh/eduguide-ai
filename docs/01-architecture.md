@@ -63,7 +63,7 @@ modules talk to each other through small interfaces, not through each other's ta
 | `rag` | Reading documents, structure detection, chunking, OCR interface, embeddings, retrieval ([doc 5](05-rag-pipeline.md)) | Steps 2–3 |
 | `storage` | The `FileStorage` interface and the local-folder adapter for uploaded files | Step 2 |
 | `llm` | One interface to language models; the Claude adapter behind it ([doc 6](06-llm-interfaces.md)) | Step 3 |
-| `question_generation` | Generate → validate → regenerate; solutions and hints | Step 4 |
+| `question_generation` | Generate → validate → review → regenerate; solutions, hints, marking answers | Step 4 |
 | `adaptive_learning` | Mastery, adaptive difficulty, weak topics, recommendations, misconceptions | Steps 7, 10 |
 | `analytics` | Progress numbers for students and parents | Steps 4, 9, 11 |
 | `utils` | Small helpers without business rules | as needed |
@@ -200,3 +200,7 @@ not legal advice.
 | 16 | Claude Opus 5.5 for every tier; tiers differ by effort | Quality first; a cheaper model per tier is one setting when the cost is worth measuring |
 | 17 | Server-side refusal fallback (`fallbacks: "default"`) is on | A request the model declines is retried on Anthropic's recommended model instead of failing |
 | 18 | No reranker yet | The retrieval evaluation finds the right passage first in 17 of 18 questions; add one when real books show a need |
+| 19 | A question's solution is stored on the question | One language per question; "explain in Hindi" is generated on request, so a separate `solutions` table would only duplicate it |
+| 20 | Questions are saved per family and reused | A learner never gets a question they were given before; siblings and later sessions reuse checked questions, which saves AI calls |
+| 21 | Practice is prepared in the background | Writing and checking ten questions takes up to a minute or two; the session shows `preparing` meanwhile. A session still `preparing` when the server stops is picked up again at the next start |
+| 22 | Nursery–Class 2: wrong answers are "try again" | Spec §5 and the class guidelines: never "wrong", always an invitation |

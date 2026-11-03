@@ -1,8 +1,10 @@
 """Finding the right passages in a family's books (docs/05-rag-pipeline.md §5.4).
 
-Search by meaning: vector search and keyword search, both inside the filtered set, merged by
-rank (reciprocal rank fusion). Keyword search catches exact things such as "2.3" or a formula
-that vectors miss. The filter always contains the owner - `ChunkFilter` cannot be made without it.
+Two ways (doc 5, "Two ways to retrieve"): by place - every chunk of an exercise, chapter or
+book (`passages_at`) - and by meaning: vector search and keyword search, both inside the
+filtered set, merged by rank (reciprocal rank fusion, `search`). Keyword search catches exact
+things such as "2.3" or a formula that vectors miss. The filter always contains the owner -
+`ChunkFilter` cannot be made without it.
 
 Reranking (stage 7) is "none" for now: the merged order is used. A cross-encoder can be added
 behind this module if the retrieval evaluation (`python -m scripts.eval_retrieval`) shows a need.
@@ -126,3 +128,19 @@ def build_context(passages: list[Passage], token_budget: int = CONTEXT_TOKEN_BUD
     for number, passage in enumerate(chosen, start=1):
         passage.tag = f"S{number}"
     return chosen
+
+
+async def passages_at(db: AsyncSession, where: ChunkFilter, *, token_budget: int) -> list[Passage]:
+    """Search by place ("practise Exercise 2.3", "a test on Chapter 4"): the chunks in the filter, in
+    book order. When they do not fit the budget, chunks are taken evenly across the place, so every
+    part of a chapter is represented."""
+    chunks = (
+        await db.scalars(
+            select(DocumentChunk)
+            .where(*where.conditions())
+            .order_by(DocumentChunk.document_id, DocumentChunk.position)
+        )
+    ).all()
+    total = sum(chunk.token_count for chunk in chunks)
+    stride = max(1, -(-total // token_budget))
+    return [Passage(chunk, 1.0) for chunk in chunks[::stride]]

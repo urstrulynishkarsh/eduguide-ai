@@ -14,6 +14,7 @@ import base64
 import binascii
 import logging
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from enum import Enum
 
@@ -27,8 +28,8 @@ from app.core.errors import ConflictError, InvalidInputError, NotFoundError, Per
 from app.core.tasks import TaskQueue
 from app.models import Book, Chapter, Document, DocumentChunk, Exercise, Topic
 from app.rag.indexing import embed_stale_chunks
-from app.rag.ingestion.labels import build_context_label
-from app.schemas.library import BookCreate, BookUpdate, ChapterUpdate
+from app.rag.ingestion.labels import build_context_label, chapter_label
+from app.schemas.library import BookCreate, BookUpdate, ChapterUpdate, Source
 from app.services import student_service
 from app.storage import FileStorage
 
@@ -48,6 +49,13 @@ def book_visible_to(principal: Principal) -> ColumnElement[bool]:
     if is_child_mode(principal):
         condition = and_(condition, or_(Book.student_id.is_(None), Book.student_id == principal.student_id))
     return condition
+
+
+def books_for_learner(owner_user_id: uuid.UUID, student_id: uuid.UUID) -> ColumnElement[bool]:
+    """The family's shared books and this learner's own - not a sibling's."""
+    return and_(
+        Book.owner_user_id == owner_user_id, or_(Book.student_id.is_(None), Book.student_id == student_id)
+    )
 
 
 def ensure_can_manage(principal: Principal) -> None:
@@ -313,6 +321,35 @@ async def exercise_questions(db: AsyncSession, exercise: Exercise) -> list[Docum
         .order_by(DocumentChunk.position)
     )
     return list(result.all())
+
+
+# ---------------------------------------------------------------------------- sources
+
+
+async def describe_sources(
+    db: AsyncSession, refs: Sequence[tuple[uuid.UUID, uuid.UUID | None, uuid.UUID | None, int | None]]
+) -> list[Source]:
+    """(book_id, chapter_id, exercise_id, page) -> "Based on: Class 8 Mathematics, Chapter 2 ..." (§42)."""
+    books = {b.id: b for b in await db.scalars(select(Book).where(Book.id.in_({r[0] for r in refs})))}
+    chapters = {
+        c.id: c for c in await db.scalars(select(Chapter).where(Chapter.id.in_({r[1] for r in refs})))
+    }
+    exercises = {
+        e.id: e for e in await db.scalars(select(Exercise).where(Exercise.id.in_({r[2] for r in refs})))
+    }
+    sources = []
+    for book_id, chapter_id, exercise_id, page in refs:
+        chapter, exercise = chapters.get(chapter_id), exercises.get(exercise_id)
+        sources.append(
+            Source(
+                book_id=book_id,
+                book_title=books[book_id].title,
+                chapter=chapter_label(chapter.number, chapter.title) if chapter else None,
+                exercise=(exercise.label or None) if exercise else None,
+                page=page,
+            )
+        )
+    return sources
 
 
 # ---------------------------------------------------------------------------- labels

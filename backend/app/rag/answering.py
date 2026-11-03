@@ -110,8 +110,11 @@ async def explain(
     profile: ClassProfile,
     student: StudentProfile,
     style: ExplainStyle,
+    worked_solution: str | None = None,
 ) -> Explanation:
     """An explanation grounded in `passages`, checked to cite only passages that exist.
+
+    `worked_solution` (a practice question's own solution) keeps the explanation consistent with it.
 
     One retry when the citations are wrong; after that the answer is treated as not grounded.
     """
@@ -125,7 +128,10 @@ async def explain(
         )
         if part
     )
-    messages = [Message("user", f"{task}\n\n{format_passages(passages)}\n\n<question>{question}</question>")]
+    solution = f"\n\nStay consistent with this worked solution:\n{worked_solution}" if worked_solution else ""
+    messages = [
+        Message("user", f"{task}{solution}\n\n{format_passages(passages)}\n\n<question>{question}</question>")
+    ]
     tags = {passage.tag for passage in passages}
     provider = llm.get_llm_provider()
     for _ in range(2):

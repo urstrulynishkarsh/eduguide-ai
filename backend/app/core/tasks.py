@@ -32,8 +32,8 @@ class TaskQueue(Protocol):
 class InProcessTaskQueue:
     """Runs jobs as asyncio tasks in this process, at most `concurrency` at a time.
 
-    If the process stops, running jobs stop with it; unfinished documents are picked up again
-    when the API starts (see `resume_unfinished_documents`).
+    If the process stops, running jobs stop with it; unfinished documents and practice sessions
+    are picked up again when the API starts (see `app.main.lifespan`).
     """
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession], concurrency: int) -> None:

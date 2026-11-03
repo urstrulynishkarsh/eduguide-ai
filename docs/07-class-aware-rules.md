@@ -232,9 +232,10 @@ second one, using the rule from spec §23 on the child's recent history for that
 
 | Step | Use |
 |---|---|
-| 4 Question generation | Formats, styles, option count and guidelines go into the prompt; the limits in 7.4 are checked on the output; a question using a format the class does not allow is rejected |
-| 4 Solutions and hints | Explanation style and the maximum number of steps; the shorter, gentler hint ladder for Nursery–Class 2 |
-| 4 Goal strategy (Class 11–12) | The goal changes the mix, as in spec §9: **JEE** → conceptual, numerical, application, higher difficulty, multi-concept. **NEET** → NCERT-focused, conceptual MCQs, assertion-reason, application MCQs. **Board exam** → board pattern and marking. Implemented as a small strategy table next to the question generator |
+| 4 Question generation | Formats, styles, option count and guidelines go into the prompt; the limits in 7.4 are checked on the output; a question using a format the class does not allow is rejected. Built: `question_generation/` |
+| 4 Practice sessions | Default and maximum questions per session (7.4); a `question_type` the class does not use is refused |
+| 4 Solutions and hints | Explanation style and the maximum number of steps; 1–2 hints per question. Nursery–Class 2: a wrong answer is an invitation to try again, with the answer kept back |
+| 4 Goal strategy (Class 11–12) | The goal changes the mix, as in spec §9: **JEE** → conceptual, numerical, application, higher difficulty, multi-concept. **NEET** → NCERT-focused, conceptual MCQs, assertion-reason, application MCQs. **Board exam** → board pattern and marking. Implemented as a small strategy table next to the question generator (`question_generation/strategy.py`) |
 | 5–6 Frontend | `ui_mode` picks the layout; `features` hides screens; goals and stream come from `/meta/options` |
 | 7 Adaptive learning | Runs only where `adaptive_difficulty` is on; younger classes get gentle repetition instead |
 | 8 Tests and plans | Timed and full mock tests only where the profile allows them |

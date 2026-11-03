@@ -112,6 +112,20 @@ The structured shape of a question follows spec §43 (`question`, `type`, `diffi
 `correct_answer`, `explanation`, `hint`, `source{chapter, exercise, page}`), extended with
 `origin`, `style` and the passage ids it was built from.
 
+**As built in Step 4** (`backend/app/question_generation/`):
+
+| Part | File | What it does |
+|---|---|---|
+| Shapes | `schemas.py` | `GeneratedQuestion` (one flat shape for every format), `Review`, `Grade` |
+| Mix | `strategy.py` | formats the class allows, the difficulty mix, the goal strategy table (doc 7, 7.10) |
+| Deterministic checks | `validation.py` | everything in the table above that a program can decide; returns the reason |
+| The loop | `generator.py` | write ≤ 10 per call (default tier) → checks → one review call (strong tier) → compare → reasons back to the writer for replacements; at most 2 extra rounds, then fewer questions rather than a wrong one |
+| Marking | `checking.py` | exact for choice, number, blank and matching; written answers marked by the fast tier against the model answer and key points |
+
+The reviewer never sees the proposed answer of a choice, number or blank question - it solves
+them itself. Matching and written answers are shown to it and judged. A numeric answer is not
+yet recomputed with a maths library; the second solver covers it.
+
 ## 6.5 The hint ladder (spec §30)
 
 The tutor never jumps to the answer. Each request moves at most one rung, and the rung reached is
@@ -120,6 +134,10 @@ stored with the attempt (it lowers the mastery credit later):
 ```
 Hint 1 (a nudge) → Hint 2 (the method) → Concept explanation → Step-by-step solution → Final answer
 ```
+
+In practice (Step 4) the rungs are the buttons of spec §20 - `help` with `hint` (one at a time),
+`steps` (concept and worked steps) and `answer` - and each attempt records the hints and steps
+opened before it. The chat tutor (Step 9) walks the same ladder in conversation.
 
 "Hint do, answer mat batao" keeps the tutor on the hint rungs even if the child asks again.
 For Nursery–Class 2 the ladder is shorter and gentler: encouragement → show with pictures → the answer together.

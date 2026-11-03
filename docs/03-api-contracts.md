@@ -54,6 +54,9 @@ Every error, from every endpoint, has this shape:
 | 422 | `invalid_cursor` | A damaged `cursor` in a list request |
 | 422 | `insufficient_context` | "I couldn't find enough information in your uploaded material to answer this reliably." |
 | 422 | `profile_required` | The learner has no class details yet |
+| 404 | `practice_not_found` · `question_not_found` | No such practice (or another family's), or the question is not in it |
+| 422 | `question_type_not_for_class` | The question type is not used for the learner's class (e.g. `numerical` in Class 7) |
+| 422 | `practice_not_ready` · `answer_does_not_fit` | The practice is still `preparing`; the answer does not fit the question's format |
 | 422 | `ai_declined` | The AI declined the request for safety reasons |
 | 503 | `ai_not_configured` · `ai_unavailable` | AI switched off (`LLM_PROVIDER=none`); provider busy or unreachable |
 | 422 | `validation_error` | A field is missing or malformed; see `details` |
@@ -332,16 +335,81 @@ the answer is `422 insufficient_context` — the AI is never asked to answer fro
 
 The upload checklist has a sixth step, `embed_chunks`, after `make_chunks`.
 
-## 3.5 Planned endpoints
+## 3.5 Endpoints added in Step 4 — Practice
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/practice/sessions` | signed in | Create Practice: place, count, difficulty, type, language |
+| GET | `/api/v1/practice/sessions/{id}` | owner | The questions (never their answers) and progress through them |
+| POST | `/api/v1/practice/sessions/{id}/answers` | owner | Answer one question |
+| POST | `/api/v1/practice/sessions/{id}/questions/{qid}/help` | owner | `{"level": "hint" \| "steps" \| "answer"}` |
+| POST | `/api/v1/practice/sessions/{id}/questions/{qid}/explain` | owner | `{"style": …}` — simply, like I'm 10, Hindi, Hinglish |
+| GET | `/api/v1/students/{id}/progress` | owner | Basic performance |
+
+The plan had `/questions/{id}/hint` and `/questions/{id}/solution`; help is recorded per session
+(the attempt stores how much help came before the answer), so it sits under the session.
+
+### Create Practice
+
+```http
+POST /api/v1/practice/sessions
+{ "student_id": "6ecc2ac7-…", "exercise_id": "…", "count": 5, "difficulty": "mixed",
+  "question_type": "mcq", "language": "hinglish" }
+```
+
+At most one of `book_id`, `chapter_id`, `exercise_id`; none = every book of the learner's class.
+`count` defaults to the class's usual number (doc 7, 7.4) and may not exceed its maximum.
+`question_type` is `mixed` or one format the class allows. `language` defaults to the learner's.
+
+The answer is `201` with `status: "ready"` when saved questions the learner has never been given
+cover it, otherwise `status: "preparing"` while the rest are written and checked in the background
+— poll `GET /practice/sessions/{id}`. When the AI is off and saved questions are not enough:
+`503 ai_not_configured`. A session that could not be prepared ends `failed` with `error.code`
+`insufficient_context`, `ai_unavailable` or `generation_failed` and a message for the parent.
+
+```json
+{
+  "id": "…", "status": "ready", "question_count": 5, "answered": 0, "correct": 0,
+  "items": [
+    {
+      "question": {
+        "id": "…", "number": 1, "format": "mcq", "style": "application", "difficulty": "medium",
+        "text": "Riya ke paas kuch pencils hain …", "options": ["12", "14", "16", "26"],
+        "case": null, "match_left": [], "match_right": [], "unit": null,
+        "origin": "generated",
+        "source": { "book_title": "Class 7 Mathematics", "chapter": "Chapter 4 Simple Equations", "exercise": "4.2", "page": 61, "book_id": "…" }
+      },
+      "attempts": 0, "correct": null, "hints_shown": 0, "hints_total": 2, "steps_shown": false, "answer_shown": false
+    }
+  ]
+}
+```
+
+### Answering
+
+Send the field that fits the format: `option` (mcq, true_false, assertion_reason, case_based,
+visual_choice), `value` (numerical, counting), `text` (fill_blank, short_answer, long_answer) or
+`pairs` (matching — for each left item, the index of its right item).
+
+```http
+POST /api/v1/practice/sessions/{id}/answers
+{ "question_id": "…", "option": 1, "time_taken_ms": 14000 }
+```
+
+```json
+{ "correct": false, "try_again": false, "feedback": null, "correct_answer": "p = 14", "session_completed": false }
+```
+
+Written answers are marked by the AI (`feedback` says what was right and what to add). For
+Nursery–Class 2 a wrong answer gives `try_again: true` and no `correct_answer`: the child is
+invited to try again, and "Show Answer" is there when they want it.
+
+## 3.6 Planned endpoints
 
 Paths may still change slightly in the step that builds them; the shape of the plan will not.
 
 | Step | Method and path | Purpose |
 |---|---|---|
-| 4 | `POST /practice/sessions` | Create practice: source, count, difficulty, type, language |
-| 4 | `GET /practice/sessions/{id}` · `POST /practice/sessions/{id}/answers` | Do the practice |
-| 4 | `POST /questions/{id}/hint` · `GET /questions/{id}/solution` · `POST /questions/{id}/explain` | Hint → steps → answer; "explain simply / in Hindi / like I'm 10" |
-| 4 | `GET /students/{id}/progress` | Basic performance |
 | 7 | `GET /students/{id}/mastery` · `GET /students/{id}/recommendations` | Knowledge profile and "what next" |
 | 8 | `POST /mock-tests` · `POST /mock-tests/{id}/attempts` · `GET /test-attempts/{id}/report` | Mock tests |
 | 8 | `POST /study-plans` · `GET /study-plans/{id}` · `PATCH /study-plan-items/{id}` | Study planner |

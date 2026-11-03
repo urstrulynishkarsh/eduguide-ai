@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.llm import LLMResult
 from app.models.library import EMBEDDING_DIMENSION
+from app.question_generation.schemas import GeneratedBatch, GeneratedQuestion, Review, ReviewBatch
 from app.rag.ocr import OCRError, OCRPage
 
 
@@ -69,4 +70,77 @@ class FakeLLM:
         self.requests.append({"system": system, "messages": list(messages), "schema": schema, "tier": tier})
         output = next(item for item in self.outputs if isinstance(item, schema))
         self.outputs.remove(output)
+        return LLMResult(output=output, model="fake", input_tokens=0, output_tokens=0, latency_ms=0.0)
+
+
+def make_question(**overrides: object) -> GeneratedQuestion:
+    """A valid Class 6-8 MCQ unless overridden."""
+    values: dict = {
+        "format": "mcq",
+        "style": "recall",
+        "difficulty": "medium",
+        "case": None,
+        "text": "What is x if 2x + 4 = 10?",
+        "options": ["1", "2", "3", "4"],
+        "correct_option": 2,
+        "numeric_answer": None,
+        "unit": None,
+        "accepted_answers": [],
+        "match_left": [],
+        "match_right": [],
+        "model_answer": None,
+        "key_points": [],
+        "hints": ["Take 4 away from both sides.", "Then divide both sides by 2."],
+        "concept": "Do the same thing to both sides of an equation.",
+        "steps": ["2x = 6", "x = 3"],
+        "final_answer": "x = 3",
+        "source_tags": ["S1"],
+    }
+    return GeneratedQuestion(**{**values, **overrides})
+
+
+class QuestionWriterFake:
+    """Writes the scripted batches of questions. Its reviewer agrees with every question, except
+    the ones whose text is in `reject`. Other schemas are answered from `extra`."""
+
+    _BLOCK = re.compile(r"Q(\d+) \[[^\]]+\]\n(.*?)(?=\n\nQ\d+ \[|\n</questions>)", re.S)
+
+    def __init__(
+        self, *batches: list[GeneratedQuestion], reject: Sequence[str] = (), extra: Sequence = ()
+    ) -> None:
+        self.batches = list(batches)
+        self.reject = set(reject)
+        self.extra = list(extra)
+        self.known: dict[str, GeneratedQuestion] = {}
+        self.requests: list[dict] = []
+
+    def _review(self, number: int, question: GeneratedQuestion) -> Review:
+        good = question.text not in self.reject
+        return Review(
+            number=number,
+            solved_option=question.correct_option,
+            solved_value=question.numeric_answer,
+            solved_text=question.accepted_answers[0] if question.accepted_answers else None,
+            shown_answer_correct=True,
+            supported_by_passages=good,
+            fits_class=True,
+            difficulty=question.difficulty,
+            problem="" if good else "not in the passages",
+        )
+
+    async def generate_structured(self, *, system, messages, schema, tier="default", max_output_tokens=16000):
+        self.requests.append({"system": system, "messages": list(messages), "schema": schema, "tier": tier})
+        if schema is GeneratedBatch:
+            batch = self.batches.pop(0)
+            self.known.update({question.text: question for question in batch})
+            output: BaseModel = GeneratedBatch(questions=batch)
+        elif schema is ReviewBatch:
+            reviews = []
+            for number, block in self._BLOCK.findall(messages[0].content):
+                question = next(q for text, q in self.known.items() if text in block)
+                reviews.append(self._review(int(number), question))
+            output = ReviewBatch(reviews=reviews)
+        else:
+            output = next(item for item in self.extra if isinstance(item, schema))
+            self.extra.remove(output)
         return LLMResult(output=output, model="fake", input_tokens=0, output_tokens=0, latency_ms=0.0)

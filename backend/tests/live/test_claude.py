@@ -63,3 +63,37 @@ async def test_grounded_explanation_in_hinglish(provider: AnthropicProvider):
     assert answer.sources_used == ["S1"]
     assert "3" in answer.explanation
     assert result.input_tokens > 0
+
+
+async def test_questions_are_written_and_pass_the_independent_review(
+    provider: AnthropicProvider, monkeypatch: pytest.MonkeyPatch
+):
+    """The whole generation loop on a real model: schema accepted, checks passed, answers agreed."""
+    from app import llm
+    from app.core.enums import QuestionFormat
+    from app.question_generation import generator
+
+    monkeypatch.setattr(llm, "get_llm_provider", lambda: provider)
+    chunk = DocumentChunk(
+        content="To solve an equation we do the same operation on both sides. Example: 2x + 4 = 10. "
+        "Subtract 4 from both sides to get 2x = 6. Divide both sides by 2, so x = 3.",
+        context_label="Class 7 · Mathematics · Chapter 4 Simple Equations · 4.2 Solving an Equation",
+        page_start=None,
+        position=0,
+        token_count=60,
+        document_id=None,
+    )
+    student = StudentProfile(
+        class_level="class_7", board="cbse", medium="en", primary_language="en", goal="school_exam"
+    )
+
+    questions = await generator.generate(
+        build_context([Passage(chunk, 1.0)]),
+        profile=get_class_profile(ClassLevel.CLASS_7),
+        student=student,
+        request=generator.Request(count=2, difficulty="easy", formats=[QuestionFormat.MCQ], language="en"),
+        existing=[],
+    )
+
+    assert questions
+    assert all(q.format is QuestionFormat.MCQ and q.source_tags == ["S1"] for q in questions)

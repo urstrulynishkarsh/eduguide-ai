@@ -27,7 +27,7 @@ def owned_by(user_id: uuid.UUID) -> ColumnElement[bool]:
     )
 
 
-def _visible_to(principal: Principal) -> ColumnElement[bool]:
+def visible_to(principal: Principal) -> ColumnElement[bool]:
     """A parent sees all their children. A student session sees only its own learner."""
     condition = owned_by(principal.user.id)
     if principal.role is Role.STUDENT:
@@ -70,13 +70,13 @@ def _profile_values(data: StudentProfileIn) -> dict[str, object]:
 
 async def list_students(db: AsyncSession, principal: Principal) -> list[Student]:
     result = await db.execute(
-        select(Student).where(_visible_to(principal)).order_by(Student.created_at, Student.id)
+        select(Student).where(visible_to(principal)).order_by(Student.created_at, Student.id)
     )
     return list(result.scalars().all())
 
 
 async def count_students(db: AsyncSession, principal: Principal) -> int:
-    count = await db.scalar(select(func.count()).select_from(Student).where(_visible_to(principal)))
+    count = await db.scalar(select(func.count()).select_from(Student).where(visible_to(principal)))
     return count or 0
 
 
@@ -84,13 +84,39 @@ async def get_student(db: AsyncSession, principal: Principal, student_id: uuid.U
     """Load one learner, or raise 404 - also when it exists but belongs to someone else."""
     result = await db.execute(
         select(Student)
-        .where(Student.id == student_id, _visible_to(principal))
+        .where(Student.id == student_id, visible_to(principal))
         .execution_options(populate_existing=True)
     )
     student = result.scalar_one_or_none()
     if student is None:
         raise NotFoundError("We couldn't find this student.", code="student_not_found")
     return student
+
+
+async def learner_for(db: AsyncSession, principal: Principal, student_id: uuid.UUID | None) -> Student:
+    """The learner a request is about: a student session is always itself; a parent names a child.
+    The learner must have class details, because everything the AI does depends on them."""
+    if principal.student is not None:
+        student = principal.student
+    elif student_id is None:
+        raise InvalidInputError(
+            "Please choose which child this is for.",
+            details=[{"field": "student_id", "message": "Choose a child."}],
+        )
+    else:
+        student = await get_student(db, principal, student_id)
+    if student.profile is None:
+        raise InvalidInputError("Please fill in the class details first.", code="profile_required")
+    return student
+
+
+async def account_of(db: AsyncSession, student: Student) -> uuid.UUID:
+    """The account that owns this learner's data (the parent, or the student's own login)."""
+    if student.user_id is not None:
+        return student.user_id
+    user_id = await db.scalar(select(Parent.user_id).where(Parent.id == student.parent_id))
+    assert user_id is not None
+    return user_id
 
 
 async def create_student(db: AsyncSession, principal: Principal, data: StudentCreate) -> Student:

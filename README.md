@@ -4,8 +4,9 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 3 of 12 is complete** — the blueprint, the backend foundation, uploading
-> and reading books, and searching inside them with the AI connected.
+> **Build status: Step 4 of 12 is complete** — the whole MVP backend: accounts and children,
+> uploading and reading books, search with the AI connected, and the practice engine.
+> The frontend comes next (Steps 5–6).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -26,7 +27,17 @@ from Nursery to Class 12.
 - **Explain this** (`POST /api/v1/learn/explain`): explains a concept from the child's own books at
   the child's class level — normal, simpler, "like I'm 10", in Hindi or in Hinglish — with the book,
   chapter and page it used. When the books don't cover it, it says so instead of guessing
-- Database migrations, demo data (including a sample book), automatic API documentation, 212 automated tests
+- **Create Practice** (`POST /api/v1/practice/sessions`): from an exercise, a chapter, a book or
+  all of the child's books — number, difficulty (easy / medium / hard / mixed), type (MCQ, numerical,
+  … or mixed) and language. Questions follow the class rules (picture questions for the youngest,
+  board and JEE / NEET styles for the oldest), are checked by a second, independent AI solve before
+  anyone sees them, are always marked "generated", and are saved and reused
+- Doing practice: answers are marked (written answers by the AI tutor); **Hint → Show Steps → Show
+  Answer**; "explain this simply / like I'm 10 / in Hindi / in Hinglish"; every answer is recorded
+  with the time and help used
+- **Progress** (`GET /api/v1/students/{id}/progress`): questions answered, accuracy, time, hints,
+  accuracy by chapter and topic, recent sessions
+- Database migrations, demo data (including a sample book), automatic API documentation, 246 automated tests
 
 ## Run it on your computer
 
@@ -72,7 +83,8 @@ Follow it with `GET /api/v1/documents/{id}`, then open `GET /api/v1/books/{book_
 
 ### Switching on the AI (Claude)
 
-Everything except **Explain this** works without it. Get an API key at https://platform.claude.com,
+Everything except **Explain this** and writing new practice questions works without it (saved
+questions can still be practised). Get an API key at https://platform.claude.com,
 then add to `backend/.env` and restart the API:
 
 ```
@@ -116,7 +128,7 @@ From `backend/` with the virtual environment active:
 ```bash
 pytest                 # everything (the database must be running); no AI calls, no model download
 pytest tests/unit      # only the tests that need nothing running
-pytest -m live         # a real call to Claude (needs ANTHROPIC_API_KEY; costs a fraction of a cent)
+pytest -m live         # real calls to Claude (needs ANTHROPIC_API_KEY; costs a few cents)
 ruff check .           # code style
 ```
 
@@ -164,6 +176,8 @@ and roll back after every test — your real data is never touched.
 | A book stays `failed` with `scanned_document` | It has no text layer. Install Tesseract (see above), set `OCR_PROVIDER=tesseract`, restart, then `POST /api/v1/documents/{id}/retry` |
 | Explain answers `503 ai_not_configured` | Switch on the AI (see above) and restart the API |
 | Explain answers `503 ai_unavailable` | The log says why: a wrong key, no internet, or Claude busy (try again in a minute) |
+| A practice stays `failed` with `generation_failed` | The AI could not write questions that passed the checks for that place; try another chapter or `mixed` type. The log shows the reasons |
+| Create Practice answers `422 question_type_not_for_class` | That question type is not used for the child's class (e.g. numerical before Class 9); use `mixed` |
 | Explain answers `422 insufficient_context` | The child's books for that class don't cover the question; upload the chapter, or choose the book with `book_id` |
 | Upload answers `413` | The file is over `MAX_UPLOAD_MB` (50 MB). Split the book, e.g. one PDF per chapter — they can all go into the same book |
 | `database "eduguide_test" does not exist` when running tests | The database volume was created before this project's init script existed. Run `docker compose down -v` and `docker compose up -d`. |

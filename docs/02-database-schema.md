@@ -141,7 +141,41 @@ Added in Step 3 (migration `0003`, which also enables the `vector` extension):
 No approximate vector index: searches always run inside one family's (usually one book's) chunks,
 where an exact comparison is fast and fully accurate.
 
-## 2.4 The whole picture
+## 2.4 Tables added in Step 4 — practice
+
+Migration `0004`.
+
+### `questions` — the family's question bank
+
+| Column | Type | Notes |
+|---|---|---|
+| `owner_user_id`, `book_id` | uuid, FK | |
+| `chapter_id`, `topic_id`, `exercise_id` | uuid, null, FK | where it was written from; a question written for an exercise is filed under it |
+| `origin` | varchar(16) | `generated` (textbook questions are listed from the book itself) |
+| `class_level`, `subject`, `language` | varchar | |
+| `format`, `style`, `difficulty` | varchar | difficulty `easy` / `medium` / `hard` within the class |
+| `body` | jsonb | what is shown: `text`, and `options`, `case`, `left`/`right`, `unit` by format |
+| `answer` | jsonb | never sent before answering: `option` · `value` · `accepted` · `pairs` · `model_answer` + `key_points` |
+| `hints` | jsonb | 1-2 hints, gentle first |
+| `solution` | jsonb | `concept`, `steps`, `final_answer` |
+| `source_chunk_ids`, `page` | jsonb, int | the passages it was built on |
+| `validation` | jsonb | what the independent review found |
+
+The plan had a separate `solutions` table. A question is written in one language, with its
+solution, so the solution lives on the question; "explain in Hindi" is generated on request.
+
+### `practice_sessions`, `practice_items`, `question_attempts`
+
+| Table | Columns |
+|---|---|
+| `practice_sessions` | `student_id`; place `book_id` / `chapter_id` / `exercise_id` (all empty = the learner's books of their class, `SET NULL` on delete); `question_count`, `difficulty` (+ `mixed`), `question_type` (a format or `mixed`), `language`; `status` `preparing` → `ready` → `completed` (or `failed` + `error_code`); `completed_at` |
+| `practice_items` | (`session_id`, `question_id`) primary key, `position`, and the help opened: `hints_shown`, `steps_shown`, `answer_shown` |
+| `question_attempts` | every answer: `student_id`, `question_id`, `practice_session_id`, `response` jsonb, `is_correct`, `feedback` (written answers), `time_taken_ms`, `hints_used`, `solution_viewed`, `difficulty` |
+
+`practice_items` is not in the original plan: it keeps the order of a session and the help opened
+before answering, which the attempt then records.
+
+## 2.5 The whole picture
 
 Tables marked with a step number do not exist yet.
 
@@ -160,9 +194,10 @@ erDiagram
     documents ||--o{ document_chunks : "cut into"
     chapters ||--o{ document_chunks : "labelled by"
 
-    chapters ||--o{ questions : "source of (Step 4)"
-    questions ||--o| solutions : has
+    chapters ||--o{ questions : "source of"
     students ||--o{ practice_sessions : does
+    practice_sessions ||--o{ practice_items : "made of"
+    questions ||--o{ practice_items : "used in"
     practice_sessions ||--o{ question_attempts : records
     questions ||--o{ question_attempts : "answered in"
 
@@ -180,14 +215,10 @@ erDiagram
     chat_sessions ||--o{ chat_messages : contains
 ```
 
-## 2.5 Planned tables
+## 2.6 Planned tables
 
 | Table | Step | Purpose | Important columns |
 |---|---|---|---|
-| `questions` | 4 | Textbook questions and generated ones | `owner_user_id`, `origin` (`textbook` / `generated` / `previous_year`), `chapter_id`, `topic_id?`, `exercise_id?`, `class_level`, `subject`, `format`, `style`, `difficulty`, `language`, `body` jsonb, `answer` jsonb, `hints` jsonb, `source` jsonb, `validation` jsonb |
-| `solutions` | 4 | Concept → steps → final answer | `question_id`, `language`, `concept`, `steps` jsonb, `final_answer` |
-| `practice_sessions` | 4 | One sitting of practice (not in the spec's list; needed to group attempts) | `student_id`, `scope` jsonb, `settings` jsonb, `status` |
-| `question_attempts` | 4 | Every answer a learner gives | `student_id`, `question_id`, `practice_session_id?`, `test_attempt_id?`, `response` jsonb, `is_correct`, `time_taken_ms`, `hints_used`, `solution_viewed`, `difficulty` |
 | `student_mastery` | 7 | The learner's knowledge profile | `student_id`, `topic_id`, `mastery`, `confidence`, `attempts`, `accuracy`, `avg_time_ms`, `last_practised_at` |
 | `recommendations` | 7 | "Do this next", with the reason | `student_id`, `kind`, `payload` jsonb, `reason`, `status`, `valid_until` |
 | `mock_tests`, `mock_test_questions`, `test_attempts` | 8 | Tests with sections and timing; results | `student_id`, `settings` jsonb, `section`, `position`, `marks`, `score`, `started_at`, `submitted_at` |
@@ -206,7 +237,7 @@ parent should see *one* "Class 8 Mathematics" in the library even if it arrived 
 the same query that ranks by similarity (spec §16). Copying three short columns avoids three joins
 on the hottest query in the system.
 
-## 2.6 Changing the schema
+## 2.7 Changing the schema
 
 ```bash
 # inside backend/, after editing a model in app/models/
