@@ -1,12 +1,12 @@
 """Basic performance of one learner (spec §32): how much, how well, where.
 
 Accuracy uses the first answer to each question in a session, so trying again (encouraged for the
-youngest children) does not inflate it.
+youngest children) does not inflate it. Mastery (adaptive_learning/mastery.py) uses the same rule.
 """
 
 import uuid
 
-from sqlalchemy import Integer, cast, func, select
+from sqlalchemy import Integer, Subquery, cast, func, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,13 +17,10 @@ from app.schemas.practice import AreaProgress, ProgressOut, SessionSummary
 _RECENT_SESSIONS = 5
 
 
-async def progress(db: AsyncSession, student_id: uuid.UUID) -> ProgressOut:
-    first = (
-        select(
-            QuestionAttempt.question_id,
-            QuestionAttempt.is_correct,
-            QuestionAttempt.hints_used,
-        )
+def first_answers(student_id: uuid.UUID) -> Subquery:
+    """The learner's first answer to each question in each practice (every attempt column)."""
+    return (
+        select(QuestionAttempt)
         .where(QuestionAttempt.student_id == student_id)
         .ext(distinct_on(QuestionAttempt.practice_session_id, QuestionAttempt.question_id))
         .order_by(
@@ -31,6 +28,10 @@ async def progress(db: AsyncSession, student_id: uuid.UUID) -> ProgressOut:
         )
         .subquery()
     )
+
+
+async def progress(db: AsyncSession, student_id: uuid.UUID) -> ProgressOut:
+    first = first_answers(student_id)
     correct = func.sum(cast(first.c.is_correct, Integer))
     answered, right, hints = (
         await db.execute(
@@ -69,22 +70,10 @@ async def progress(db: AsyncSession, student_id: uuid.UUID) -> ProgressOut:
     ]
 
     items = select(func.count()).where(PracticeItem.session_id == PracticeSession.id).scalar_subquery()
-    session_answers = (
-        select(QuestionAttempt.practice_session_id, QuestionAttempt.question_id, QuestionAttempt.is_correct)
-        .ext(distinct_on(QuestionAttempt.practice_session_id, QuestionAttempt.question_id))
-        .order_by(
-            QuestionAttempt.practice_session_id, QuestionAttempt.question_id, QuestionAttempt.created_at
-        )
-        .subquery()
-    )
-    done = (
-        select(func.count())
-        .where(session_answers.c.practice_session_id == PracticeSession.id)
-        .scalar_subquery()
-    )
+    done = select(func.count()).where(first.c.practice_session_id == PracticeSession.id).scalar_subquery()
     good = (
         select(func.count())
-        .where(session_answers.c.practice_session_id == PracticeSession.id, session_answers.c.is_correct)
+        .where(first.c.practice_session_id == PracticeSession.id, first.c.is_correct)
         .scalar_subquery()
     )
     recent = await db.execute(

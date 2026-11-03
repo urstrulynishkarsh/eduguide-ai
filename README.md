@@ -4,10 +4,12 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 6 of 12 is complete — the MVP works end to end.** A parent signs up, adds a
+> **Build status: Step 7 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
 > child, uploads a book, creates practice from a chapter or exercise and hands the device over;
 > the child practises (with hints, steps and answers) in a layout made for their age, and both
-> see the progress. Adaptive learning comes next (Step 7).
+> see the progress. Since Step 7 the API also knows each child's mastery of every topic, moves the
+> difficulty with their results and recommends what to do next (screens for it come in Step 9).
+> Mock tests and the study planner come next (Step 8).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -51,8 +53,8 @@ from Nursery to Class 12.
 - **Explain this** (`POST /api/v1/learn/explain`): explains a concept from the child's own books at
   the child's class level — normal, simpler, "like I'm 10", in Hindi or in Hinglish — with the book,
   chapter and page it used. When the books don't cover it, it says so instead of guessing
-- **Create Practice** (`POST /api/v1/practice/sessions`): from an exercise, a chapter, a book or
-  all of the child's books — number, difficulty (easy / medium / hard / mixed), type (MCQ, numerical,
+- **Create Practice** (`POST /api/v1/practice/sessions`): from an exercise, a topic, a chapter, a
+  book or all of the child's books — number, difficulty (easy / medium / hard / mixed), type (MCQ, numerical,
   … or mixed) and language. Questions follow the class rules (picture questions for the youngest,
   board and JEE / NEET styles for the oldest), are checked by a second, independent AI solve before
   anyone sees them, are always marked "generated", and are saved and reused
@@ -61,7 +63,13 @@ from Nursery to Class 12.
   with the time and help used
 - **Progress** (`GET /api/v1/students/{id}/progress`): questions answered, accuracy, time, hints,
   accuracy by chapter and topic, recent sessions
-- Database migrations, demo data (including a sample book), automatic API documentation, 246 automated tests
+- **Mastery** (`GET /api/v1/students/{id}/mastery`): for every topic practised, mastery, accuracy
+  and confidence, *strong* / *learning* / *needs attention*, and the difficulty for the next practice,
+  which goes up above 85 % right and down below 60 % (Class 6–12; gentle repetition for the youngest)
+- **Recommended for You** (`GET /api/v1/students/{id}/recommendations`): up to three things to do
+  today, each with its reason and a ready Create Practice request — strengthen a weak topic (revise,
+  then easier questions), continue one, review one not practised for a week, or start a new chapter
+- Database migrations, demo data (including a sample book), automatic API documentation, 272 automated tests
 
 ## Run it on your computer
 
@@ -205,7 +213,7 @@ temporary child, practises with the demo questions, and removes the child again.
 | `backend/app/api` | HTTP routes |
 | `backend/alembic` | Database migrations |
 | `backend/tests` | Automated tests |
-| `backend/app/adaptive_learning` | Empty until Step 7 |
+| `backend/app/adaptive_learning` | Mastery per topic, difficulty that follows results, daily recommendations |
 | `frontend/app` | The screens (Next.js pages): public, onboarding, `parent/`, `learn/` |
 | `frontend/components`, `frontend/lib` | Shared pieces, the wording of every screen (`lib/copy.ts`), sessions, calls to the API |
 

@@ -4,6 +4,7 @@ Import every model here so that `Base.metadata` (used by migrations and tests)
 always knows about all tables.
 """
 
+from app.models.adaptive import Recommendation, StudentMastery
 from app.models.base import Base
 from app.models.library import Book, Chapter, Document, DocumentChunk, Exercise, Topic
 from app.models.practice import PracticeItem, PracticeSession, Question, QuestionAttempt
@@ -22,7 +23,9 @@ __all__ = [
     "PracticeSession",
     "Question",
     "QuestionAttempt",
+    "Recommendation",
     "Student",
+    "StudentMastery",
     "StudentProfile",
     "Topic",
     "User",

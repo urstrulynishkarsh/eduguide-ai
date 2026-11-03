@@ -39,6 +39,7 @@ class ChunkFilter:
     book_ids: Sequence[uuid.UUID] | None = None
     class_level: str | None = None
     chapter_id: uuid.UUID | None = None
+    topic_id: uuid.UUID | None = None
     exercise_id: uuid.UUID | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
@@ -49,6 +50,8 @@ class ChunkFilter:
             conditions.append(DocumentChunk.class_level == self.class_level)
         if self.chapter_id is not None:
             conditions.append(DocumentChunk.chapter_id == self.chapter_id)
+        if self.topic_id is not None:
+            conditions.append(DocumentChunk.topic_id == self.topic_id)
         if self.exercise_id is not None:
             conditions.append(DocumentChunk.exercise_id == self.exercise_id)
         return conditions

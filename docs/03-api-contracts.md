@@ -358,7 +358,8 @@ POST /api/v1/practice/sessions
   "question_type": "mcq", "language": "hinglish" }
 ```
 
-At most one of `book_id`, `chapter_id`, `exercise_id`; none = every book of the learner's class.
+At most one of `book_id`, `chapter_id`, `topic_id` (Step 7), `exercise_id`; none = every book of the
+learner's class.
 `count` defaults to the class's usual number (doc 7, 7.4) and may not exceed its maximum.
 `question_type` is `mixed` or one format the class allows. `language` defaults to the learner's.
 
@@ -405,13 +406,71 @@ Written answers are marked by the AI (`feedback` says what was right and what to
 Nursery–Class 2 a wrong answer gives `try_again: true` and no `correct_answer`: the child is
 invited to try again, and "Show Answer" is there when they want it.
 
-## 3.6 Planned endpoints
+## 3.6 Endpoints added in Step 7 — Adaptive learning
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| GET | `/api/v1/students/{id}/mastery` | owner | Mastery of every area practised, weakest first |
+| GET | `/api/v1/students/{id}/recommendations` | owner | Recommended for You, today |
+
+"Owner" is the same rule as progress: a parent for their children, a student or child-mode session
+for itself only; anyone else gets `404 student_not_found`. A learner without class details gets
+`422 profile_required`. An *area* is a topic, or a chapter (`topic: null`) for questions without one.
+How the numbers are worked out: doc 7, 7.9.
+
+```json
+{
+  "student_id": "6ecc2ac7-…",
+  "areas": [
+    {
+      "book_id": "…", "book_title": "Class 7 Mathematics",
+      "chapter_id": "…", "chapter": "Chapter 4 Simple Equations",
+      "topic_id": "…", "topic": "4.3 Equations in Daily Life",
+      "status": "needs_attention", "mastery": 0.31, "confidence": 0.6, "accuracy": 0.33,
+      "attempts": 6, "avg_time_ms": 41000, "difficulty": "easy",
+      "last_practised_at": "2026-11-03T10:12:00Z"
+    }
+  ]
+}
+```
+
+`status` is `needs_attention` (below 60 % right over at least 5 answers; Class 6–12 only), `strong`
+(mastery 0.85 or more over at least 5 answers) or `learning`. `difficulty` is the level for the next
+practice of that area; `null` where the class has no adaptive difficulty (Nursery–Class 5).
+
+```json
+{
+  "student_id": "6ecc2ac7-…",
+  "day": "2026-11-03",
+  "items": [
+    {
+      "id": "…", "kind": "strengthen", "status": "active",
+      "book_id": "…", "book_title": "Class 7 Mathematics",
+      "chapter_id": "…", "chapter": "Chapter 4 Simple Equations",
+      "topic_id": "…", "topic": "4.3 Equations in Daily Life",
+      "reason": "33% right in the last 6 answers. Revise the idea, then practise easy questions.",
+      "practice": { "student_id": "6ecc2ac7-…", "topic_id": "…", "chapter_id": null, "book_id": null,
+                    "exercise_id": null, "count": null, "difficulty": "easy", "question_type": "mixed",
+                    "language": null },
+      "revise": { "question": "4.3 Equations in Daily Life", "student_id": "6ecc2ac7-…",
+                  "book_id": null, "chapter_id": "…", "style": "normal" }
+    }
+  ]
+}
+```
+
+At most three, made on the first request of the day (India time) and kept for that day: `strengthen`
+(a weak area: revise, then easier questions) · `continue` (an area being learned) · `review` (not
+practised for 7 days) · `new_chapter` (never practised). **Start Recommended Practice** sends
+`practice` as-is to `POST /practice/sessions`; `revise` (strengthen only) goes as-is to
+`POST /learn/explain`. Finishing a practice of that place turns `status` to `done`.
+
+## 3.7 Planned endpoints
 
 Paths may still change slightly in the step that builds them; the shape of the plan will not.
 
 | Step | Method and path | Purpose |
 |---|---|---|
-| 7 | `GET /students/{id}/mastery` · `GET /students/{id}/recommendations` | Knowledge profile and "what next" |
 | 8 | `POST /mock-tests` · `POST /mock-tests/{id}/attempts` · `GET /test-attempts/{id}/report` | Mock tests |
 | 8 | `POST /study-plans` · `GET /study-plans/{id}` · `PATCH /study-plan-items/{id}` | Study planner |
 | 9 | `POST /chat/sessions` · `POST /chat/sessions/{id}/messages` (streamed) | Parent assistant and student tutor |

@@ -228,6 +228,26 @@ second one, using the rule from spec §23 on the child's recent history for that
 | 60% – 85% | difficulty stays |
 | below 60% | difficulty goes down, a concept revision is offered, foundation questions are generated |
 
+How it is built (Step 7, `backend/app/adaptive_learning/`):
+
+- **Per area.** An area is a topic of a chapter, or the chapter itself for questions without a
+  topic. Its numbers are worked out again after every answer, from the last 10 *first* answers to
+  each question in each practice (as basic progress counts them, so trying again never inflates them).
+- **The level** of each area starts at medium and moves only on **at least 5 answers given since it
+  last moved**, so it never jumps twice on the same answers. Below 60 % the area also *needs
+  attention*, and today's recommendations offer a concept revision (Explain) and practice at the
+  lowered level: the foundation questions.
+- **Mastery** (0–1) is the average credit of those answers: 1 for right without help, a quarter less
+  per hint, a quarter if the steps or the answer were opened first, 0 for wrong. Recent answers count
+  more (each one 0.85 of the next), and harder ones more (easy 1, medium 1.5, hard 2). **Confidence** is
+  answers ÷ 10, up to 1. An area is **strong** at mastery 0.85 or more over at least 5 answers.
+- **Nursery – Class 5** (`adaptive_difficulty` and `weak_topic_detection` off): no levels and no
+  "needs attention" label. Their recommendations repeat what was often wrong, gently ("Let's
+  practise this again"), with easy questions.
+
+All these numbers are constants at the top of `mastery.py` (and `recommendations.py`): starting
+values like those in 7.4, to tune after watching real children.
+
 ## 7.10 How each later step uses the profile
 
 | Step | Use |
@@ -237,7 +257,7 @@ second one, using the rule from spec §23 on the child's recent history for that
 | 4 Solutions and hints | Explanation style and the maximum number of steps; 1–2 hints per question. Nursery–Class 2: a wrong answer is an invitation to try again, with the answer kept back |
 | 4 Goal strategy (Class 11–12) | The goal changes the mix, as in spec §9: **JEE** → conceptual, numerical, application, higher difficulty, multi-concept. **NEET** → NCERT-focused, conceptual MCQs, assertion-reason, application MCQs. **Board exam** → board pattern and marking. Implemented as a small strategy table next to the question generator (`question_generation/strategy.py`) |
 | 5–6 Frontend | `ui_mode` picks the layout; `features` hides screens; goals and stream come from `/meta/options` |
-| 7 Adaptive learning | Runs only where `adaptive_difficulty` is on; younger classes get gentle repetition instead |
+| 7 Adaptive learning | Levels only where `adaptive_difficulty` is on, the "needs attention" label only where `weak_topic_detection` is on; younger classes get gentle repetition instead (7.9). Built: `adaptive_learning/` |
 | 8 Tests and plans | Timed and full mock tests only where the profile allows them |
 
 ## 7.11 Changing a rule

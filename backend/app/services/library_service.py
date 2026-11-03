@@ -291,6 +291,21 @@ async def update_chapter(
     return chapter
 
 
+async def get_topic(db: AsyncSession, principal: Principal, topic_id: uuid.UUID) -> tuple[Topic, Chapter]:
+    row = (
+        await db.execute(
+            select(Topic, Chapter)
+            .join(Chapter, Chapter.id == Topic.chapter_id)
+            .join(Book, Book.id == Chapter.book_id)
+            .where(Topic.id == topic_id, book_visible_to(principal))
+        )
+    ).first()
+    if row is None:
+        raise NotFoundError("We couldn't find this topic.", code="topic_not_found")
+    topic, chapter = row
+    return topic, chapter
+
+
 # ---------------------------------------------------------------------------- exercises
 
 

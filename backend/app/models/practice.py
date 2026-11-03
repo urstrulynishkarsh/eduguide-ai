@@ -59,6 +59,7 @@ class PracticeSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Where the questions come from; all empty = every book of the learner's class.
     book_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("books.id", ondelete="SET NULL"))
     chapter_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("chapters.id", ondelete="SET NULL"))
+    topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("topics.id", ondelete="SET NULL"))
     exercise_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("exercises.id", ondelete="SET NULL"))
     question_count: Mapped[int] = mapped_column(SmallInteger)
     difficulty: Mapped[str] = mapped_column(String(8))  # easy | medium | hard | mixed

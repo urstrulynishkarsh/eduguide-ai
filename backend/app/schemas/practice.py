@@ -17,11 +17,14 @@ HelpLevel = Literal["hint", "steps", "answer"]
 
 
 class PracticeCreate(BaseModel):
-    """Leave book, chapter and exercise empty to practise from all of the learner's books."""
+    """Leave book, chapter, topic and exercise empty to practise from all of the learner's books."""
 
     student_id: uuid.UUID | None = Field(default=None, description="Which child (parents only).")
     book_id: uuid.UUID | None = None
     chapter_id: uuid.UUID | None = None
+    topic_id: uuid.UUID | None = Field(
+        default=None, description='One topic, e.g. "4.3 Equations in Daily Life".'
+    )
     exercise_id: uuid.UUID | None = None
     count: Annotated[int, Field(ge=1, le=50)] | None = Field(
         default=None, description="Number of questions; the class's usual number when left out."
@@ -43,8 +46,9 @@ class PracticeCreate(BaseModel):
 
     @model_validator(mode="after")
     def _one_place_at_most(self) -> "PracticeCreate":
-        if sum(place is not None for place in (self.book_id, self.chapter_id, self.exercise_id)) > 1:
-            raise ValueError("Choose a book, a chapter or an exercise - not more than one.")
+        places = (self.book_id, self.chapter_id, self.topic_id, self.exercise_id)
+        if sum(place is not None for place in places) > 1:
+            raise ValueError("Choose a book, a chapter, a topic or an exercise - not more than one.")
         return self
 
 

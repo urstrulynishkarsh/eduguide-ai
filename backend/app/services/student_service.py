@@ -105,6 +105,10 @@ async def learner_for(db: AsyncSession, principal: Principal, student_id: uuid.U
         )
     else:
         student = await get_student(db, principal, student_id)
+    return require_profile(student)
+
+
+def require_profile(student: Student) -> Student:
     if student.profile is None:
         raise InvalidInputError("Please fill in the class details first.", code="profile_required")
     return student

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import llm
-from app.models import PracticeSession, QuestionAttempt
+from app.models import PracticeSession, Question, QuestionAttempt
 from app.question_generation.schemas import Grade
 from app.rag.answering import Explanation
 from app.services import practice_service
@@ -84,6 +84,32 @@ async def test_create_practice_from_an_exercise(client: AsyncClient, writer):
     task = fake.requests[0]["messages"][0].content
     assert "Solve the following equations." in task
     assert "Class 8" in fake.requests[0]["system"]
+
+
+async def test_create_practice_for_one_topic(client: AsyncClient, writer, db_session: AsyncSession):
+    parent, child, chapter = await _family(client)
+    topic = chapter["topics"][-1]
+    fake = writer(_three()[:1])
+    body = {"student_id": child["id"], "topic_id": topic["id"], "count": 1}
+
+    response = await client.post(f"{API}/practice/sessions", json=body, headers=parent.headers)
+
+    assert response.status_code == 201 and response.json()["status"] == "ready"
+    assert "we do the same operation on both sides" in fake.requests[0]["messages"][0].content
+    # Filed under the topic, so the next practice of this topic finds it in the question bank.
+    question_id = uuid.UUID(response.json()["items"][0]["question"]["id"])
+    assert str((await db_session.get(Question, question_id)).topic_id) == topic["id"]
+
+    stranger = await register(client)
+    their_child = await add_child(client, stranger, class_level="class_8")
+    borrowed = await client.post(
+        f"{API}/practice/sessions", json={**body, "student_id": their_child["id"]}, headers=stranger.headers
+    )
+    assert borrowed.status_code == 404 and error_code(borrowed) == "topic_not_found"
+    two_places = await client.post(
+        f"{API}/practice/sessions", json={**body, "chapter_id": chapter["id"]}, headers=parent.headers
+    )
+    assert two_places.status_code == 422
 
 
 async def test_answers_help_and_completion(client: AsyncClient, writer, db_session: AsyncSession):

@@ -168,14 +168,49 @@ solution, so the solution lives on the question; "explain in Hindi" is generated
 
 | Table | Columns |
 |---|---|
-| `practice_sessions` | `student_id`; place `book_id` / `chapter_id` / `exercise_id` (all empty = the learner's books of their class, `SET NULL` on delete); `question_count`, `difficulty` (+ `mixed`), `question_type` (a format or `mixed`), `language`; `status` `preparing` → `ready` → `completed` (or `failed` + `error_code`); `completed_at` |
+| `practice_sessions` | `student_id`; place `book_id` / `chapter_id` / `topic_id` (Step 7) / `exercise_id` (all empty = the learner's books of their class, `SET NULL` on delete); `question_count`, `difficulty` (+ `mixed`), `question_type` (a format or `mixed`), `language`; `status` `preparing` → `ready` → `completed` (or `failed` + `error_code`); `completed_at` |
 | `practice_items` | (`session_id`, `question_id`) primary key, `position`, and the help opened: `hints_shown`, `steps_shown`, `answer_shown` |
 | `question_attempts` | every answer: `student_id`, `question_id`, `practice_session_id`, `response` jsonb, `is_correct`, `feedback` (written answers), `time_taken_ms`, `hints_used`, `solution_viewed`, `difficulty` |
 
 `practice_items` is not in the original plan: it keeps the order of a session and the help opened
 before answering, which the attempt then records.
 
-## 2.5 The whole picture
+## 2.5 Tables added in Step 7 — adaptive learning
+
+Migration `0005`. Both are about an *area*: a topic of a chapter, or the chapter itself
+(`topic_id` empty) for questions that have no topic. Rows go when their learner, chapter or topic
+goes (`ON DELETE CASCADE`), so a deleted book never leaves a recommendation pointing at nothing.
+
+### `student_mastery` — what a learner knows, one row per area
+
+| Column | Type | Notes |
+|---|---|---|
+| `student_id`, `chapter_id` | uuid, FK | |
+| `topic_id` | uuid, null, FK | empty = the chapter in general; unique with the two above (`NULLS NOT DISTINCT`) |
+| `attempts` | int | first answers in the area, all time |
+| `accuracy`, `mastery`, `confidence` | float | 0-1, from the last 10 first answers (doc 7, 7.9) |
+| `avg_time_ms` | int, null | |
+| `last_practised_at` | timestamptz | |
+| `difficulty`, `difficulty_since` | varchar(8), timestamptz, null | the level of the next practice and when it last moved; empty where the class has no adaptive difficulty |
+
+Worked out again from `question_attempts` after every answer, in the same transaction.
+
+### `recommendations` — "do this next", at most three a day
+
+| Column | Type | Notes |
+|---|---|---|
+| `student_id` | uuid, FK | |
+| `day`, `position` | date, smallint | the day in India time; unique with `student_id` |
+| `kind` | varchar(16) | `strengthen` · `continue` · `review` · `new_chapter` |
+| `chapter_id`, `topic_id` | uuid, FK (topic null) | the place to practise |
+| `difficulty` | varchar(8) | `easy` / `medium` / `hard` / `mixed` |
+| `reason` | varchar(300) | one sentence, e.g. "20% right in the last 5 answers. Revise the idea, then practise easy questions." |
+| `status` | varchar(8) | `active` → `done` when a practice of the place is finished |
+
+Changed from the plan: real `chapter_id` / `topic_id` columns instead of a `payload` jsonb (so the
+database removes a recommendation with its book), and `day` instead of `valid_until`.
+
+## 2.6 The whole picture
 
 Tables marked with a step number do not exist yet.
 
@@ -201,9 +236,11 @@ erDiagram
     practice_sessions ||--o{ question_attempts : records
     questions ||--o{ question_attempts : "answered in"
 
-    students ||--o{ student_mastery : "knows (Step 7)"
+    students ||--o{ student_mastery : knows
+    chapters ||--o{ student_mastery : "measured for"
     topics ||--o{ student_mastery : "measured for"
     students ||--o{ recommendations : gets
+    chapters ||--o{ recommendations : "points to"
 
     students ||--o{ mock_tests : "takes (Step 8)"
     mock_tests ||--o{ mock_test_questions : contains
@@ -215,12 +252,10 @@ erDiagram
     chat_sessions ||--o{ chat_messages : contains
 ```
 
-## 2.6 Planned tables
+## 2.7 Planned tables
 
 | Table | Step | Purpose | Important columns |
 |---|---|---|---|
-| `student_mastery` | 7 | The learner's knowledge profile | `student_id`, `topic_id`, `mastery`, `confidence`, `attempts`, `accuracy`, `avg_time_ms`, `last_practised_at` |
-| `recommendations` | 7 | "Do this next", with the reason | `student_id`, `kind`, `payload` jsonb, `reason`, `status`, `valid_until` |
 | `mock_tests`, `mock_test_questions`, `test_attempts` | 8 | Tests with sections and timing; results | `student_id`, `settings` jsonb, `section`, `position`, `marks`, `score`, `started_at`, `submitted_at` |
 | `study_plans`, `study_plan_items` | 8 | Plan and its daily tasks | `student_id`, `exam_date`, `daily_minutes`, `target_score`, `day`, `task` jsonb, `status` |
 | `chat_sessions`, `chat_messages` | 9 | Parent assistant and student tutor conversations | `owner_user_id`, `student_id`, `kind`, `role`, `content`, `sources` jsonb |
@@ -237,7 +272,7 @@ parent should see *one* "Class 8 Mathematics" in the library even if it arrived 
 the same query that ranks by similarity (spec §16). Copying three short columns avoids three joins
 on the hottest query in the system.
 
-## 2.7 Changing the schema
+## 2.8 Changing the schema
 
 ```bash
 # inside backend/, after editing a model in app/models/

@@ -2,7 +2,8 @@
 
 Creating a session first reuses checked questions from the family's question bank that this
 learner has not seen; only the shortfall is written by the AI, in the background (`preparing` ->
-`ready`). Every answer is stored as an attempt, with the help the learner opened before answering.
+`ready`). Every answer is stored as an attempt, with the help the learner opened before answering,
+and updates the learner's mastery of the question's topic (adaptive_learning).
 
 Who sees what: a session belongs to one learner and is visible to whoever may see that learner.
 """
@@ -15,6 +16,7 @@ from sqlalchemy import ColumnElement, and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import llm
+from app.adaptive_learning import mastery, recommendations
 from app.auth.principal import Principal
 from app.class_profiles import ClassProfile, get_class_profile
 from app.core.enums import ClassLevel, LearningBand, QuestionFormat
@@ -50,6 +52,8 @@ def _place_filter(owner: uuid.UUID, session: PracticeSession, student: Student) 
     """SQL conditions on Question for the session's place (bank reuse)."""
     if session.exercise_id:
         return Question.exercise_id == session.exercise_id
+    if session.topic_id:
+        return Question.topic_id == session.topic_id
     if session.chapter_id:
         return Question.chapter_id == session.chapter_id
     if session.book_id:
@@ -123,6 +127,9 @@ async def create_session(
     if data.exercise_id:
         exercise, chapter, book = await library_service.get_exercise(db, principal, data.exercise_id)
         session.exercise_id, session.chapter_id, session.book_id = exercise.id, chapter.id, book.id
+    elif data.topic_id:
+        topic, chapter = await library_service.get_topic(db, principal, data.topic_id)
+        session.topic_id, session.chapter_id, session.book_id = topic.id, chapter.id, chapter.book_id
     elif data.chapter_id:
         chapter = await library_service.get_chapter(db, principal, data.chapter_id)
         session.chapter_id, session.book_id = chapter.id, chapter.book_id
@@ -150,11 +157,13 @@ async def create_session(
 async def _passages(
     db: AsyncSession, owner: uuid.UUID, session: PracticeSession, student: Student
 ) -> list[retrieval.Passage]:
-    """The book text for the session's place, exercise first when one was chosen."""
+    """The book text for the session's place, exercise or topic first when one was chosen."""
     budget = PASSAGE_BUDGET
     places: list[retrieval.ChunkFilter] = []
     if session.exercise_id:
         places.append(retrieval.ChunkFilter(owner, exercise_id=session.exercise_id))
+    if session.topic_id:
+        places.append(retrieval.ChunkFilter(owner, topic_id=session.topic_id))
     if session.chapter_id:
         places.append(retrieval.ChunkFilter(owner, chapter_id=session.chapter_id))
     elif session.book_id:
@@ -206,8 +215,8 @@ def to_question(
         owner_user_id=owner,
         book_id=first.book_id,
         chapter_id=first.chapter_id,
-        topic_id=first.topic_id,
-        # Written for an exercise: filed under it, so the next session for that exercise finds it.
+        # Written for a topic or an exercise: filed under it, so the next session for it finds it.
+        topic_id=session.topic_id or first.topic_id,
         exercise_id=session.exercise_id or first.exercise_id,
         origin="generated",
         class_level=student.profile.class_level,
@@ -396,6 +405,7 @@ async def answer(
         )
     )
     await db.flush()
+    await mastery.record_answer(db, student, question)
     unanswered = await db.scalar(
         select(func.count())
         .select_from(PracticeItem)
@@ -409,6 +419,7 @@ async def answer(
     )
     if unanswered == 0 and session.status != "completed":
         session.status, session.completed_at = "completed", utcnow()
+        await recommendations.mark_done(db, session)
     await db.commit()
 
     # Nursery - Class 2: never "wrong" - an invitation to try again, answer kept back.

@@ -22,6 +22,11 @@ def chapter_label(number: int | None, title: str) -> str:
     return f"Chapter {number} {title}"
 
 
+def topic_label(number: str | None, title: str) -> str:
+    """'2.3 Solving Equations', or just the title when the book gives no number."""
+    return f"{number} {title}" if number else title
+
+
 # Both what the reader found (structure.Detected*) and the stored rows (models.Chapter...) fit these.
 class ChapterLike(Protocol):
     @property
@@ -56,7 +61,7 @@ def build_context_label(
     if chapter is not None:
         parts.append(chapter_label(chapter.number, chapter.title))
         if topic is not None:
-            parts.append(f"{topic.number} {topic.title}" if topic.number else topic.title)
+            parts.append(topic_label(topic.number, topic.title))
         if exercise is not None:
             parts.append(f"Exercise {exercise.label}".strip())
     if number := meta.get("question_number"):

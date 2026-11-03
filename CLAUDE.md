@@ -12,7 +12,7 @@ User roles: parent and student. A student is either a child profile under a pare
 
 - Backend: Python 3.12 (3.11+ works) + FastAPI, fully async
 - Database: PostgreSQL 16 with pgvector, run in Docker (`pgvector/pgvector:pg16`)
-- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0004` so far)
+- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0005` so far)
 - Auth: JWT access tokens (30 min) + refresh tokens (14 days) with PyJWT; passwords hashed with Argon2. Child mode is a parent token limited to one child.
 - Frontend: Next.js 16 (App Router, Cache Components on) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui (radix), Node.js 22/24 LTS. Versions are pinned exactly in `frontend/package.json`. Next.js 16 differs from older versions: read `frontend/node_modules/next/dist/docs/` before using an API you are unsure of (`middleware` is now `proxy.ts`)
 - Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API), ESLint, Prettier (print width 110), `tsc`
@@ -39,7 +39,7 @@ backend/
     llm/                 # AI provider interface + Claude adapter
     question_generation/ # write -> check -> independent review of questions; marking answers
     analytics/           # progress numbers
-    adaptive_learning/   # empty until step 7
+    adaptive_learning/   # mastery per topic, difficulty that follows it, daily recommendations
     utils/
   alembic/versions/      # migrations
   scripts/               # init_env, seed (+ demo_questions: practice without an AI key), reembed, eval_retrieval
@@ -90,7 +90,7 @@ npm run test:e2e                    # browser journeys; needs the API and `pytho
 npm run lint && npm run typecheck && npm run format:check && npm run build
 
 # Database migrations
-alembic revision --autogenerate -m "what changed" --rev-id 0005   # next free number; review the file
+alembic revision --autogenerate -m "what changed" --rev-id 0006   # next free number; review the file
 alembic upgrade head
 ```
 
@@ -102,7 +102,9 @@ alembic upgrade head
 - Step 4: practice engine: checked question generation, question bank, hints → steps → answer, attempts, basic progress
 - Step 5: frontend foundation: landing page, sign-up / sign-in, onboarding, "Who is learning?", child mode, Children and Settings, the four age-based layouts
 - Step 6: frontend MVP, the app works end to end: My Books and upload with the reading checklist, chapter page, Create Practice, the practice screen (with the picture version for Nursery–Class 2), Learn a Concept, progress, basic dashboard, child switcher; demo practice questions in the seed
-- Next: step 7, adaptive learning (backend)
+- Step 7: adaptive learning (backend): mastery per topic after every answer, difficulty that follows it,
+  weak-topic detection, daily recommendations, practice for one topic
+- Next: step 8, mock tests and study planner (backend)
 
 See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff section.
 
@@ -111,6 +113,8 @@ See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff s
 - Keep route handlers thin; put logic in services.
 - Every new endpoint needs input validation and at least one test. Every new screen needs at least one unit or browser test.
 - Screen text goes in `frontend/lib/copy.ts`, never inline; parent screens use the words in docs/04 §4.5.
+- Every frontend page that loads data gets its own `loading.tsx` (`export { default } from "@/app/loading";`),
+  or moving between pages waits on the server with no sign of life (see `frontend/app/loading.tsx`).
 - Every new database table or column needs a migration.
 - Use clear names; no abbreviations for domain terms (book, chapter, exercise, chunk, attempt).
 - Check that a parent can only access their own children's data on every endpoint.

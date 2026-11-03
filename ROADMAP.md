@@ -20,8 +20,8 @@ Status: ✅ done · ⏭ next · ⬜ later
 
 | Step | Status | What you get | Folders it fills | Spec items (§46) |
 |---|---|---|---|---|
-| **7** | ⏭ | **Adaptive learning.** Mastery per topic, difficulty that follows performance, weak-topic detection, daily recommendations. | `backend/app/adaptive_learning` · `backend/app/analytics` | 1 Adaptive difficulty · 3 Weak-topic detection · 4 Study recommendations |
-| **8** | ⬜ | **Mock tests and study planner** (backend). Sectioned, timed tests with a result report; study plans that update with performance. | `backend/app/services` · `backend/app/api/v1` | 5 Mock tests · 6 Study planner |
+| **7** | ✅ | **Adaptive learning.** Mastery per topic, difficulty that follows performance, weak-topic detection, daily recommendations. | `backend/app/adaptive_learning` · `backend/app/analytics` | 1 Adaptive difficulty · 3 Weak-topic detection · 4 Study recommendations |
+| **8** | ⏭ | **Mock tests and study planner** (backend). Sectioned, timed tests with a result report; study plans that update with performance. | `backend/app/services` · `backend/app/api/v1` | 5 Mock tests · 6 Study planner |
 | **9** | ⬜ | **Parent dashboard, test and plan screens, the two assistants.** Parent AI Assistant and Student AI Tutor (hint first, answer last). | `frontend/` · `backend/app/api/v1` | 2 Parent dashboard |
 
 ## Phase 3
@@ -204,6 +204,7 @@ frontend/
 ├── app/learn/practice · practice/[id]        choose practice; the practice screen and its results
 ├── app/learn/concepts · concepts/[id]        Learn a Concept ("Explain this" with sources)
 ├── app/learn/progress                        My progress / My Stars
+├── app/**/loading.tsx                        one per page that loads data (re-exports app/loading.tsx)
 ├── app/api/books/[bookId]/documents          the upload route (streams the file to the backend)
 ├── lib/actions/books.ts · practice.ts        child switcher, books and files; practice, answers, help, explain
 ├── components/                               practice-player, book-uploader, practice-chooser, explain-box,
@@ -220,69 +221,94 @@ backend/
 No API or database changes. To update a Step 5 setup: `python -m scripts.seed` (adds Anaya's book and
 the demo questions; nothing else is touched), then rebuild or restart the frontend.
 
+## What Step 7 added
+
+```
+backend/
+├── alembic/versions/0005_adaptive_learning.py   student_mastery, recommendations, practice_sessions.topic_id
+├── tests/unit/test_adaptive_rules.py            credit, mastery, the level rule, status
+├── tests/api/test_adaptive.py                   levels up and down, strengthen / continue / review /
+│                                                new chapter, done, the youngest, who may see it
+└── app/
+    ├── adaptive_learning/mastery.py             an area's numbers after every answer; the level rule
+    ├── adaptive_learning/recommendations.py     today's list (India time); marking one done
+    ├── analytics/progress.py                    + first_answers(), shared with mastery
+    ├── models/adaptive.py · schemas/adaptive.py the two tables; the responses
+    ├── services/adaptive_service.py             who may see it; which books are the learner's
+    ├── api/v1/adaptive.py                       /students/{id}/mastery, /students/{id}/recommendations
+    ├── services/practice_service.py             practice for one topic; answers update mastery
+    └── services/library_service.py · rag/retrieval.py   get_topic, chunks by topic
+```
+
+To update a Step 6 setup: `alembic upgrade head` (migration 0005), `pytest`. No new libraries and
+no frontend changes.
+
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 6.*
+*Rewritten at the end of every step. Last updated: end of Step 7.*
 
 ### Where things stand
 
-- Steps 1–6 are done: **the MVP works end to end**. Backend: 249 tests pass (2 live tests
-  skipped), `ruff` clean. Frontend: 80 unit tests and 20 browser runs (10 journeys at desktop and
-  phone size) pass; `lint`, `typecheck`, `format:check` and `build` are clean.
-- Step 6 is not committed yet. Commit it before Step 7 starts.
+- Steps 1–7 are done. Backend: 272 tests pass (2 live tests skipped), `ruff` clean. The frontend
+  did not change in Step 7 (its 80 unit tests and 10 browser journeys passed at the end of Step 6).
+- Step 7 is not committed yet. Commit it before Step 8 starts.
 
-### What Step 6 built
+### What Step 7 built
 
-- **My Books**: every family book (labelled with its child), Upload Book (details, then the file
-  with a progress bar), the book page with the reading checklist in parent words (polling every 2 s),
-  retry / remove a file, add a file, delete the book.
-- **Chapter page**: Learn (Explain box) · Practice (one tap, class defaults) · Exercise Questions
-  (as printed, the shared instruction shown once) · Generate Questions (Create Practice
-  preselected) · Take Test ("Soon", Step 8).
-- **Create Practice** (parent and learner): source picked book → chapter → exercise with a GET form
-  (only the lists in use are loaded), then number (class default and maximum), difficulty, type
-  (the class's formats) and language. A parent's practice opens a page that waits while it is
-  prepared, lists the questions, and offers **Start now with {child}** (child mode straight into it).
-- **Practice screen** (`components/practice-player.tsx`): one question at a time; choice, number,
-  text and matching answers; Hint → Show Steps → Show Answer; explain buttons; "Generated from
-  concepts in: …". **Nursery–Class 2**: big picture cards (the emoji above the word), a tap answers,
-  a 0–10 number pad for counting, "Let's try again! 🌟", no counters or marks, stars at the end.
-- **Learn a Concept**, **progress** (numbers, accuracy by chapter and topic, recent practice; stars
-  only for the youngest), a basic **dashboard**, and the **child switcher** (cookie `eg_child`).
-- **Demo questions** in the seed: 12 for Aarav's Class 7 chapter (Hinglish), 10 picture / counting /
-  matching ones for Anaya's UKG book (Hindi). They pass the same program checks as generated ones.
+- **Areas.** Mastery is kept per *area*: a topic of a chapter, or the chapter itself for questions
+  without a topic (most of Anaya's demo questions have none). One `student_mastery` row per learner
+  and area, worked out again after every answer, in the answer's transaction
+  (`mastery.record_answer`, called from `practice_service.answer`).
+- **The numbers** (doc 7, 7.9) come from the last 10 *first* answers in the area
+  (`analytics.progress.first_answers`, shared with basic progress): accuracy; mastery (credit 1 for
+  right, −0.25 per hint, 0.25 after the solution, 0 for wrong; recent and harder answers weigh more);
+  confidence (answers ÷ 10). Status: `needs_attention` below 60 % over ≥ 5 answers (Class 6–12 only),
+  `strong` at mastery ≥ 0.85 over ≥ 5 answers, otherwise `learning`.
+- **Adaptive difficulty** (Class 6–12): each area has a level, starting at medium, moved by the rule
+  (> 85 % up, < 60 % down) only on ≥ 5 answers given since it last moved (`difficulty_since`).
+  Nursery–Class 5: no levels, no weak label; gentle repetition with easy questions.
+- **Recommendations**: at most 3 a day, made on the first `GET` of the day (India time, fixed
+  +05:30) and kept for the day; in order `strengthen` (weak area: revise + practice at its lowered
+  level) · `continue` (being learned, practised this week) · `review` (not practised for 7 days) ·
+  `new_chapter` (never practised, books of the learner's class). Each carries a ready
+  `PracticeCreate` body (`practice`) and, for strengthen, an `ExplainRequest` (`revise`). Finishing a
+  practice of the same place marks it `done` (`recommendations.mark_done`).
+- **Practice for one topic**: `PracticeCreate.topic_id` (one place at most, as before); the bank
+  filters by topic, the writer gets the topic's text first, and new questions are filed under it.
+- New endpoints: `GET /students/{id}/mastery`, `GET /students/{id}/recommendations` (docs/03 §3.6).
+  New tables: `student_mastery`, `recommendations`; new column `practice_sessions.topic_id`
+  (docs/02 §2.5).
 
 ### Known issues
 
-- **The real Claude API has still not been tried** (no key). Without it, new practice, Explain and
-  marking of written answers show a plain "not switched on yet" message. The demo questions last for
-  one or two practices per child (a learner never gets a question twice).
-- **Node.js on this machine is still v21.5.0.** The site runs on it, but `npm install`, Vitest and
-  Playwright need Node ≥ 22.12 (Step 6 was tested with Node 24.22.2 from nodejs.org). Install the
-  Node 24 LTS macOS installer from nodejs.org.
-- Parent practice pages show questions but there is no per-question answer review for the parent
-  yet ("Understand Mistakes" belongs to Step 9's dashboard).
-- The upload route is outside `proxy.ts`, so it does not renew tokens: a parent who leaves the upload
-  page open for over 30 minutes gets "Your session has expired" and must reload.
-- The browser practice journeys share the demo family; an interrupted run can leave `E2E…`
-  children behind (the limit is 10). The `afterEach` clean-up normally removes them.
-- `npm audit`: 17 moderate warnings, all one `minimatch` advisory inside ESLint's dependencies.
-- Unchanged: the "not enough information" threshold is narrow on the sample book; no rate limiting,
-  token revocation or security headers yet (Step 12).
+- **The real Claude API has still not been tried** (no key). Practice from a recommendation needs
+  unseen saved questions at that place and difficulty; otherwise it needs the AI ("not switched on
+  yet" without a key).
+- **Recommendations are fixed for the day.** If a child fixes a weak topic in the morning, its
+  "strengthen" item stays (it turns `done` only when a practice of that place is finished) until the
+  next day's list. There is no "dismiss" yet.
+- Answers given before Step 7 are not in mastery until the learner answers again in that area (then
+  the area is worked out from all its history). The demo data has no answers, so nothing is lost there.
+- The reasons are English sentences built from fixed wording (translated screens: Step 11).
+- **Node.js on this machine is still v21.5.0**: the site and `next build` run, but Vitest does not
+  start (it needs Node ≥ 22). Install the Node 24 LTS macOS installer from nodejs.org.
+- Unchanged: the upload route does not renew tokens; `E2E…` children can be left behind by an
+  interrupted browser run; `npm audit` (17 moderate, one ESLint dependency); no rate limiting, token
+  revocation or security headers yet (Step 12).
 
-### What Step 7 needs to know
+### What Step 8 needs to know
 
-- Step 7 is **backend**: `student_mastery` and `recommendations` tables (planned in
-  docs/02 §2.6), the adaptive rule of docs/07 §7.9 (above 85 % up, 60–85 % stay, below 60 % down
-  with revision and foundation questions), weak-topic detection, daily recommendations. Only where
-  the class profile's `adaptive_difficulty` / `weak_topic_detection` are on; younger classes get
-  gentle repetition.
-- The raw material is `question_attempts` (correctness, time, hints, solution viewed) joined to
-  `questions.topic_id` / `chapter_id` / `difficulty`. Basic progress (`analytics/progress.py`)
-  already counts first answers per session; mastery should build on the same rule.
-- Frontend hooks waiting for Step 7: the learner's home has room for "Recommended for You" (spec
-  §12), and the parent dashboard for strong areas / needs attention and **Start Recommended
-  Practice** (spec §11). Practice created from a recommendation can reuse `createPractice`
-  (`lib/actions/practice.ts`) with the recommended place and difficulty.
-- Demo data: Aarav and Anaya have no attempts yet. Mastery and recommendations will need some
-  history to show anything; a seed of a few demo attempts (as with the demo questions) would help.
+- Step 8 is **backend**: mock tests (sections, timing, a result report) and the study planner
+  (plans that update with performance). Planned tables: `mock_tests`, `mock_test_questions`,
+  `test_attempts`, `study_plans`, `study_plan_items` (docs/02 §2.7). Check the class profile:
+  `practice_tests` (Class 3+), `chapter_tests` (6+), `timed_tests` and `full_mock_tests` (9+).
+- **Questions**: reuse the question bank and the writer (`practice_service._from_bank`,
+  `generator.generate`, `to_question`); a test place can be a book, chapter, topic or exercise.
+- **Mastery should count test answers.** `mastery.record_answer` reads `question_attempts` through
+  `first_answers`, which groups by `practice_session_id`. Either store test answers there too (one
+  attempt per question) or teach `first_answers` about tests; then call `record_answer` per answer.
+- **Study plans** can build on `student_mastery` (weak areas, levels, last practised) and on the
+  recommendation order; `recommendations.today()` gives the India-time day.
+- Frontend hooks waiting for Step 9: "Recommended for You" on the learner home, strong areas / needs
+  attention and **Start Recommended Practice** (post `practice` as-is) on the parent dashboard.
+  Every new page that loads data needs its own `loading.tsx` (see `frontend/app/loading.tsx`).

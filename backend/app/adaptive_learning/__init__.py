@@ -1,4 +1,5 @@
-"""Topic mastery, adaptive difficulty, weak-topic detection and recommendations.
+"""Topic mastery, adaptive difficulty, weak-topic detection and daily recommendations (Step 7).
 
-Empty for now. Filled in Step 7 (misconception detection in Step 10).
+mastery.py works out what a learner knows after every answer; recommendations.py turns that into
+"do this next" once a day. Misconception detection comes in Step 10.
 """
