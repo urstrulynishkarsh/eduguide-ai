@@ -74,7 +74,7 @@ async def test_structured_answer_and_request_shape():
     assert request["response_format"]["json_schema"]["strict"] is True
     assert request["response_format"]["json_schema"]["schema"]["additionalProperties"] is False
     assert (request["reasoning_effort"], request["include_reasoning"]) == ("low", False)
-    assert request["max_completion_tokens"] == 16000
+    assert request["max_completion_tokens"] == 3500  # long replies make later requests too large
 
 
 async def test_models_other_than_gpt_oss_keep_their_own_reasoning_settings():

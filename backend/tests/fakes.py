@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel
 
-from app.llm import LLMResult
+from app.llm import LLMResult, RequestSize
 from app.models.library import EMBEDDING_DIMENSION
 from app.question_generation.schemas import GeneratedBatch, GeneratedQuestion, Review, ReviewBatch
 from app.rag.ocr import OCRError, OCRPage
@@ -62,6 +62,8 @@ class FakeEmbeddings:
 class FakeLLM:
     """Answers each schema with the next scripted output, and records every request."""
 
+    request_size = RequestSize()
+
     def __init__(self, *outputs: BaseModel) -> None:
         self.outputs = list(outputs)
         self.requests: list[dict] = []
@@ -106,8 +108,13 @@ class QuestionWriterFake:
     _BLOCK = re.compile(r"Q(\d+) \[[^\]]+\]\n(.*?)(?=\n\nQ\d+ \[|\n</questions>)", re.S)
 
     def __init__(
-        self, *batches: list[GeneratedQuestion], reject: Sequence[str] = (), extra: Sequence = ()
+        self,
+        *batches: list[GeneratedQuestion],
+        reject: Sequence[str] = (),
+        extra: Sequence = (),
+        request_size: RequestSize | None = None,
     ) -> None:
+        self.request_size = request_size or RequestSize()
         self.batches = list(batches)
         self.reject = set(reject)
         self.extra = list(extra)

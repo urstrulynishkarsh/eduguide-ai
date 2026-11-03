@@ -34,8 +34,6 @@ from app.services import library_service, student_service
 
 logger = logging.getLogger(__name__)
 
-PASSAGE_BUDGET = 6000  # tokens of book text given to the question writer
-
 SESSION_ERROR_MESSAGES = {
     "insufficient_context": retrieval.InsufficientContextError.message,
     "ai_unavailable": llm.AIUnavailableError.message,
@@ -155,10 +153,10 @@ async def create_session(
 
 
 async def _passages(
-    db: AsyncSession, owner: uuid.UUID, session: PracticeSession, student: Student
+    db: AsyncSession, owner: uuid.UUID, session: PracticeSession, student: Student, budget: int
 ) -> list[retrieval.Passage]:
-    """The book text for the session's place, exercise or topic first when one was chosen."""
-    budget = PASSAGE_BUDGET
+    """The book text for the session's place (at most `budget` tokens), exercise or topic first when
+    one was chosen."""
     places: list[retrieval.ChunkFilter] = []
     if session.exercise_id:
         places.append(retrieval.ChunkFilter(owner, exercise_id=session.exercise_id))
@@ -258,7 +256,8 @@ async def prepare_session(db: AsyncSession, *, session_id: uuid.UUID) -> None:
     owner = await student_service.account_of(db, student)
     try:
         have = await db.scalar(select(func.count()).where(PracticeItem.session_id == session.id)) or 0
-        passages = await _passages(db, owner, session, student)
+        budget = llm.get_llm_provider().request_size.passage_tokens
+        passages = await _passages(db, owner, session, student, budget)
         if not passages:
             await _fail(db, session_id, "insufficient_context")
             return

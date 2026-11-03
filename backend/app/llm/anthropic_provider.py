@@ -18,7 +18,7 @@ from collections.abc import Sequence
 
 import anthropic
 
-from app.llm.base import AIDeclinedError, AIUnavailableError, LLMResult, Message, ModelTier, T
+from app.llm.base import AIDeclinedError, AIUnavailableError, LLMResult, Message, ModelTier, RequestSize, T
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,8 @@ _FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
 class AnthropicProvider:
+    request_size = RequestSize()
+
     def __init__(self, client: anthropic.AsyncAnthropic, models: dict[ModelTier, str]) -> None:
         self._client = client
         self._models = models

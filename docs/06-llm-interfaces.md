@@ -176,6 +176,13 @@ answer validated by the same Pydantic model. Open models have no refusal signal,
 never comes from Groq. The free plan's limits per minute and per day show up as `ai_unavailable`,
 with the reason in the log (HTTP 429, or 413 for a request larger than the plan allows per minute).
 
+Each provider declares a `RequestSize` (book text per request, questions written and reviewed per
+call), which the question writer follows: Claude 6,000 tokens and 10 questions; Groq 1,500 and 3. On
+the free plan (8,000 tokens a minute) Groq sizes a request as its input plus the largest reply of
+the last few minutes - measured, not documented - and refuses anything over 8,000 (413). So replies
+are capped too (3,500 tokens) and the SDK retries up to 6 times, waiting out each 429 as Groq
+asks. Measured: a 5-question hard practice took 8 requests and about 4 minutes.
+
 Search model:
 `intfloat/multilingual-e5-base` (MIT, 768 dimensions, Hindi and Hinglish included) running on the
 server through ONNX - no API key, no per-book cost, small enough for a laptop with 8 GB of memory.

@@ -15,6 +15,7 @@ from app.llm.base import (
     LLMResult,
     Message,
     ModelTier,
+    RequestSize,
 )
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "LLMResult",
     "Message",
     "ModelTier",
+    "RequestSize",
     "get_llm_provider",
 ]
 
@@ -51,7 +53,8 @@ def _provider() -> LLMProvider | None:
         from app.llm.groq_provider import GroqProvider
 
         return GroqProvider(
-            groq.AsyncGroq(api_key=settings.groq_api_key, max_retries=3, timeout=120),
+            # More retries: on the free plan they wait out the per-minute limit (Groq says how long).
+            groq.AsyncGroq(api_key=settings.groq_api_key, max_retries=6, timeout=120),
             _models(chosen, GROQ_MODELS),
         )
     return None

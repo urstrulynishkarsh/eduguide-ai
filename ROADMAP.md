@@ -285,12 +285,12 @@ no frontend changes.
 
 ### Known issues
 
-- **No AI provider has been tried with a real key yet.** The plan is Groq's free plan: add the key,
-  run `pytest -m live` first, then try Explain and a small practice. Expect: open models write
-  weaker Hindi / Hinglish and maths than Claude (the independent review drops wrong questions, so a
-  practice may get fewer); the free plan allows only a few thousand tokens a minute, so a request
-  with a full 6,000-token passage budget may be refused as too large (HTTP 413 in the log). If so,
-  lower `PASSAGE_BUDGET` in `practice_service.py` or the output budget for Groq.
+- **Groq (free plan) works, slowly.** `pytest -m live` passes on it. Its 8,000 tokens a minute
+  forced small requests (`RequestSize` per provider: Groq 1,500 tokens of book text, 3 questions per
+  call, replies capped at 3,500): Groq sizes a request as input + the largest recent reply and
+  refuses (413) anything over 8,000. Measured: a 5-question hard practice = 8 requests, ~4 minutes,
+  4 of 12 written questions passed the checks. Advise 5 questions per practice on the free plan; the
+  daily allowance covers only a few practices. Claude has still not been tried (no key).
 - Practice from a recommendation needs unseen saved questions at that place and difficulty;
   otherwise it needs the AI.
 - **Recommendations are fixed for the day.** If a child fixes a weak topic in the morning, its

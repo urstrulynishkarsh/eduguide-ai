@@ -26,6 +26,14 @@ class Message:
 
 
 @dataclass(frozen=True, slots=True)
+class RequestSize:
+    """How much one request to a provider may carry when writing practice questions."""
+
+    passage_tokens: int = 6000  # book text given to the question writer and to its reviewer
+    questions_per_call: int = 10  # questions written, and then reviewed, in one request
+
+
+@dataclass(frozen=True, slots=True)
 class LLMResult(Generic[T]):
     output: T
     model: str
@@ -35,6 +43,8 @@ class LLMResult(Generic[T]):
 
 
 class LLMProvider(Protocol):
+    request_size: RequestSize
+
     async def generate_structured(
         self,
         *,

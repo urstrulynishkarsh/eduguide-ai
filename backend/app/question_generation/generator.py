@@ -27,7 +27,6 @@ from app.rag.retrieval import Passage
 
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE = 10
 EXTRA_ROUNDS = 2  # rounds of replacements after the first attempt
 
 _WRITER_RULES = """You write practice questions for an Indian school student, from the student's own books.
@@ -120,9 +119,10 @@ async def generate(
 
     accepted: list[GeneratedQuestion] = []
     feedback: list[str] = []
-    rounds = -(-request.count // BATCH_SIZE) + EXTRA_ROUNDS
+    per_call = provider.request_size.questions_per_call
+    rounds = -(-request.count // per_call) + EXTRA_ROUNDS
     for _ in range(rounds):
-        wanted = min(BATCH_SIZE, request.count - len(accepted))
+        wanted = min(per_call, request.count - len(accepted))
         if wanted <= 0:
             break
         task = [f"Write {wanted} questions.", *base_task]

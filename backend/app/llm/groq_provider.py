@@ -5,9 +5,12 @@
   answer is then validated by the same Pydantic model.
 * Tiers map to a model (LLM_MODEL_*, else DEFAULT_MODELS) and, for the gpt-oss models, a reasoning
   effort. The reasoning itself is not sent back: only the answer is used.
-* The SDK retries rate limits and network errors itself. Groq's free plan allows only a few
-  thousand tokens a minute and a limited number a day; when they are used up, people see the usual
-  "busy, try again" and the log says why.
+* Requests and replies are kept small. The free plan allows 8,000 tokens a minute, and Groq sizes
+  each request as its input plus the largest reply of the last few minutes (measured; not in its
+  docs). A request over 8,000 is refused outright (HTTP 413), so long replies make every later
+  request too large. Hence `request_size` and `_MAX_REPLY_TOKENS`. The SDK waits out the per-minute
+  limit itself (HTTP 429, Groq says how long); when the day's allowance is used up, people see the
+  usual "busy, try again" and the log says why.
 * Open models have no refusal signal, so AIDeclinedError is never raised here.
 
 Logs carry the model, tier, token counts, latency and request id - never prompt or answer text.
@@ -21,7 +24,7 @@ from typing import Any
 import groq
 from pydantic import BaseModel, ValidationError
 
-from app.llm.base import AIUnavailableError, LLMResult, Message, ModelTier, T
+from app.llm.base import AIUnavailableError, LLMResult, Message, ModelTier, RequestSize, T
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,8 @@ DEFAULT_MODELS: dict[ModelTier, str] = {
     "strong": "openai/gpt-oss-120b",
 }
 _EFFORT: dict[ModelTier, str] = {"fast": "low", "default": "medium", "strong": "high"}
+# Room for 3 questions with their reasoning (measured: up to 2,800 tokens) or a long explanation.
+_MAX_REPLY_TOKENS = 3500
 
 
 def strict_schema(model: type[BaseModel]) -> dict[str, Any]:
@@ -54,6 +59,10 @@ def strict_schema(model: type[BaseModel]) -> dict[str, Any]:
 
 
 class GroqProvider:
+    # Writing 3 questions from 1,500 tokens of book text is about 3,900 tokens in, checking them about
+    # 3,600: with a reply of up to 3,500, each stays under the free plan's 8,000.
+    request_size = RequestSize(passage_tokens=1500, questions_per_call=3)
+
     def __init__(self, client: groq.AsyncGroq, models: dict[ModelTier, str]) -> None:
         self._client = client
         self._models = models
@@ -84,7 +93,7 @@ class GroqProvider:
                     "type": "json_schema",
                     "json_schema": {"name": schema.__name__, "schema": strict_schema(schema), "strict": True},
                 },
-                max_completion_tokens=max_output_tokens,
+                max_completion_tokens=min(max_output_tokens, _MAX_REPLY_TOKENS),
                 **reasoning,
             )
         except (groq.AuthenticationError, groq.PermissionDeniedError):

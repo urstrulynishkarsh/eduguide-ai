@@ -72,6 +72,21 @@ async def test_good_questions_are_kept_and_failures_replaced(writer):
     assert "x = 3" not in reviews[0]["messages"][0].content.split("<questions>")[1]
 
 
+async def test_questions_are_written_in_calls_no_larger_than_the_provider_allows(monkeypatch):
+    first = [make_question(text=f"Question {n}: what is x if 2x + {n} = 10?") for n in range(2)]
+    last = [make_question(text="Question 2: solve 3x = 9.")]
+    fake = QuestionWriterFake(first, last, request_size=llm.RequestSize(questions_per_call=2))
+    monkeypatch.setattr(llm, "get_llm_provider", lambda: fake)
+
+    kept = await generator.generate(
+        _passages(), profile=CLASS_8, student=_student(), request=_request(count=3), existing=[]
+    )
+
+    assert len(kept) == 3
+    writes = [r["messages"][0].content for r in fake.requests if r["schema"].__name__ == "GeneratedBatch"]
+    assert [task.splitlines()[0] for task in writes] == ["Write 2 questions.", "Write 1 questions."]
+
+
 async def test_after_the_last_round_fewer_questions_are_returned(writer):
     always_broken = [make_question(text=f"Broken {n}", options=["1"]) for n in range(3)]
     writer([always_broken[0]], [always_broken[1]], [always_broken[2]])

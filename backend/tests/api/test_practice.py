@@ -20,8 +20,8 @@ from tests.samples import NOTES_TEXT, make_pdf
 
 @pytest.fixture
 def writer(monkeypatch: pytest.MonkeyPatch):
-    def install(*batches, reject=(), extra=()) -> QuestionWriterFake:
-        fake = QuestionWriterFake(*batches, reject=reject, extra=extra)
+    def install(*batches, reject=(), extra=(), request_size=None) -> QuestionWriterFake:
+        fake = QuestionWriterFake(*batches, reject=reject, extra=extra, request_size=request_size)
         monkeypatch.setattr(llm, "get_llm_provider", lambda: fake)
         return fake
 
@@ -84,6 +84,20 @@ async def test_create_practice_from_an_exercise(client: AsyncClient, writer):
     task = fake.requests[0]["messages"][0].content
     assert "Solve the following equations." in task
     assert "Class 8" in fake.requests[0]["system"]
+
+
+async def test_the_book_text_sent_fits_the_providers_request_size(client: AsyncClient, writer):
+    parent, child, chapter = await _family(client)
+    roomy = writer(_three())
+    await _create(client, parent, child, chapter)
+    small = writer(_three(), request_size=llm.RequestSize(passage_tokens=60))
+    # The other exercise, so the questions just saved are not simply reused.
+    await _create(client, parent, child, chapter, exercise_id=chapter["exercises"][1]["id"])
+
+    def passages_sent(fake: QuestionWriterFake) -> int:
+        return fake.requests[0]["messages"][0].content.count("<passage ")
+
+    assert 1 <= passages_sent(small) < passages_sent(roomy)
 
 
 async def test_create_practice_for_one_topic(client: AsyncClient, writer, db_session: AsyncSession):

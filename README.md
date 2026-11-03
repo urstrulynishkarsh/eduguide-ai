@@ -135,9 +135,11 @@ to `backend/.env` and restart the API:
 | **Groq** (open models: gpt-oss) | free plan, with low limits per minute and per day | https://console.groq.com/keys | `LLM_PROVIDER=groq` · `GROQ_API_KEY=gsk_...` |
 | **Claude** | paid per use | https://platform.claude.com | `LLM_PROVIDER=anthropic` · `ANTHROPIC_API_KEY=sk-ant-...` |
 
-The models are chosen for you (`LLM_MODEL_FAST` / `_DEFAULT` / `_STRONG` override them). On Groq's
-free plan a practice of 10 questions can take a minute or more, and when the day's allowance is used
-up the app says "busy, try again". Check that your key works with `pytest -m live`.
+The models are chosen for you (`LLM_MODEL_FAST` / `_DEFAULT` / `_STRONG` override them). Check that
+your key works with `pytest -m live`. **On Groq's free plan, ask for 5 questions at a time:** the plan
+allows 8,000 tokens a minute, so questions are written 3 at a time with waits in between - a practice
+of 5 takes about 4 minutes, and a hard one may come back with fewer questions (the independent check
+drops the wrong ones). When the day's allowance is used up, the app says "busy, try again".
 
 The search model runs on your computer and needs no key. It is downloaded once (~1 GB, into
 `backend/storage/models/`) the first time a book is read.
