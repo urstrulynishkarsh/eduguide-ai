@@ -1,0 +1,48 @@
+# Chapter 4 Simple Equations
+
+An equation is a balance. Whatever we do to one side, we must do to the other side so that
+both sides stay equal. In this chapter we learn to write equations from everyday situations
+and to solve them step by step.
+
+## 4.1 What Is an Equation?
+A statement such as x + 3 = 8 is an equation. It has a variable (x), an equals sign and two
+sides. The left side is x + 3 and the right side is 8. A value of x that makes both sides equal
+is called the solution of the equation. Here the solution is x = 5, because 5 + 3 = 8.
+
+Example 1: Write an equation for "a number increased by 7 gives 15".
+Solution: Let the number be n. Increasing it by 7 gives n + 7. So the equation is n + 7 = 15.
+
+## 4.2 Solving an Equation
+To solve an equation we undo what has been done to the variable. If a number was added, we
+subtract it from both sides. If the variable was multiplied by a number, we divide both sides
+by that number.
+
+Example 2: Solve 2x + 4 = 10.
+Solution: Subtract 4 from both sides: 2x = 6. Divide both sides by 2: x = 3.
+Check: 2 × 3 + 4 = 10. The left side equals the right side, so x = 3 is correct.
+
+Exercise 4.1
+Solve the following equations and check your answers.
+1. x + 5 = 12
+2. y - 4 = 9
+3. 3p = 18
+4. m / 4 = 2
+5. 2n + 1 = 11
+
+## 4.3 Equations in Daily Life
+Equations help us answer questions about money, age and measurement.
+
+Example 3: Riya has some pencils. Her friend gives her 6 more and now she has 20. How many
+pencils did Riya have at first?
+Solution: Let the number of pencils be p. Then p + 6 = 20. Subtract 6 from both sides: p = 14.
+Riya had 14 pencils at first.
+
+Exercise 4.2
+1. The sum of a number and 9 is 25. Find the number.
+2. Aman is 3 years older than his sister. The sum of their ages is 21. How old is each of them?
+3. A rectangle is 4 cm longer than it is wide. Its perimeter is 32 cm. Find its length and width.
+
+## What have we discussed?
+An equation states that two expressions are equal. To solve it, do the same operation on both
+sides until the variable is alone on one side. Always check the answer by putting it back into
+the equation.

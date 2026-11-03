@@ -5,10 +5,14 @@ Every value comes from an environment variable or from the `.env` file in the
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The backend/ folder. Relative paths in the settings are resolved from here.
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -37,6 +41,26 @@ class Settings(BaseSettings):
     # ---- Limits ----
     max_students_per_parent: int = Field(default=10, ge=1)
 
+    # ---- Uploaded books ----
+    # Where uploaded files are kept. Only "local" (a folder on this computer) exists today.
+    storage_backend: Literal["local"] = "local"
+    # Relative paths are relative to the backend/ folder. Never inside a folder the web server serves.
+    storage_dir: str = "storage/uploads"
+    max_upload_mb: int = Field(default=50, ge=1, le=500)
+    max_pdf_pages: int = Field(default=600, ge=1)
+    max_documents_per_book: int = Field(default=40, ge=1)
+    max_books_per_account: int = Field(default=200, ge=1)
+    # How many books are read at the same time in the background.
+    processing_concurrency: int = Field(default=2, ge=1, le=16)
+
+    # ---- Reading scanned pages (OCR) ----
+    # "none": scanned pages are skipped. "tesseract": uses the free Tesseract program, which must be
+    # installed separately (macOS: `brew install tesseract tesseract-lang`).
+    ocr_provider: Literal["none", "tesseract"] = "none"
+    tesseract_cmd: str = "tesseract"
+    # Tesseract language codes joined with "+". hin = Hindi, eng = English.
+    ocr_languages: str = "eng+hin"
+
     @field_validator("jwt_secret_key")
     @classmethod
     def _secret_must_be_strong(cls, value: str) -> str:
@@ -63,6 +87,15 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def storage_path(self) -> Path:
+        path = Path(self.storage_dir)
+        return path if path.is_absolute() else BACKEND_DIR / path
 
 
 @lru_cache

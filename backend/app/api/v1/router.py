@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, meta, students
+from app.api.v1 import auth, books, chapters, documents, meta, students
 from app.schemas.common import ErrorResponse
 
 api_v1_router = APIRouter(
@@ -16,4 +16,7 @@ api_v1_router = APIRouter(
 )
 api_v1_router.include_router(auth.router)
 api_v1_router.include_router(students.router)
+api_v1_router.include_router(books.router)
+api_v1_router.include_router(documents.router)
+api_v1_router.include_router(chapters.router)
 api_v1_router.include_router(meta.router)

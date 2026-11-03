@@ -10,8 +10,8 @@ Status: ✅ done · ⏭ next · ⬜ later
 | Step | Status | What you get | Folders it fills | MVP items in the spec (§46) |
 |---|---|---|---|---|
 | **1** | ✅ | **Blueprint + backend foundation.** Design documents, database, sign-up / sign-in, parent and student roles, class selection, child profiles, class-aware rules, child mode. | `docs/` · `backend/app/core` · `models` · `schemas` · `auth` · `class_profiles` · `services` · `api` · `backend/alembic` · `backend/tests` | 1 Authentication · 2 Roles · 3 Class selection · 4 Student profile |
-| **2** | ⏭ | **Upload and read books.** Upload PDF / DOCX / TXT safely, read the text (OCR for scanned pages), find chapters, exercises and questions, cut the book into labelled pieces, library API. | `backend/app/rag/ingestion` · `backend/app/services` · `backend/app/api/v1` · new tables: `documents`, `books`, `chapters`, `topics`, `exercises`, `document_chunks` | 5 Upload · 6 Parsing · 7 Chapter detection · 8 Chunking |
-| **3** | ⬜ | **Search inside books + AI connection.** Embeddings, vector index, filtered retrieval (class / subject / chapter / exercise), reranking, context with source citations, and the swappable LLM layer. | `backend/app/llm` · `backend/app/rag` | 9 Embeddings · 10 Vector database · 11 RAG retrieval |
+| **2** | ✅ | **Upload and read books.** Upload PDF / DOCX / TXT safely, read the text (OCR for scanned pages), find chapters, exercises and questions, cut the book into labelled pieces, library API. | `backend/app/rag/ingestion` · `backend/app/storage` · `backend/app/services` · `backend/app/api/v1` · new tables: `documents`, `books`, `chapters`, `topics`, `exercises`, `document_chunks` | 5 Upload · 6 Parsing · 7 Chapter detection · 8 Chunking |
+| **3** | ⏭ | **Search inside books + AI connection.** Embeddings, vector index, filtered retrieval (class / subject / chapter / exercise), reranking, context with source citations, and the swappable LLM layer. | `backend/app/llm` · `backend/app/rag` | 9 Embeddings · 10 Vector database · 11 RAG retrieval |
 | **4** | ⬜ | **Practice engine.** Class-aware question generation, automatic checking and regeneration, hints → steps → answer, practice sessions, recording attempts, basic performance numbers. | `backend/app/question_generation` · `backend/app/analytics` · `backend/app/services` | 12 Question generation · 13 Solutions · 15 Basic performance tracking |
 | **5** | ⬜ | **Frontend foundation.** Next.js app, design system with the four age-based layouts, landing page, sign-up / sign-in, onboarding, child mode. | `frontend/` | screens for items 1–4 |
 | **6** | ⬜ | **Frontend MVP.** My Books and upload with progress, Create Practice, the student practice screen (including the picture-based one for Nursery–Class 2), basic progress. **The MVP works end to end here.** | `frontend/` | 14 Student practice interface |
@@ -81,3 +81,27 @@ eduguide-ai/
         ├── analytics/         (Steps 4, 9, 11)
         └── utils/
 ```
+
+## What Step 2 added
+
+```
+backend/
+├── alembic/versions/0002_…py     books, documents, chapters, topics, exercises, document_chunks
+├── scripts/sample_data/           a sample chapter the seed script puts in "My Books"
+└── app/
+    ├── storage/                   FileStorage interface + local folder (uploads are private)
+    ├── core/tasks.py              background TaskQueue (in-process now, Redis in Step 12)
+    ├── core/middleware.py         + upload / request size limit
+    ├── models/library.py          the six new tables
+    ├── schemas/library.py         request / response shapes
+    ├── services/library_service.py    books, chapters, exercises - and who may see them
+    ├── services/document_service.py   upload, retry, remove, resume after a restart
+    ├── api/v1/books.py · documents.py · chapters.py
+    └── rag/
+        ├── ocr.py                 OCRProvider + Tesseract adapter
+        └── ingestion/             check file -> read text -> clean -> find structure -> chunks
+```
+
+After extracting: `pip install -r requirements-dev.txt` (new libraries), `alembic upgrade head`
+(migration 0002), `pytest`, and optionally `python -m scripts.seed` for the sample book.
+

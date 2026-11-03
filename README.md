@@ -4,7 +4,8 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 1 of 12 is complete** — the blueprint and the backend foundation.
+> **Build status: Step 2 of 12 is complete** — the blueprint, the backend foundation, and
+> uploading and reading books.
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -14,7 +15,15 @@ from Nursery to Class 12.
 - **Class-aware rules** for all 15 classes (Nursery, LKG, UKG, Class 1–12), served by the API
 - **Child mode**: a parent hands the device to one child, who then sees only their own things
 - Strict separation between families: one parent can never see another parent's children
-- Database migrations, demo data, automatic API documentation, 103 automated tests
+- **My Books**: upload PDF, Word (.docx) and text files into a book. The file type is checked from
+  the content; size, page count, passwords and duplicates are checked at once
+- Books are read in the background with a progress checklist: text (with OCR for scanned pages
+  when Tesseract is installed), **chapters, topics, worked examples, exercises and each exercise
+  question**, summaries — in English and Hindi books — then cut into labelled pieces ready for
+  search in Step 3
+- Parents can rename chapters; exercise questions are listed exactly as printed, with book,
+  chapter, exercise and page
+- Database migrations, demo data (including a sample book), automatic API documentation, 188 automated tests
 
 ## Run it on your computer
 
@@ -54,6 +63,24 @@ uvicorn app.main:app --reload
 Try it: run `POST /api/v1/auth/login` with a demo account, copy the `access_token`, press
 **Authorize**, paste it, then call `GET /api/v1/students`.
 
+To try a book: `GET /api/v1/books` shows the sample book; `POST /api/v1/books` creates a new one,
+and `POST /api/v1/books/{book_id}/documents` (press **Try it out**, choose a PDF) uploads a file.
+Follow it with `GET /api/v1/documents/{id}`, then open `GET /api/v1/books/{book_id}/chapters`.
+
+### Optional: reading scanned books (OCR)
+
+Text PDFs, Word and text files work without this. For scanned or photographed books, install the
+free Tesseract program with the Hindi language pack, then set `OCR_PROVIDER=tesseract` in
+`backend/.env` and restart the API:
+
+```bash
+brew install tesseract tesseract-lang                 # macOS
+sudo apt install tesseract-ocr tesseract-ocr-hin      # Ubuntu / Debian
+```
+
+Without it, a fully scanned book shows the message *"This looks like a scanned or photographed
+book…"* instead of empty results.
+
 ### Demo accounts (created by `python -m scripts.seed`)
 
 | Email | Password | Who |
@@ -87,10 +114,12 @@ and roll back after every test — your real data is never touched.
 | `backend/app/auth` | Sign-up, sign-in, tokens, child mode |
 | `backend/app/class_profiles` | The rules for each class — the heart of "class-aware AI" |
 | `backend/app/services` | Business logic; the only place that reads or writes family data |
+| `backend/app/rag/ingestion` | Reading books: file checks, text, OCR, structure, chunks |
+| `backend/app/storage` | Where uploaded files are kept (private folder `backend/storage/`, git-ignored) |
 | `backend/app/api` | HTTP routes |
 | `backend/alembic` | Database migrations |
 | `backend/tests` | Automated tests |
-| `backend/app/rag`, `llm`, `question_generation`, `adaptive_learning`, `analytics` | Empty until their step (see the roadmap) |
+| `backend/app/llm`, `question_generation`, `adaptive_learning`, `analytics` | Empty until their step (see the roadmap) |
 | `frontend/` | Empty until Step 5 |
 
 ## Everyday commands (run inside `backend/`)
@@ -110,6 +139,8 @@ and roll back after every test — your real data is never touched.
 | `JWT_SECRET_KEY is missing or shorter than 32 characters` | Run `python -m scripts.init_env` inside `backend/`. |
 | `Connection refused` / cannot reach the database | Is Docker running? `docker compose ps` should show `db` as *healthy*. |
 | Port 5432 is already in use | Another PostgreSQL is running. Change the port in `docker-compose.yml` (see the comment there) and in `backend/.env`. |
+| A book stays `failed` with `scanned_document` | It has no text layer. Install Tesseract (see above), set `OCR_PROVIDER=tesseract`, restart, then `POST /api/v1/documents/{id}/retry` |
+| Upload answers `413` | The file is over `MAX_UPLOAD_MB` (50 MB). Split the book, e.g. one PDF per chapter — they can all go into the same book |
 | `database "eduguide_test" does not exist` when running tests | The database volume was created before this project's init script existed. Run `docker compose down -v` and `docker compose up -d`. |
 | PowerShell refuses to run `Activate.ps1` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or use `cmd` with `activate.bat`. |
 

@@ -10,8 +10,11 @@ transaction that is rolled back afterwards, so tests never see each other's data
 
 import asyncio
 import os
+import shutil
+import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://eduguide:eduguide@localhost:5432/eduguide_test"
@@ -22,6 +25,10 @@ os.environ["ENVIRONMENT"] = "test"
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["JWT_SECRET_KEY"] = "test-only-secret-key-never-use-outside-tests-0123456789"
 os.environ["LOG_LEVEL"] = "WARNING"
+# Uploaded files go to a throw-away folder; OCR is off unless a test switches in a fake one.
+TEST_STORAGE_DIR = tempfile.mkdtemp(prefix="eduguide-test-storage-")
+os.environ["STORAGE_DIR"] = TEST_STORAGE_DIR
+os.environ["OCR_PROVIDER"] = "none"
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
@@ -32,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from app.core.database import get_db  # noqa: E402
+from app.core.tasks import Job, get_task_queue  # noqa: E402
 from app.main import app  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -93,14 +101,42 @@ async def db_session(migrated_database: None) -> AsyncIterator[AsyncSession]:
     await engine.dispose()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _remove_test_storage() -> Any:
+    yield
+    shutil.rmtree(TEST_STORAGE_DIR, ignore_errors=True)
+
+
+class InlineTaskQueue:
+    """Runs background jobs immediately, inside the request, with the test session.
+
+    The real queue runs them later in their own session; running them inline makes tests
+    deterministic: when the upload request returns, the book has been read.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.jobs: list[str] = []
+
+    async def enqueue(self, job: Job, /, **kwargs: Any) -> None:
+        self.jobs.append(job.__name__)
+        await job(self.session, **kwargs)
+
+
 @pytest.fixture
-async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
+def task_queue(db_session: AsyncSession) -> InlineTaskQueue:
+    return InlineTaskQueue(db_session)
+
+
+@pytest.fixture
+async def client(db_session: AsyncSession, task_queue: InlineTaskQueue) -> AsyncIterator[AsyncClient]:
     """An HTTP client that talks to the app in-process, using the test session."""
 
     async def use_test_session() -> AsyncIterator[AsyncSession]:
         yield db_session
 
     app.dependency_overrides[get_db] = use_test_session
+    app.dependency_overrides[get_task_queue] = lambda: task_queue
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http_client:
             yield http_client

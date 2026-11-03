@@ -120,6 +120,54 @@ class QuestionStyle(StrEnum):
     COMPETITIVE_EXAM = "competitive_exam"
 
 
+class MaterialType(StrEnum):
+    """What kind of material a book in "My Books" is (spec §13)."""
+
+    TEXTBOOK = "textbook"
+    NOTES = "notes"
+    QUESTION_BANK = "question_bank"
+    PREVIOUS_YEAR_PAPER = "previous_year_paper"
+    ASSIGNMENT = "assignment"
+    STUDY_MATERIAL = "study_material"
+
+
+class FileKind(StrEnum):
+    """File types that can be uploaded. Decided from the file's content, never from its name."""
+
+    PDF = "pdf"
+    DOCX = "docx"
+    TXT = "txt"
+
+
+class DocumentStatus(StrEnum):
+    QUEUED = "queued"  # uploaded, waiting for its turn
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+
+
+class ProcessingStage(StrEnum):
+    """Steps of reading a book, in order. The frontend shows them as a checklist in parent words
+    (docs/04-frontend-routes.md): Reading your book · Finding the chapters · Finding exercises and
+    questions · Understanding the topics · Getting practice ready."""
+
+    EXTRACT_TEXT = "extract_text"
+    DETECT_CHAPTERS = "detect_chapters"
+    DETECT_EXERCISES = "detect_exercises"
+    DETECT_TOPICS = "detect_topics"
+    MAKE_CHUNKS = "make_chunks"
+
+
+class ContentType(StrEnum):
+    """What a piece of book text is. One exercise question or one worked example is one piece."""
+
+    CONCEPT = "concept"
+    EXAMPLE = "example"
+    EXERCISE_QUESTION = "exercise_question"
+    SUMMARY = "summary"
+    OTHER = "other"  # contents page, foreword, answer keys...
+
+
 # Labels shown in forms. The frontend translates them; these are the English defaults.
 BOARD_LABELS: dict[Board, str] = {
     Board.CBSE: "CBSE",
@@ -142,4 +190,13 @@ GOAL_LABELS: dict[Goal, str] = {
     Goal.NEET: "NEET",
     Goal.CUET: "CUET",
     Goal.OTHER: "Other",
+}
+
+MATERIAL_TYPE_LABELS: dict[MaterialType, str] = {
+    MaterialType.TEXTBOOK: "Textbook",
+    MaterialType.NOTES: "School notes",
+    MaterialType.QUESTION_BANK: "Question bank",
+    MaterialType.PREVIOUS_YEAR_PAPER: "Previous-year papers",
+    MaterialType.ASSIGNMENT: "Assignment",
+    MaterialType.STUDY_MATERIAL: "Study material",
 }

@@ -15,7 +15,7 @@ database to run, back up and secure.
 | Ownership | Every table with family data can be traced to one account. Deleting the owner deletes the rows (`ON DELETE CASCADE`) |
 | Changes | Only through Alembic migrations — one per step, numbered `0001`, `0002`, … |
 
-## 2.2 Tables that exist today (Step 1)
+## 2.2 Tables added in Step 1 — accounts and learners
 
 ### `users` — accounts that can sign in
 
@@ -68,7 +68,69 @@ CHECK: **exactly one** of `parent_id` / `user_id` is set.
 Kept separate from `students` because it changes every year (promotion to the next class) while
 the learner and their history stay the same.
 
-## 2.3 The whole picture
+## 2.3 Tables added in Step 2 — My Books
+
+Migration `0002`. Books, documents and chunks carry `owner_user_id`; chapters, topics and exercises
+are always reached through their book, so the one-column isolation rule covers all of it.
+
+### `books` — an entry in "My Books"
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, PK | |
+| `owner_user_id` | uuid, FK → `users.id` | the account that owns it |
+| `student_id` | uuid, null, FK → `students.id` **ON DELETE SET NULL** | the child it is for; empty = whole family. Removing a child keeps the book |
+| `title` | varchar(200) | |
+| `material_type` | varchar(32) | `textbook`, `notes`, `question_bank`, `previous_year_paper`, `assignment`, `study_material` |
+| `class_level`, `board` | varchar(16) | taken from the child's profile when not given |
+| `subject` | varchar(60) | |
+| `language` | varchar(16) | language the book is written in (`en`, `hi`, `mr`…) |
+
+### `documents` — one uploaded file and its processing state
+
+| Column | Type | Notes |
+|---|---|---|
+| `book_id` | uuid, FK → `books.id` | |
+| `owner_user_id` | uuid, FK → `users.id` | |
+| `original_filename` | varchar(255) | shown to people only; never used as a path |
+| `file_kind`, `mime_type` | varchar | `pdf` / `docx` / `txt`, decided from the content |
+| `size_bytes`, `sha256` | bigint, varchar(64) | UNIQUE (`book_id`, `sha256`): the same file twice in one book is refused |
+| `storage_key` | varchar(200), unique | random name in private storage |
+| `page_count` | int, null | |
+| `status` | varchar(16) | `queued` → `processing` → `ready` / `failed` |
+| `stage` | varchar(32), null | step running now, or the one that failed: `extract_text`, `detect_chapters`, `detect_exercises`, `detect_topics`, `make_chunks` |
+| `error_code` | varchar(64), null | e.g. `scanned_document`; the API turns it into a parent-friendly message |
+| `attempts`, `processing_started_at`, `processing_finished_at` | | |
+| `stats` | jsonb | counts only: pages, OCR pages, chapters, topics, exercises, questions, examples, chunks |
+
+### `chapters`, `topics`, `exercises` — what was found
+
+| Table | Columns |
+|---|---|
+| `chapters` | `book_id`, `document_id`, `number` (int, null), `title`, `position`, `page_start`, `page_end`, `detected_by` (`outline` / `heading` / `file`) |
+| `topics` | `chapter_id`, `number` (e.g. `2.3`, null), `title`, `position`, `page_start` |
+| `exercises` | `chapter_id`, `label` (e.g. `2.3`; empty for a plain "Exercises"), `position`, `page_start`, `page_end`, `question_count` |
+
+Chapters belong to the document they were found in, so removing one file removes only its chapters.
+
+### `document_chunks` — labelled pieces of book text
+
+| Column | Type | Notes |
+|---|---|---|
+| `document_id`, `owner_user_id`, `book_id` | uuid, FK | |
+| `chapter_id`, `topic_id`, `exercise_id` | uuid, null, FK | empty for front / back matter |
+| `content_type` | varchar(24) | `concept`, `example`, `exercise_question`, `summary`, `other` |
+| `content` | text | |
+| `context_label` | varchar(400) | e.g. `Class 8 · Mathematics · Chapter 2 Linear Equations · Exercise 2.3 · Question 4` — put in front of the text when it is embedded (Step 3). Rebuilt when a parent renames a chapter or changes the book |
+| `page_start`, `page_end` | int, null | |
+| `position` | int | reading order in the document |
+| `token_count` | int | an estimate |
+| `class_level`, `board`, `subject`, `language` | varchar | copies for fast filtering, kept in step with the book |
+| `meta` | jsonb | `question_number`, `example_number`, `instructions` |
+
+Indexes: (`owner_user_id`, `book_id`), (`document_id`, `position`), `chapter_id`, `topic_id`, `exercise_id`.
+
+## 2.4 The whole picture
 
 Tables marked with a step number do not exist yet.
 
@@ -79,7 +141,7 @@ erDiagram
     parents ||--o{ students : "has children"
     students ||--o| student_profiles : "studies"
 
-    users ||--o{ books : "owns (Step 2)"
+    users ||--o{ books : owns
     books ||--o{ documents : "made of files"
     books ||--o{ chapters : contains
     chapters ||--o{ topics : contains
@@ -107,16 +169,10 @@ erDiagram
     chat_sessions ||--o{ chat_messages : contains
 ```
 
-## 2.4 Planned tables
+## 2.5 Planned tables
 
 | Table | Step | Purpose | Important columns |
 |---|---|---|---|
-| `books` | 2 | An entry in "My Books": one textbook, notes set or paper collection | `owner_user_id`, `student_id?`, `title`, `material_type`, `class_level`, `board`, `subject`, `language` |
-| `documents` | 2 | One uploaded file belonging to a book | `book_id`, `owner_user_id`, `original_filename`, `mime_type`, `size_bytes`, `sha256`, `storage_key`, `page_count`, `status`, `stage`, `error_code` |
-| `chapters` | 2 | Detected chapter | `book_id`, `document_id`, `number`, `title`, `page_start`, `page_end` |
-| `topics` | 2 | Section or concept inside a chapter | `chapter_id`, `title`, `position` |
-| `exercises` | 2 | Exercise block, e.g. "2.3" | `chapter_id`, `label`, `page_start` |
-| `document_chunks` | 2 | A labelled piece of text | `document_id`, `owner_user_id`, `book_id`, `chapter_id`, `topic_id?`, `exercise_id?`, `content_type`, `content`, `page_start`, `page_end`, `position`, `class_level`, `board`, `subject`, `language` |
 | `document_chunks` + | 3 | Search columns | `embedding vector(N)`, `search_text tsvector`, indexes |
 | `questions` | 4 | Textbook questions and generated ones | `owner_user_id`, `origin` (`textbook` / `generated` / `previous_year`), `chapter_id`, `topic_id?`, `exercise_id?`, `class_level`, `subject`, `format`, `style`, `difficulty`, `language`, `body` jsonb, `answer` jsonb, `hints` jsonb, `source` jsonb, `validation` jsonb |
 | `solutions` | 4 | Concept → steps → final answer | `question_id`, `language`, `concept`, `steps` jsonb, `final_answer` |
@@ -140,7 +196,7 @@ parent should see *one* "Class 8 Mathematics" in the library even if it arrived 
 the same query that ranks by similarity (spec §16). Copying three short columns avoids three joins
 on the hottest query in the system.
 
-## 2.5 Changing the schema
+## 2.6 Changing the schema
 
 ```bash
 # inside backend/, after editing a model in app/models/

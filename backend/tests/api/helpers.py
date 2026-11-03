@@ -75,3 +75,28 @@ async def start_child_session(client: AsyncClient, parent: Account, student_id: 
 
 def error_code(response: Any) -> str:
     return response.json()["error"]["code"]
+
+
+def book_payload(**overrides: Any) -> dict[str, Any]:
+    return {"title": "Class 8 Mathematics", "subject": "Mathematics", "class_level": "class_8", **overrides}
+
+
+async def create_book(client: AsyncClient, headers: dict[str, str], **overrides: Any) -> dict[str, Any]:
+    response = await client.post(f"{API}/books", json=book_payload(**overrides), headers=headers)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+async def upload(
+    client: AsyncClient,
+    headers: dict[str, str],
+    book_id: str,
+    data: bytes,
+    filename: str = "book.pdf",
+    content_type: str = "application/pdf",
+) -> Any:
+    return await client.post(
+        f"{API}/books/{book_id}/documents",
+        files={"file": (filename, data, content_type)},
+        headers=headers,
+    )

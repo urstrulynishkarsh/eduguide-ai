@@ -53,14 +53,15 @@ modules talk to each other through small interfaces, not through each other's ta
 
 | Folder (`backend/app/…`) | Responsibility | Built in |
 |---|---|---|
-| `core` | Settings, database session, security primitives, error format, logging, shared vocabulary (classes, boards, goals…) | Step 1 |
+| `core` | Settings, database session, security primitives, error format, logging, shared vocabulary (classes, boards, goals…), request size limits, the background `TaskQueue` | Step 1, 2 |
 | `models` | Database tables (SQLAlchemy) | every step adds its own |
 | `schemas` | Request / response shapes (Pydantic) | every step |
 | `auth` | Sign-up, sign-in, tokens, child mode, "who is calling" | Step 1 |
 | `class_profiles` | The rules for each class, Nursery–12 ([doc 7](07-class-aware-rules.md)) | Step 1 |
 | `services` | Business logic. **Owns transactions and enforces who may see what** | every step |
 | `api` | HTTP routes. Thin: read request → call service → shape response | every step |
-| `rag` | Reading documents, structure detection, chunking, embeddings, retrieval ([doc 5](05-rag-pipeline.md)) | Steps 2–3 |
+| `rag` | Reading documents, structure detection, chunking, OCR interface, embeddings, retrieval ([doc 5](05-rag-pipeline.md)) | Steps 2–3 |
+| `storage` | The `FileStorage` interface and the local-folder adapter for uploaded files | Step 2 |
 | `llm` | One interface to language models; real providers behind it ([doc 6](06-llm-interfaces.md)) | Step 3 |
 | `question_generation` | Generate → validate → regenerate; solutions and hints | Step 4 |
 | `adaptive_learning` | Mastery, adaptive difficulty, weak topics, recommendations, misconceptions | Steps 7, 10 |
@@ -122,7 +123,7 @@ complexity, explanation style, allowed question formats, session size, which fea
 (tests, timers, adaptive difficulty…), which goals and streams can be chosen, and the layout the
 frontend uses. Details in [doc 7](07-class-aware-rules.md).
 
-## 1.6 Swappable providers (from Step 3)
+## 1.6 Swappable providers (Steps 2–3)
 
 | Interface | Used for | Chosen with |
 |---|---|---|
@@ -130,8 +131,8 @@ frontend uses. Details in [doc 7](07-class-aware-rules.md).
 | `EmbeddingProvider` | turning text into vectors | `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` |
 | `VectorStore` | storing and searching vectors — pgvector first | `VECTOR_STORE` |
 | `Reranker` | re-ordering retrieved passages | `RERANK_PROVIDER` (may be `none`) |
-| `OCRProvider` | scanned pages | `OCR_PROVIDER` |
-| `FileStorage` | uploaded files — local folder first, object storage later | `STORAGE_BACKEND` |
+| `OCRProvider` | scanned pages — Tesseract first (Step 2) | `OCR_PROVIDER`, `TESSERACT_CMD`, `OCR_LANGUAGES` |
+| `FileStorage` | uploaded files — local folder first, object storage later | `STORAGE_BACKEND`, `STORAGE_DIR` |
 
 Switching a provider means writing one small adapter class and changing an environment variable.
 
@@ -191,3 +192,7 @@ not legal advice.
 | 8 | One book can be made of several files | NCERT publishes textbooks as one PDF per chapter |
 | 9 | Each step adds its own migration | The database only ever contains tables that working code uses |
 | 10 | Timestamps come from the application clock | The database clock is frozen inside a transaction, which breaks "order added" |
+| 11 | Removing a child keeps the books made for them (they become family books) | Books are family material; a sibling may use them next year |
+| 12 | Child mode can read the library but not change it | A child should not delete the family's books by accident |
+| 13 | The same file can be in two different books, but not twice in one | Duplicates in a book double every search result; across books they can be intended |
+| 14 | OCR is off by default and Tesseract must be installed separately | It is a system program, not a Python package; without it a scanned book gets a clear message instead of an empty result |

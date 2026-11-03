@@ -1,5 +1,6 @@
 """The FastAPI application. Start it with:  uvicorn app.main:app --reload"""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -10,10 +11,14 @@ from app import __version__
 from app.api import health
 from app.api.v1.router import api_v1_router
 from app.core.config import get_settings
-from app.core.database import engine
+from app.core.database import SessionLocal, engine
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
-from app.core.middleware import RequestContextMiddleware
+from app.core.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
+from app.core.tasks import get_task_queue
+from app.services.document_service import resume_unfinished_documents
+
+logger = logging.getLogger(__name__)
 
 _DESCRIPTION = """
 Backend of **EduGuide AI** - a personal tutor, practice generator, study planner
@@ -26,7 +31,14 @@ press **Authorize** and paste it.
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    queue = get_task_queue()
+    try:
+        # Books that were being read when the server last stopped are read again.
+        await resume_unfinished_documents(SessionLocal, queue)
+    except Exception:
+        logger.warning("Could not resume unfinished documents (is the database running?)", exc_info=True)
     yield
+    await queue.shutdown()
     await engine.dispose()
 
 
@@ -36,6 +48,8 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title=settings.app_name, version=__version__, description=_DESCRIPTION, lifespan=lifespan)
 
+    # Middleware added last runs first: request id -> CORS -> body size limit -> the app.
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

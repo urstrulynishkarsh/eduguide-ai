@@ -44,13 +44,21 @@ Every error, from every endpoint, has this shape:
 | 404 | `not_found` | Unknown URL |
 | 409 | `email_already_registered` | Sign-up with an email that already has an account |
 | 409 | `student_limit_reached` | More children than `MAX_STUDENTS_PER_PARENT` |
+| 404 | `book_not_found` · `document_not_found` · `chapter_not_found` · `exercise_not_found` | No such thing — **or it belongs to another family** |
+| 409 | `book_limit_reached` · `document_limit_reached` | More than `MAX_BOOKS_PER_ACCOUNT` / `MAX_DOCUMENTS_PER_BOOK` |
+| 409 | `document_already_uploaded` | The same file (same content) is already in this book |
+| 409 | `document_not_failed` | Retry asked for a document that did not fail |
+| 413 | `file_too_large` · `payload_too_large` | Upload over `MAX_UPLOAD_MB`; any other request body over 1 MB |
+| 415 | `unsupported_file_type` | Not a PDF, DOCX or TXT (decided from the content, not the name). The message says what to do, e.g. for photos or old `.doc` files |
+| 422 | `password_protected` · `file_unreadable` · `empty_file` · `too_many_pages` · `text_encoding_unsupported` | The file was checked and refused at upload |
+| 422 | `invalid_cursor` | A damaged `cursor` in a list request |
 | 422 | `validation_error` | A field is missing or malformed; see `details` |
 | 422 | `invalid_learning_profile` | Class, stream and goal do not fit together; see `details` |
 | 500 | `internal_error` | Our bug. The details are in the server log under the request id |
 
 Submitted values are never echoed back in errors (they can contain passwords).
 
-## 3.2 Endpoints available now (Step 1)
+## 3.2 Endpoints added in Step 1
 
 | Method | Path | Who | Purpose |
 |---|---|---|---|
@@ -186,16 +194,112 @@ The frontend switches to this token while the child uses the app. With it, `GET 
 `"active_role": "student"` and `"active_student"` = this child. There is no refresh token: when it
 expires, the parent's session is used to start a new one.
 
-## 3.3 Planned endpoints
+## 3.3 Endpoints added in Step 2 — My Books
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/books` | parent, solo student | Add a book (empty; files come next) |
+| GET | `/api/v1/books?limit=&cursor=&student_id=` | signed in | My Learning Library, newest first, paginated |
+| GET | `/api/v1/books/{id}` | owner | One book with the progress of each file |
+| PATCH | `/api/v1/books/{id}` | parent, solo student | Change title, subject, class, board, language, child |
+| DELETE | `/api/v1/books/{id}` | parent, solo student | Delete the book, its files and everything found in them |
+| POST | `/api/v1/books/{id}/documents` | parent, solo student | Upload a PDF / DOCX / TXT (multipart, field `file`). Answers **202** at once |
+| GET | `/api/v1/documents/{id}` | owner | Progress checklist and result of one file |
+| POST | `/api/v1/documents/{id}/retry` | parent, solo student | Read a failed file again |
+| DELETE | `/api/v1/documents/{id}` | parent, solo student | Remove one file and its chapters |
+| GET | `/api/v1/books/{id}/chapters` | owner | Chapters, in chapter order |
+| GET | `/api/v1/chapters/{id}` | owner | A chapter: topics, exercises, example count, summary |
+| PATCH | `/api/v1/chapters/{id}` | parent, solo student | Rename a chapter or fix its number |
+| GET | `/api/v1/exercises/{id}` | owner | The questions of an exercise as printed in the book, with sources |
+
+**Child mode** sees the family's shared books plus the books for that child, and can read them all,
+but cannot add, change or delete anything (`403 parent_required`). A student who signed up alone
+manages their own books; their books are linked to them automatically.
+
+### Create a book, then upload
+
+```http
+POST /api/v1/books
+{ "title": "Class 7 Mathematics", "subject": "Mathematics", "student_id": "6ecc2ac7-…" }
+```
+
+Class, board and language may be left out when `student_id` is given — they come from the child's
+profile. Without a child, `class_level` is required. `material_type` defaults to `textbook`.
+
+```http
+POST /api/v1/books/{book_id}/documents
+Content-Type: multipart/form-data   (field "file")
+```
+
+```json
+{
+  "id": "54a82a82-…",
+  "book_id": "b7275ab3-…",
+  "original_filename": "jemh102.pdf",
+  "file_type": "pdf",
+  "size_bytes": 2483021,
+  "page_count": 18,
+  "status": "queued",
+  "stage": null,
+  "progress": [
+    { "step": "extract_text", "state": "pending" },
+    { "step": "detect_chapters", "state": "pending" },
+    { "step": "detect_exercises", "state": "pending" },
+    { "step": "detect_topics", "state": "pending" },
+    { "step": "make_chunks", "state": "pending" }
+  ],
+  "error": null,
+  "summary": { "chapters": null, "exercises": null, "questions": null, "...": null },
+  "created_at": "…", "updated_at": "…", "processing_finished_at": null
+}
+```
+
+Poll `GET /documents/{id}` (every 1–2 seconds is plenty). Each step goes `pending → active → done`;
+`status` ends as `ready` or `failed`. The frontend shows the steps in parent words
+([doc 4, 4.5](04-frontend-routes.md)). When `failed`, `error.message` can be shown as it is:
+
+| `error.code` | Meaning |
+|---|---|
+| `scanned_document` | Only scanned pages and OCR is switched off |
+| `no_text_found` | The file has no text we could use |
+| `file_unreadable` · `processing_failed` | "We couldn't process this document. Please try another PDF." |
+| `file_missing` | The stored file is gone; upload it again |
+
+### Exercise questions
+
+```http
+GET /api/v1/exercises/{id}
+```
+
+```json
+{
+  "id": "…", "label": "2.1", "title": "Exercise 2.1", "question_count": 4, "page_start": 24, "page_end": 24,
+  "chapter_id": "…", "book_id": "…",
+  "questions": [
+    {
+      "id": "…", "number": "1",
+      "text": "Solve the following equations.\n1. x - 2 = 7",
+      "instructions": "Solve the following equations.",
+      "page_start": 24, "page_end": 24,
+      "origin": "textbook",
+      "source": { "book_id": "…", "book_title": "Class 8 Mathematics",
+                  "chapter": "Chapter 2 Linear Equations in One Variable", "exercise": "2.1", "page": 24 }
+    }
+  ]
+}
+```
+
+`origin` is always `textbook` here. Questions written by the AI (Step 4) say `generated`.
+
+`GET /meta/options` now also returns `material_types` and `upload` (accepted types, size and page
+limits) for the upload form.
+
+## 3.4 Planned endpoints
 
 Paths may still change slightly in the step that builds them; the shape of the plan will not.
 
 | Step | Method and path | Purpose |
 |---|---|---|
-| 2 | `POST /books` · `GET /books` · `GET /books/{id}` · `DELETE /books/{id}` | "My Books" |
-| 2 | `POST /books/{id}/documents` (file upload) | Add a PDF / DOCX / TXT to a book |
-| 2 | `GET /documents/{id}` | Processing status for the progress checklist |
-| 2 | `GET /books/{id}/chapters` · `GET /chapters/{id}` | Chapters, topics, exercises |
 | 3 | `POST /learn/explain` | Explain a concept from the child's own books, with sources |
 | 4 | `POST /practice/sessions` | Create practice: source, count, difficulty, type, language |
 | 4 | `GET /practice/sessions/{id}` · `POST /practice/sessions/{id}/answers` | Do the practice |

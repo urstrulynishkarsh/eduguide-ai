@@ -28,6 +28,27 @@ Each stage writes its progress on the `documents` row; the frontend shows it as 
 stage that fails records an error code and a parent-friendly message, and can be retried without
 uploading again. Re-running a stage first removes what that stage produced before.
 
+### What Step 2 built (`backend/app/rag/ingestion/`)
+
+| File | Stage | Notes |
+|---|---|---|
+| `file_checks.py` | 1 | Type from content (PDF header, DOCX zip with a Word main part, UTF-8 / UTF-16 text). Refuses password-protected, damaged, empty, oversized and over-long files at upload, with a message saying what to do (e.g. "save it as .docx", "put photos into a PDF"). DOCX: unpacked size limited, XML parsed without entities or network |
+| `extract.py` | 2 | PDF through **pypdfium2** (BSD/Apache): text per line with font size and boldness, plus the outline. Pages with fewer than 25 letters, or that look like a legacy Hindi font, go to OCR. DOCX through python-docx (heading styles, tables). TXT: Markdown `#` headings, form feed = new page |
+| `../ocr.py` | 2 | `OCRProvider` interface; `TesseractOCR` adapter (300 dpi page image, book language first). `OCR_PROVIDER=none` by default |
+| `cleanup.py` | 2 | Removes lines that repeat near the top / bottom of ≥ 40 % of pages and bare page numbers. Large headings are kept even when they repeat |
+| `structure.py` | 3 | Outline → headings → whole file, in that order (5.2). Ignores contents pages, running headers and chapter numbers repeated in answer keys |
+| `chunking.py` | 4 | Rules of 5.3 |
+| `labels.py` | 4 | The one-line label in front of each chunk |
+| `pipeline.py` | all | The background job: runs the stages, saves progress, writes everything in one transaction |
+
+The background job runs in-process behind the `TaskQueue` interface (`app/core/tasks.py`); files
+live behind `FileStorage` (`app/storage/`). Documents that were waiting or being read when the
+server stopped are queued again at start-up.
+
+Not done yet, and planned: the AI-assisted outline for unclear books (needs the AI layer, Step 3);
+linking answer keys to exercises; splitting several questions printed on one line; reading order
+of two-column pages (pdfium's order is used as it is).
+
 ## 5.2 Detecting structure
 
 Target shape (spec §14):
@@ -42,7 +63,8 @@ Three sources of evidence, cheapest first:
 1. **The PDF's own outline** (bookmarks), when it has one.
 2. **Layout and patterns:** larger or bold lines, and patterns such as `Chapter 4`, `EXERCISE 2.3`,
    `Example 5`, numbered questions `1.` `(i)` `(a)`, and their Hindi forms (`अध्याय`, `प्रश्नावली`, `उदाहरण`).
-3. **AI assistance only when 1 and 2 are unsure:** the model sees a list of candidate heading lines
+3. **AI assistance only when 1 and 2 are unsure** *(Step 3 — until then the whole file becomes one
+   chapter, numbered from the file name when it follows the NCERT pattern, e.g. `jemh102.pdf` → 2)*: the model sees a list of candidate heading lines
    with page numbers (a few hundred tokens), not the book, and returns the outline as structured data.
 
 The parent can correct the result (rename a chapter, fix a page range) on the book page. Getting

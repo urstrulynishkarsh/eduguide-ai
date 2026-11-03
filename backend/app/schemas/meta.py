@@ -28,6 +28,16 @@ class ClassOption(BaseModel):
     suggested_subjects_by_stream: dict[Stream, list[str]] | None
 
 
+class UploadLimits(BaseModel):
+    """What the upload form accepts, so it can warn before sending a file."""
+
+    accepted_types: list[str]
+    accepted_extensions: list[str]
+    max_file_mb: int
+    max_pdf_pages: int
+    max_files_per_book: int
+
+
 class OnboardingOptions(BaseModel):
     classes: list[ClassOption]
     boards: list[OptionItem]
@@ -35,3 +45,5 @@ class OnboardingOptions(BaseModel):
     goals: list[OptionItem]
     languages: list[LanguageOption]
     mediums: list[LanguageOption]
+    material_types: list[OptionItem]
+    upload: UploadLimits
