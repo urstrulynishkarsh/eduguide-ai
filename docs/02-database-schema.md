@@ -130,6 +130,17 @@ Chapters belong to the document they were found in, so removing one file removes
 
 Indexes: (`owner_user_id`, `book_id`), (`document_id`, `position`), `chapter_id`, `topic_id`, `exercise_id`.
 
+Added in Step 3 (migration `0003`, which also enables the `vector` extension):
+
+| Column | Type | Notes |
+|---|---|---|
+| `embedding` | `vector(768)`, null | the search vector of label + text (`intfloat/multilingual-e5-base`) |
+| `embedding_model` | varchar(100), null | which model made it; cleared when the label changes, so the chunk is re-embedded |
+| `search_text` | `tsvector`, generated | `to_tsvector('simple', context_label || ' ' || content)`, GIN index - keyword search |
+
+No approximate vector index: searches always run inside one family's (usually one book's) chunks,
+where an exact comparison is fast and fully accurate.
+
 ## 2.4 The whole picture
 
 Tables marked with a step number do not exist yet.
@@ -173,7 +184,6 @@ erDiagram
 
 | Table | Step | Purpose | Important columns |
 |---|---|---|---|
-| `document_chunks` + | 3 | Search columns | `embedding vector(N)`, `search_text tsvector`, indexes |
 | `questions` | 4 | Textbook questions and generated ones | `owner_user_id`, `origin` (`textbook` / `generated` / `previous_year`), `chapter_id`, `topic_id?`, `exercise_id?`, `class_level`, `subject`, `format`, `style`, `difficulty`, `language`, `body` jsonb, `answer` jsonb, `hints` jsonb, `source` jsonb, `validation` jsonb |
 | `solutions` | 4 | Concept → steps → final answer | `question_id`, `language`, `concept`, `steps` jsonb, `final_answer` |
 | `practice_sessions` | 4 | One sitting of practice (not in the spec's list; needed to group attempts) | `student_id`, `scope` jsonb, `settings` jsonb, `status` |

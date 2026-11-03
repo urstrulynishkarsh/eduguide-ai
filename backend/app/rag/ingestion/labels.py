@@ -66,3 +66,8 @@ def build_context_label(
     if content_type == ContentType.SUMMARY:
         parts.append("Summary")
     return SEPARATOR.join(part for part in parts if part)[:MAX_LENGTH]
+
+
+def embedding_text(label: str, content: str) -> str:
+    """What is embedded for a chunk: its label line, then its text."""
+    return f"{label}\n{content}"

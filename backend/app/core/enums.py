@@ -149,13 +149,14 @@ class DocumentStatus(StrEnum):
 class ProcessingStage(StrEnum):
     """Steps of reading a book, in order. The frontend shows them as a checklist in parent words
     (docs/04-frontend-routes.md): Reading your book · Finding the chapters · Finding exercises and
-    questions · Understanding the topics · Getting practice ready."""
+    questions · Understanding the topics · Getting practice ready (the last two steps)."""
 
     EXTRACT_TEXT = "extract_text"
     DETECT_CHAPTERS = "detect_chapters"
     DETECT_EXERCISES = "detect_exercises"
     DETECT_TOPICS = "detect_topics"
     MAKE_CHUNKS = "make_chunks"
+    EMBED_CHUNKS = "embed_chunks"  # make every chunk searchable by meaning
 
 
 class ContentType(StrEnum):

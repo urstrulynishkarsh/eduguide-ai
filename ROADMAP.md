@@ -11,8 +11,8 @@ Status: ✅ done · ⏭ next · ⬜ later
 |---|---|---|---|---|
 | **1** | ✅ | **Blueprint + backend foundation.** Design documents, database, sign-up / sign-in, parent and student roles, class selection, child profiles, class-aware rules, child mode. | `docs/` · `backend/app/core` · `models` · `schemas` · `auth` · `class_profiles` · `services` · `api` · `backend/alembic` · `backend/tests` | 1 Authentication · 2 Roles · 3 Class selection · 4 Student profile |
 | **2** | ✅ | **Upload and read books.** Upload PDF / DOCX / TXT safely, read the text (OCR for scanned pages), find chapters, exercises and questions, cut the book into labelled pieces, library API. | `backend/app/rag/ingestion` · `backend/app/storage` · `backend/app/services` · `backend/app/api/v1` · new tables: `documents`, `books`, `chapters`, `topics`, `exercises`, `document_chunks` | 5 Upload · 6 Parsing · 7 Chapter detection · 8 Chunking |
-| **3** | ⏭ | **Search inside books + AI connection.** Embeddings, vector index, filtered retrieval (class / subject / chapter / exercise), reranking, context with source citations, and the swappable LLM layer. | `backend/app/llm` · `backend/app/rag` | 9 Embeddings · 10 Vector database · 11 RAG retrieval |
-| **4** | ⬜ | **Practice engine.** Class-aware question generation, automatic checking and regeneration, hints → steps → answer, practice sessions, recording attempts, basic performance numbers. | `backend/app/question_generation` · `backend/app/analytics` · `backend/app/services` | 12 Question generation · 13 Solutions · 15 Basic performance tracking |
+| **3** | ✅ | **Search inside books + AI connection.** Embeddings, vector index, filtered retrieval (class / subject / chapter / exercise), reranking, context with source citations, and the swappable LLM layer. | `backend/app/llm` · `backend/app/rag` | 9 Embeddings · 10 Vector database · 11 RAG retrieval |
+| **4** | ⏭ | **Practice engine.** Class-aware question generation, automatic checking and regeneration, hints → steps → answer, practice sessions, recording attempts, basic performance numbers. | `backend/app/question_generation` · `backend/app/analytics` · `backend/app/services` | 12 Question generation · 13 Solutions · 15 Basic performance tracking |
 | **5** | ⬜ | **Frontend foundation.** Next.js app, design system with the four age-based layouts, landing page, sign-up / sign-in, onboarding, child mode. | `frontend/` | screens for items 1–4 |
 | **6** | ⬜ | **Frontend MVP.** My Books and upload with progress, Create Practice, the student practice screen (including the picture-based one for Nursery–Class 2), basic progress. **The MVP works end to end here.** | `frontend/` | 14 Student practice interface |
 
@@ -104,4 +104,26 @@ backend/
 
 After extracting: `pip install -r requirements-dev.txt` (new libraries), `alembic upgrade head`
 (migration 0002), `pytest`, and optionally `python -m scripts.seed` for the sample book.
+
+## What Step 3 added
+
+```
+backend/
+├── alembic/versions/0003_…py     pgvector, chunk vectors, keyword index
+├── scripts/reembed.py             make every book searchable (run once after upgrading from Step 2)
+├── scripts/eval_retrieval.py      search quality on the sample book (recall@5, MRR, threshold)
+├── tests/live/                    opt-in real call to Claude:  pytest -m live
+└── app/
+    ├── llm/                       LLMProvider interface + Claude adapter (structured output, tiers)
+    ├── rag/embeddings.py          local multilingual search model (no key, no cost per book)
+    ├── rag/retrieval.py           filtered vector + keyword search, context with [S1] tags
+    ├── rag/answering.py           query understanding, grounded explanation, citation check
+    ├── rag/indexing.py            re-embeds stale chunks
+    ├── services/learn_service.py  "Explain this", or "not enough information"
+    └── api/v1/learn.py            POST /learn/explain
+```
+
+After extracting: `pip install -r requirements-dev.txt`, `alembic upgrade head` (migration 0003),
+`python -m scripts.reembed`, `pytest`. To use Explain, set `LLM_PROVIDER=anthropic` and
+`ANTHROPIC_API_KEY` in `backend/.env`.
 

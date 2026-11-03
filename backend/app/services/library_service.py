@@ -24,7 +24,9 @@ from app.auth.principal import Principal
 from app.core.config import get_settings
 from app.core.enums import ClassLevel, ContentType, Role
 from app.core.errors import ConflictError, InvalidInputError, NotFoundError, PermissionDeniedError
+from app.core.tasks import TaskQueue
 from app.models import Book, Chapter, Document, DocumentChunk, Exercise, Topic
+from app.rag.indexing import embed_stale_chunks
 from app.rag.ingestion.labels import build_context_label
 from app.schemas.library import BookCreate, BookUpdate, ChapterUpdate
 from app.services import student_service
@@ -155,7 +157,9 @@ async def create_book(db: AsyncSession, principal: Principal, data: BookCreate) 
     return book
 
 
-async def update_book(db: AsyncSession, principal: Principal, book_id: uuid.UUID, data: BookUpdate) -> Book:
+async def update_book(
+    db: AsyncSession, principal: Principal, book_id: uuid.UUID, data: BookUpdate, *, queue: TaskQueue
+) -> Book:
     ensure_can_manage(principal)
     book = await get_book(db, principal, book_id)
     changes = data.model_dump(exclude_unset=True)
@@ -173,6 +177,8 @@ async def update_book(db: AsyncSession, principal: Principal, book_id: uuid.UUID
         await db.execute(update(DocumentChunk).where(DocumentChunk.book_id == book.id).values(**copied))
         await refresh_context_labels(db, book)
     await db.commit()
+    if copied:
+        await queue.enqueue(embed_stale_chunks, book_id=book.id)
     return book
 
 
@@ -262,7 +268,7 @@ async def chapter_contents(db: AsyncSession, chapter: Chapter) -> tuple[list[Top
 
 
 async def update_chapter(
-    db: AsyncSession, principal: Principal, chapter_id: uuid.UUID, data: ChapterUpdate
+    db: AsyncSession, principal: Principal, chapter_id: uuid.UUID, data: ChapterUpdate, *, queue: TaskQueue
 ) -> Chapter:
     ensure_can_manage(principal)
     chapter = await get_chapter(db, principal, chapter_id)
@@ -273,6 +279,7 @@ async def update_chapter(
     await db.flush()
     await refresh_context_labels(db, book, chapter_id=chapter.id)
     await db.commit()
+    await queue.enqueue(embed_stale_chunks, book_id=book.id)
     return chapter
 
 
@@ -314,7 +321,10 @@ async def exercise_questions(db: AsyncSession, exercise: Exercise) -> list[Docum
 async def refresh_context_labels(
     db: AsyncSession, book: Book, *, chapter_id: uuid.UUID | None = None
 ) -> None:
-    """Rebuild chunk labels after the book or a chapter was renamed or re-classified."""
+    """Rebuild chunk labels after the book or a chapter was renamed or re-classified.
+
+    The label is part of what is embedded, so the vectors are marked stale (`embedding_model`
+    cleared); the caller queues `embed_stale_chunks` after committing."""
     chunk_query = select(
         DocumentChunk.id,
         DocumentChunk.chapter_id,
@@ -350,6 +360,7 @@ async def refresh_context_labels(
                 content_type=row.content_type,
                 meta=row.meta,
             ),
+            "embedding_model": None,
         }
         for row in (await db.execute(chunk_query)).all()
     ]

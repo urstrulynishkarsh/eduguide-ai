@@ -96,7 +96,7 @@ The upload progress checklist, in parent words (the technical stage names stay i
 | detecting chapters | ✓ Finding the chapters |
 | detecting exercises and questions | ✓ Finding exercises and questions |
 | detecting topics | ✓ Understanding the topics |
-| chunking, embedding, indexing | ✓ Getting practice ready |
+| `make_chunks`, `embed_chunks` | ✓ Getting practice ready |
 
 Error wording follows spec §45, for example: *"We couldn't process this document. Please try another PDF."*
 

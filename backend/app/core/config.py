@@ -61,6 +61,19 @@ class Settings(BaseSettings):
     # Tesseract language codes joined with "+". hin = Hindi, eng = English.
     ocr_languages: str = "eng+hin"
 
+    # ---- AI model (docs/06-llm-interfaces.md) ----
+    # "none": AI features answer 503 `ai_not_configured`. "anthropic": Claude.
+    llm_provider: Literal["none", "anthropic"] = "none"
+    anthropic_api_key: str = ""  # required when LLM_PROVIDER=anthropic
+    # One model per tier; the tiers also differ in effort (fast = low, default = medium, strong = high).
+    llm_model_fast: str = "claude-opus-5-5"
+    llm_model_default: str = "claude-opus-5-5"
+    llm_model_strong: str = "claude-opus-5-5"
+
+    # ---- Search inside books ----
+    # Folder for the local search model (~1 GB, downloaded on first use). Relative to backend/.
+    model_cache_dir: str = "storage/models"
+
     @field_validator("jwt_secret_key")
     @classmethod
     def _secret_must_be_strong(cls, value: str) -> str:
@@ -70,6 +83,12 @@ class Settings(BaseSettings):
                 "Run `python -m scripts.init_env` inside backend/ to create a .env with a random secret."
             )
         return value
+
+    @model_validator(mode="after")
+    def _ai_key_must_be_set(self) -> "Settings":
+        if self.llm_provider == "anthropic" and not self.anthropic_api_key:
+            raise ValueError("LLM_PROVIDER=anthropic needs ANTHROPIC_API_KEY in backend/.env.")
+        return self
 
     @model_validator(mode="after")
     def _production_must_be_locked_down(self) -> "Settings":
@@ -94,8 +113,16 @@ class Settings(BaseSettings):
 
     @property
     def storage_path(self) -> Path:
-        path = Path(self.storage_dir)
-        return path if path.is_absolute() else BACKEND_DIR / path
+        return _backend_path(self.storage_dir)
+
+    @property
+    def model_cache_path(self) -> Path:
+        return _backend_path(self.model_cache_dir)
+
+
+def _backend_path(value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else BACKEND_DIR / path
 
 
 @lru_cache

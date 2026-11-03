@@ -1,6 +1,7 @@
 """Reading one uploaded document from start to finish, as a background job.
 
-    extract_text -> detect_chapters -> detect_exercises -> detect_topics -> make_chunks -> ready
+    extract_text -> detect_chapters -> detect_exercises -> detect_topics -> make_chunks
+    -> embed_chunks -> ready
 
 Each stage is saved on the `documents` row before it starts, so the progress checklist can be
 polled. Everything the job produces is written in one transaction at the end; running the job
@@ -20,17 +21,47 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.enums import DocumentStatus, FileKind, ProcessingStage
 from app.models import Book, Chapter, Document, DocumentChunk, Exercise, Topic
 from app.models.base import utcnow
+from app.rag import embeddings
 from app.rag.ingestion.chunking import ChunkDraft, make_chunks
 from app.rag.ingestion.cleanup import remove_page_furniture
 from app.rag.ingestion.errors import ProcessingError
 from app.rag.ingestion.extract import extract_document
-from app.rag.ingestion.labels import build_context_label
+from app.rag.ingestion.labels import ChapterLike, ExerciseLike, TopicLike, build_context_label, embedding_text
 from app.rag.ingestion.structure import DocumentStructure, StructureDetector
 from app.rag.ingestion.text_quality import detect_language
 from app.rag.ocr import get_ocr_provider, ocr_languages_for
 from app.storage import get_file_storage
 
 logger = logging.getLogger(__name__)
+
+
+def _locate(
+    found: list[tuple[ChapterLike, list[TopicLike], list[ExerciseLike]]], draft: ChunkDraft
+) -> tuple[ChapterLike | None, TopicLike | None, ExerciseLike | None]:
+    """The chapter, topic and exercise a chunk belongs to - from what was found or what was stored."""
+    chapter, topics, exercises = found[draft.chapter] if draft.chapter is not None else (None, [], [])
+    topic = topics[draft.topic] if draft.topic is not None else None
+    exercise = exercises[draft.exercise] if draft.exercise is not None else None
+    return chapter, topic, exercise
+
+
+def _labels(book: Book, structure: DocumentStructure, drafts: list[ChunkDraft]) -> list[str]:
+    found = [(chapter, chapter.topics, chapter.exercises) for chapter in structure.chapters]
+    labels = []
+    for draft in drafts:
+        chapter, topic, exercise = _locate(found, draft)
+        labels.append(
+            build_context_label(
+                class_level=book.class_level,
+                subject=book.subject,
+                chapter=chapter,
+                topic=topic,
+                exercise=exercise,
+                content_type=draft.content_type,
+                meta=draft.meta,
+            )
+        )
+    return labels
 
 
 async def _delete_outputs(db: AsyncSession, document_id: uuid.UUID) -> None:
@@ -44,7 +75,14 @@ async def _set_stage(db: AsyncSession, document: Document, stage: ProcessingStag
 
 
 async def _store(
-    db: AsyncSession, document: Document, book: Book, structure: DocumentStructure, drafts: list[ChunkDraft]
+    db: AsyncSession,
+    document: Document,
+    book: Book,
+    structure: DocumentStructure,
+    drafts: list[ChunkDraft],
+    labels: list[str],
+    vectors: list[list[float]],
+    embedding_model: str,
 ) -> None:
     found: list[tuple[Chapter, list[Topic], list[Exercise]]] = []
     for position, detected in enumerate(structure.chapters):
@@ -80,10 +118,8 @@ async def _store(
 
     now = utcnow()
     rows = []
-    for position, draft in enumerate(drafts):
-        chapter, topics, exercises = found[draft.chapter] if draft.chapter is not None else (None, [], [])
-        topic = topics[draft.topic] if draft.topic is not None else None
-        exercise = exercises[draft.exercise] if draft.exercise is not None else None
+    for position, (draft, label, vector) in enumerate(zip(drafts, labels, vectors, strict=True)):
+        chapter, topic, exercise = _locate(found, draft)
         rows.append(
             {
                 "id": uuid.uuid4(),
@@ -95,15 +131,7 @@ async def _store(
                 "exercise_id": exercise.id if exercise else None,
                 "content_type": draft.content_type.value,
                 "content": draft.content,
-                "context_label": build_context_label(
-                    class_level=book.class_level,
-                    subject=book.subject,
-                    chapter=chapter,
-                    topic=topic,
-                    exercise=exercise,
-                    content_type=draft.content_type,
-                    meta=draft.meta,
-                ),
+                "context_label": label,
                 "page_start": draft.page_start,
                 "page_end": draft.page_end,
                 "position": position,
@@ -113,6 +141,8 @@ async def _store(
                 "subject": book.subject,
                 "language": detect_language(draft.content, default=book.language),
                 "meta": draft.meta,
+                "embedding": vector,
+                "embedding_model": embedding_model,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -184,7 +214,14 @@ async def process_document(db: AsyncSession, *, document_id: uuid.UUID) -> None:
         drafts = await asyncio.to_thread(make_chunks, structure)
         if not drafts:
             raise ProcessingError("no_text_found")
-        await _store(db, document, book, structure, drafts)
+
+        await _set_stage(db, document, ProcessingStage.EMBED_CHUNKS)
+        labels = _labels(book, structure, drafts)
+        embedder = embeddings.get_embedding_provider()
+        vectors = await embedder.embed_passages(
+            [embedding_text(label, draft.content) for label, draft in zip(labels, drafts, strict=True)]
+        )
+        await _store(db, document, book, structure, drafts, labels, vectors, embedder.model_name)
 
         document.status = DocumentStatus.READY.value
         document.stage = None

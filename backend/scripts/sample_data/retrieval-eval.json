@@ -1,0 +1,29 @@
+{
+  "about": "Questions about the sample book (class7-maths-sample.txt) and the passage that answers each, identified by a piece of its label. English, Hinglish and Hindi on purpose. 'off_topic' questions are not covered by the book: their best similarity should stay below the threshold.",
+  "questions": [
+    {"question": "What is an equation?", "expect": "4.1 What Is an Equation?"},
+    {"question": "equation kya hota hai", "expect": "4.1 What Is an Equation?"},
+    {"question": "समीकरण क्या होता है", "expect": "4.1 What Is an Equation?"},
+    {"question": "what is the solution of an equation", "expect": "4.1 What Is an Equation?"},
+    {"question": "write an equation for a number increased by 7 gives 15", "expect": "Example 1"},
+    {"question": "how to solve 2x + 4 = 10", "expect": "Example 2"},
+    {"question": "2x + 4 = 10 kaise solve karein", "expect": "Example 2"},
+    {"question": "how do I check my answer is correct", "expect": "Example 2"},
+    {"question": "why do we subtract the same number from both sides", "expect": "4.2 Solving an Equation"},
+    {"question": "dono taraf se same number kyu ghatate hain", "expect": "4.2 Solving an Equation"},
+    {"question": "solve x + 5 = 12", "expect": "Exercise 4.1 · Question 1"},
+    {"question": "3p = 18", "expect": "Exercise 4.1 · Question 3"},
+    {"question": "Riya pencils friend gives 6 more", "expect": "Example 3"},
+    {"question": "sum of a number and 9 is 25", "expect": "Exercise 4.2 · Question 1"},
+    {"question": "Aman is 3 years older than his sister", "expect": "Exercise 4.2 · Question 2"},
+    {"question": "rectangle perimeter 32 cm length and width", "expect": "Exercise 4.2 · Question 3"},
+    {"question": "how are equations used in daily life", "expect": "4.3 Equations in Daily Life"},
+    {"question": "summary of simple equations chapter", "expect": "Summary"}
+  ],
+  "off_topic": [
+    "Who won the cricket world cup?",
+    "What is photosynthesis in plants?",
+    "Tell me the capital of France",
+    "पौधे भोजन कैसे बनाते हैं"
+  ]
+}

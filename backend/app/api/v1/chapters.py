@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter
 
-from app.api.deps import CurrentPrincipal, DbSession
+from app.api.deps import CurrentPrincipal, DbSession, Queue
 from app.api.v1.library_views import chapter_detail, exercise_detail
 from app.models import Chapter
 from app.schemas.library import ChapterDetail, ChapterUpdate, ExerciseDetail
@@ -28,9 +28,10 @@ async def get_chapter(chapter_id: uuid.UUID, principal: CurrentPrincipal, db: Db
     "/chapters/{chapter_id}", response_model=ChapterDetail, summary="Rename a chapter or fix its number"
 )
 async def update_chapter(
-    chapter_id: uuid.UUID, data: ChapterUpdate, principal: CurrentPrincipal, db: DbSession
+    chapter_id: uuid.UUID, data: ChapterUpdate, principal: CurrentPrincipal, db: DbSession, queue: Queue
 ) -> ChapterDetail:
-    return await _chapter_response(db, await library_service.update_chapter(db, principal, chapter_id, data))
+    chapter = await library_service.update_chapter(db, principal, chapter_id, data, queue=queue)
+    return await _chapter_response(db, chapter)
 
 
 @router.get("/exercises/{exercise_id}", response_model=ExerciseDetail, summary="The questions of an exercise")

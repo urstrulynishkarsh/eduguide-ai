@@ -8,8 +8,10 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
+    Computed,
     DateTime,
     ForeignKey,
     Index,
@@ -20,10 +22,14 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+
+# Size of the search vectors. Fixed by the search model (app/rag/embeddings.py); a different
+# model needs a migration and `python -m scripts.reembed`.
+EMBEDDING_DIMENSION = 768
 
 
 class Book(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -141,6 +147,7 @@ class DocumentChunk(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_document_chunks_owner_book", "owner_user_id", "book_id"),
         Index("ix_document_chunks_document_position", "document_id", "position"),
+        Index("ix_document_chunks_search_text", "search_text", postgresql_using="gin"),
     )
 
     document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"))
@@ -170,3 +177,13 @@ class DocumentChunk(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     language: Mapped[str] = mapped_column(String(16))
     # Extra labels, e.g. {"question_number": "4"} or {"example_number": "5"}.
     meta: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
+
+    # Search (Step 3). The vector is compared exactly inside the filtered set (one family, usually
+    # one book), so no approximate index is needed for correctness.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIMENSION))
+    embedding_model: Mapped[str | None] = mapped_column(String(100))
+    # Keyword search catches exact things like "2.3" or a formula. 'simple' = no stemming, so
+    # Hindi and English words are matched as written.
+    search_text: Mapped[str] = mapped_column(
+        TSVECTOR, Computed("to_tsvector('simple', context_label || ' ' || content)", persisted=True)
+    )

@@ -62,7 +62,7 @@ modules talk to each other through small interfaces, not through each other's ta
 | `api` | HTTP routes. Thin: read request → call service → shape response | every step |
 | `rag` | Reading documents, structure detection, chunking, OCR interface, embeddings, retrieval ([doc 5](05-rag-pipeline.md)) | Steps 2–3 |
 | `storage` | The `FileStorage` interface and the local-folder adapter for uploaded files | Step 2 |
-| `llm` | One interface to language models; real providers behind it ([doc 6](06-llm-interfaces.md)) | Step 3 |
+| `llm` | One interface to language models; the Claude adapter behind it ([doc 6](06-llm-interfaces.md)) | Step 3 |
 | `question_generation` | Generate → validate → regenerate; solutions and hints | Step 4 |
 | `adaptive_learning` | Mastery, adaptive difficulty, weak topics, recommendations, misconceptions | Steps 7, 10 |
 | `analytics` | Progress numbers for students and parents | Steps 4, 9, 11 |
@@ -127,14 +127,14 @@ frontend uses. Details in [doc 7](07-class-aware-rules.md).
 
 | Interface | Used for | Chosen with |
 |---|---|---|
-| `LLMProvider` | questions, solutions, explanations, validation, chat | `LLM_PROVIDER`, `LLM_MODEL_*` |
-| `EmbeddingProvider` | turning text into vectors | `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` |
-| `VectorStore` | storing and searching vectors — pgvector first | `VECTOR_STORE` |
-| `Reranker` | re-ordering retrieved passages | `RERANK_PROVIDER` (may be `none`) |
+| `LLMProvider` | questions, solutions, explanations, validation, chat — Claude first (Step 3) | `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `LLM_MODEL_*` |
+| `EmbeddingProvider` | turning text into vectors — local multilingual-e5 first (Step 3) | `MODEL_CACHE_DIR` |
 | `OCRProvider` | scanned pages — Tesseract first (Step 2) | `OCR_PROVIDER`, `TESSERACT_CMD`, `OCR_LANGUAGES` |
 | `FileStorage` | uploaded files — local folder first, object storage later | `STORAGE_BACKEND`, `STORAGE_DIR` |
 
 Switching a provider means writing one small adapter class and changing an environment variable.
+Vectors are stored and searched in PostgreSQL (pgvector) by `rag/retrieval.py`; a separate vector
+database or a reranker would be one more adapter there, added when measurements call for it.
 
 ## 1.7 Background work
 
@@ -196,3 +196,7 @@ not legal advice.
 | 12 | Child mode can read the library but not change it | A child should not delete the family's books by accident |
 | 13 | The same file can be in two different books, but not twice in one | Duplicates in a book double every search result; across books they can be intended |
 | 14 | OCR is off by default and Tesseract must be installed separately | It is a system program, not a Python package; without it a scanned book gets a clear message instead of an empty result |
+| 15 | The search model runs on the server (`multilingual-e5-base`, ONNX) | Free per book, no key, works for Hindi and Hinglish, fits a laptop with 8 GB of memory (the larger BGE-M3 needs PyTorch and ~2.3 GB) |
+| 16 | Claude Opus 5.5 for every tier; tiers differ by effort | Quality first; a cheaper model per tier is one setting when the cost is worth measuring |
+| 17 | Server-side refusal fallback (`fallbacks: "default"`) is on | A request the model declines is retried on Anthropic's recommended model instead of failing |
+| 18 | No reranker yet | The retrieval evaluation finds the right passage first in 17 of 18 questions; add one when real books show a need |

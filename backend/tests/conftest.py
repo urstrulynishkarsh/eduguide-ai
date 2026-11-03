@@ -29,6 +29,7 @@ os.environ["LOG_LEVEL"] = "WARNING"
 TEST_STORAGE_DIR = tempfile.mkdtemp(prefix="eduguide-test-storage-")
 os.environ["STORAGE_DIR"] = TEST_STORAGE_DIR
 os.environ["OCR_PROVIDER"] = "none"
+os.environ["LLM_PROVIDER"] = "none"  # tests that need the AI switch in a FakeLLM
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
@@ -41,6 +42,8 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 from app.core.database import get_db  # noqa: E402
 from app.core.tasks import Job, get_task_queue  # noqa: E402
 from app.main import app  # noqa: E402
+from app.rag import embeddings  # noqa: E402
+from tests.fakes import FakeEmbeddings  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -99,6 +102,14 @@ async def db_session(migrated_database: None) -> AsyncIterator[AsyncSession]:
             await session.close()
             await transaction.rollback()
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def fake_embeddings(monkeypatch: pytest.MonkeyPatch) -> FakeEmbeddings:
+    """The real search model is ~1 GB; tests use a small bag-of-words stand-in."""
+    fake = FakeEmbeddings()
+    monkeypatch.setattr(embeddings, "get_embedding_provider", lambda: fake)
+    return fake
 
 
 @pytest.fixture(scope="session", autouse=True)

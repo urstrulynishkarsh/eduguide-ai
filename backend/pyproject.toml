@@ -4,7 +4,9 @@
 pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-ra"
+# Tests marked `live` call real AI providers and cost money: run them with `pytest -m live`.
+addopts = "-ra -m 'not live'"
+markers = ["live: calls a real AI provider (needs an API key)"]
 
 [tool.ruff]
 line-length = 110

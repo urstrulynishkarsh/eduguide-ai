@@ -15,7 +15,14 @@ from tests.conftest import InlineTaskQueue
 from tests.fakes import FakeOCR
 from tests.samples import HINDI_TEXT, NOTES_TEXT, make_docx, make_pdf, make_scanned_pdf
 
-_ALL_STEPS = ["extract_text", "detect_chapters", "detect_exercises", "detect_topics", "make_chunks"]
+_ALL_STEPS = [
+    "extract_text",
+    "detect_chapters",
+    "detect_exercises",
+    "detect_topics",
+    "make_chunks",
+    "embed_chunks",
+]
 
 
 async def test_upload_a_textbook_pdf_and_find_its_chapters(client: AsyncClient, task_queue: InlineTaskQueue):
@@ -226,13 +233,7 @@ async def test_scanned_book_without_ocr_fails_with_a_parent_friendly_message(cli
     assert document["status"] == "failed"
     assert document["error"]["code"] == "scanned_document"
     assert "scanned" in document["error"]["message"]
-    assert [step["state"] for step in document["progress"]] == [
-        "failed",
-        "pending",
-        "pending",
-        "pending",
-        "pending",
-    ]
+    assert [step["state"] for step in document["progress"]] == ["failed"] + ["pending"] * 5
     assert (await client.get(f"{API}/books/{book['id']}", headers=parent.headers)).json()[
         "status"
     ] == "failed"
@@ -288,7 +289,14 @@ async def test_progress_while_a_document_is_being_read(client: AsyncClient, db_s
     row = await db_session.get(Document, document["id"])
 
     row.status, row.stage = "processing", "detect_exercises"
-    assert [step.state for step in progress(row)] == ["done", "done", "active", "pending", "pending"]
+    assert [step.state for step in progress(row)] == [
+        "done",
+        "done",
+        "active",
+        "pending",
+        "pending",
+        "pending",
+    ]
     row.status, row.stage = "queued", None
     assert {step.state for step in progress(row)} == {"pending"}
 

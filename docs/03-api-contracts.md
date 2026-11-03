@@ -52,6 +52,10 @@ Every error, from every endpoint, has this shape:
 | 415 | `unsupported_file_type` | Not a PDF, DOCX or TXT (decided from the content, not the name). The message says what to do, e.g. for photos or old `.doc` files |
 | 422 | `password_protected` · `file_unreadable` · `empty_file` · `too_many_pages` · `text_encoding_unsupported` | The file was checked and refused at upload |
 | 422 | `invalid_cursor` | A damaged `cursor` in a list request |
+| 422 | `insufficient_context` | "I couldn't find enough information in your uploaded material to answer this reliably." |
+| 422 | `profile_required` | The learner has no class details yet |
+| 422 | `ai_declined` | The AI declined the request for safety reasons |
+| 503 | `ai_not_configured` · `ai_unavailable` | AI switched off (`LLM_PROVIDER=none`); provider busy or unreachable |
 | 422 | `validation_error` | A field is missing or malformed; see `details` |
 | 422 | `invalid_learning_profile` | Class, stream and goal do not fit together; see `details` |
 | 500 | `internal_error` | Our bug. The details are in the server log under the request id |
@@ -294,13 +298,46 @@ GET /api/v1/exercises/{id}
 `GET /meta/options` now also returns `material_types` and `upload` (accepted types, size and page
 limits) for the upload form.
 
-## 3.4 Planned endpoints
+## 3.4 Endpoints added in Step 3 — Learn
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/learn/explain` | signed in | Explain a concept from the child's own books, with sources |
+
+```http
+POST /api/v1/learn/explain
+{ "question": "2x + 4 = 10 kaise solve karein?", "student_id": "6ecc2ac7-…", "style": "hinglish" }
+```
+
+`student_id` is needed for a parent and ignored in a student session (which always uses itself).
+Optional `book_id` or `chapter_id` narrow the search; otherwise every book the session may see,
+for the learner's class, is searched. `style`: `normal`, `simple`, `like_10` ("Explain like I'm
+10"), `hindi`, `hinglish`; `normal` writes in the learner's language.
+
+```json
+{
+  "explanation": "Pehle dono taraf se 4 ghatao …",
+  "steps": ["2x + 4 - 4 = 10 - 4, so 2x = 6", "x = 6 ÷ 2 = 3"],
+  "style": "hinglish",
+  "origin": "generated",
+  "sources": [
+    { "book_id": "…", "book_title": "Class 8 Mathematics",
+      "chapter": "Chapter 2 Linear Equations in One Variable", "exercise": null, "page": 3 }
+  ]
+}
+```
+
+`sources` lists only the passages the explanation used. When the books do not cover the question,
+the answer is `422 insufficient_context` — the AI is never asked to answer from memory.
+
+The upload checklist has a sixth step, `embed_chunks`, after `make_chunks`.
+
+## 3.5 Planned endpoints
 
 Paths may still change slightly in the step that builds them; the shape of the plan will not.
 
 | Step | Method and path | Purpose |
 |---|---|---|
-| 3 | `POST /learn/explain` | Explain a concept from the child's own books, with sources |
 | 4 | `POST /practice/sessions` | Create practice: source, count, difficulty, type, language |
 | 4 | `GET /practice/sessions/{id}` · `POST /practice/sessions/{id}/answers` | Do the practice |
 | 4 | `POST /questions/{id}/hint` · `GET /questions/{id}/solution` · `POST /questions/{id}/explain` | Hint → steps → answer; "explain simply / in Hindi / like I'm 10" |

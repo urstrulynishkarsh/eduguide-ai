@@ -21,8 +21,8 @@ upload → check file → extract text → detect structure → make chunks → 
 | 2 | **Extract text** | Page by page, keeping page numbers and font sizes (headings are found through them). DOCX uses heading styles. Pages with no usable text go to OCR. | 2 |
 | 3 | **Detect structure** | Chapters, topics, examples, exercises, individual questions, summaries — see 5.2. | 2 |
 | 4 | **Make chunks** | Cut into pieces that follow the structure — see 5.3. | 2 |
-| 5 | **Embed** | Each chunk becomes a vector, in batches. | 3 |
-| 6 | **Index** | Vector index plus a keyword index. | 3 |
+| 5 | **Embed** | Each chunk (label line + text) becomes a vector, in batches. Stage `embed_chunks`. | 3 |
+| 6 | **Index** | The vector is stored on the chunk (pgvector); a keyword index (`tsvector`, GIN) is kept by the database itself. | 3 |
 
 Each stage writes its progress on the `documents` row; the frontend shows it as a checklist. A
 stage that fails records an error code and a parent-friendly message, and can be retried without
@@ -132,6 +132,22 @@ If nothing is retrieved, or the best match is below a threshold, generation is *
 response is: *"I couldn't find enough information in your uploaded material to answer this
 reliably."* The AI is never asked to answer from memory and present it as the textbook.
 
+### What Step 3 built
+
+| File | Stages | Notes |
+|---|---|---|
+| `rag/embeddings.py` | 3 | `intfloat/multilingual-e5-base` through ONNX, on the server, no key. Carries its own `min_similarity` (0.76) |
+| `rag/retrieval.py` | 2, 4–8 | `ChunkFilter` (owner required; book ids, class, chapter, exercise), vector + keyword search in the filtered set, reciprocal rank fusion, context of ≤ 3000 tokens in book order tagged `[S1]…` |
+| `rag/answering.py` | 1, 9–11 | Query understanding (fast tier: on topic? search query in the books' language), the grounded explanation, the citation check with one retry |
+| `rag/indexing.py` | 5 | Re-embeds stale chunks: after a chapter rename, for books read before Step 3, after a model change |
+| `services/learn_service.py` | all | `POST /learn/explain`, ending in `insufficient_context` when the books do not cover the question |
+
+Stage 7 (reranking) is "none": the fused order is used. The evaluation below gives no reason to add
+a reranker yet; one can be added in `retrieval.py` when a larger evaluation shows a need.
+
+Stage 1 always runs on free text in Step 3. "By place" retrieval (an exact filter on an exercise)
+is added with the practice engine in Step 4, which is its first user.
+
 ## 5.5 Things that go wrong with Indian school PDFs
 
 | Problem | Effect | Plan |
@@ -153,7 +169,11 @@ experiments, but a closed-source commercial product needs its paid licence.
 Changing a chunk size or a model without measuring is guessing. From Step 3 the repository carries
 a small evaluation set built from a sample book:
 
-- **Retrieval:** for about 50 questions with known source pages — is the right chunk in the top 5? (recall@5, MRR)
+- **Retrieval:** questions with a known answering passage — is it in the top 5? (recall@5, MRR).
+  `python -m scripts.eval_retrieval` runs 18 questions (English, Hinglish, Hindi) on the sample
+  chapter plus 4 off-topic ones. Result on 2026-11-03: **recall@5 1.00, MRR 0.96**; the lowest
+  best-similarity of a covered question was 0.766 and the highest of an off-topic one 0.752, so the
+  threshold 0.76 separates them - narrowly, on a small sample. Grow this set with real books.
 - **Filtering:** requests for one exercise never return chunks from another exercise or class (must be 100%).
 - **Generation (Step 4):** share of questions that pass validation first time; share judged correct by a human spot-check.
 

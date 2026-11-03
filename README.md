@@ -4,8 +4,8 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 2 of 12 is complete** — the blueprint, the backend foundation, and
-> uploading and reading books.
+> **Build status: Step 3 of 12 is complete** — the blueprint, the backend foundation, uploading
+> and reading books, and searching inside them with the AI connected.
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -19,11 +19,14 @@ from Nursery to Class 12.
   the content; size, page count, passwords and duplicates are checked at once
 - Books are read in the background with a progress checklist: text (with OCR for scanned pages
   when Tesseract is installed), **chapters, topics, worked examples, exercises and each exercise
-  question**, summaries — in English and Hindi books — then cut into labelled pieces ready for
-  search in Step 3
+  question**, summaries — in English and Hindi books — then cut into labelled pieces and made
+  searchable by meaning (English, Hindi and Hinglish questions find English or Hindi text)
 - Parents can rename chapters; exercise questions are listed exactly as printed, with book,
   chapter, exercise and page
-- Database migrations, demo data (including a sample book), automatic API documentation, 188 automated tests
+- **Explain this** (`POST /api/v1/learn/explain`): explains a concept from the child's own books at
+  the child's class level — normal, simpler, "like I'm 10", in Hindi or in Hinglish — with the book,
+  chapter and page it used. When the books don't cover it, it says so instead of guessing
+- Database migrations, demo data (including a sample book), automatic API documentation, 212 automated tests
 
 ## Run it on your computer
 
@@ -67,6 +70,22 @@ To try a book: `GET /api/v1/books` shows the sample book; `POST /api/v1/books` c
 and `POST /api/v1/books/{book_id}/documents` (press **Try it out**, choose a PDF) uploads a file.
 Follow it with `GET /api/v1/documents/{id}`, then open `GET /api/v1/books/{book_id}/chapters`.
 
+### Switching on the AI (Claude)
+
+Everything except **Explain this** works without it. Get an API key at https://platform.claude.com,
+then add to `backend/.env` and restart the API:
+
+```
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The search model runs on your computer and needs no key. It is downloaded once (~1 GB, into
+`backend/storage/models/`) the first time a book is read.
+
+**Coming from Step 2?** After `alembic upgrade head`, run `python -m scripts.reembed` once so books
+you uploaded before become searchable.
+
 ### Optional: reading scanned books (OCR)
 
 Text PDFs, Word and text files work without this. For scanned or photographed books, install the
@@ -95,8 +114,9 @@ These passwords are public; the seed script refuses to run when `ENVIRONMENT=pro
 From `backend/` with the virtual environment active:
 
 ```bash
-pytest                 # everything (the database must be running)
+pytest                 # everything (the database must be running); no AI calls, no model download
 pytest tests/unit      # only the tests that need nothing running
+pytest -m live         # a real call to Claude (needs ANTHROPIC_API_KEY; costs a fraction of a cent)
 ruff check .           # code style
 ```
 
@@ -130,6 +150,8 @@ and roll back after every test — your real data is never touched.
 | Apply database changes | `alembic upgrade head` |
 | Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0002` |
 | Undo the last migration | `alembic downgrade -1` |
+| Make every book searchable again (after an upgrade or a search-model change) | `python -m scripts.reembed` |
+| Measure search quality on the sample book | `python -m scripts.eval_retrieval` |
 | Wipe all local data and start again | `docker compose down -v` then `docker compose up -d` (from the project folder) |
 
 ## If something goes wrong
@@ -140,6 +162,9 @@ and roll back after every test — your real data is never touched.
 | `Connection refused` / cannot reach the database | Is Docker running? `docker compose ps` should show `db` as *healthy*. |
 | Port 5432 is already in use | Another PostgreSQL is running. Change the port in `docker-compose.yml` (see the comment there) and in `backend/.env`. |
 | A book stays `failed` with `scanned_document` | It has no text layer. Install Tesseract (see above), set `OCR_PROVIDER=tesseract`, restart, then `POST /api/v1/documents/{id}/retry` |
+| Explain answers `503 ai_not_configured` | Switch on the AI (see above) and restart the API |
+| Explain answers `503 ai_unavailable` | The log says why: a wrong key, no internet, or Claude busy (try again in a minute) |
+| Explain answers `422 insufficient_context` | The child's books for that class don't cover the question; upload the chapter, or choose the book with `book_id` |
 | Upload answers `413` | The file is over `MAX_UPLOAD_MB` (50 MB). Split the book, e.g. one PDF per chapter — they can all go into the same book |
 | `database "eduguide_test" does not exist` when running tests | The database volume was created before this project's init script existed. Run `docker compose down -v` and `docker compose up -d`. |
 | PowerShell refuses to run `Activate.ps1` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or use `cmd` with `activate.bat`. |

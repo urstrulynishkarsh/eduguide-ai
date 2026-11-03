@@ -17,60 +17,55 @@ How the application talks to AI models. Built in Step 3; used by everything afte
 
 ## 6.2 The interfaces
 
-Sketches — exact signatures are fixed in Step 3.
+As built in Step 3 (`backend/app/llm/base.py`, `backend/app/rag/embeddings.py`). Methods are added
+when a step first needs them - plain text and streaming arrive with the chat features in Step 9.
 
 ```python
 class LLMProvider(Protocol):
     async def generate_structured(
         self,
         *,
-        messages: Sequence[Message],        # system / user / assistant
-        schema: type[T],                    # a Pydantic model
+        system: str,                        # role, guardrails, learner profile - cached
+        messages: Sequence[Message],        # user / assistant
+        schema: type[T],                    # a Pydantic model; the answer is validated against it
         tier: ModelTier = "default",        # "fast" | "default" | "strong"
-        temperature: float = 0.2,
-        max_output_tokens: int = 2048,
-    ) -> LLMResult[T]: ...                  # parsed object + token usage + latency + model name
-
-    async def generate_text(self, *, messages, tier="default", ...) -> LLMResult[str]: ...
-
-    def stream_text(self, *, messages, tier="default", ...) -> AsyncIterator[str]: ...  # for chat
+        max_output_tokens: int = 16000,
+    ) -> LLMResult[T]: ...                  # parsed object + model + token usage + latency
 
 
 class EmbeddingProvider(Protocol):
-    dimension: int
-    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]: ...
+    model_name: str                         # stored with every vector
+    min_similarity: float                   # below this, the books do not cover the question
+    async def embed_passages(self, texts: Sequence[str]) -> list[list[float]]: ...
     async def embed_query(self, text: str) -> list[float]: ...
 
 
-class VectorStore(Protocol):
-    async def upsert(self, items: Sequence[VectorItem]) -> None: ...
-    async def search(self, vector: list[float], *, filters: ChunkFilter, top_k: int) -> list[ScoredChunk]: ...
-    async def delete_document(self, document_id: UUID) -> None: ...
+class OCRProvider(Protocol):                # Step 2
+    async def read_page(self, image_png: bytes, *, languages: Sequence[str]) -> OCRPage: ...
 
 
-class Reranker(Protocol):
-    async def rerank(self, query: str, passages: Sequence[str], *, top_n: int) -> list[RankedPassage]: ...
-
-
-class OCRProvider(Protocol):
-    async def read_page(self, image: bytes, *, languages: Sequence[str]) -> OCRPage: ...
-
-
-class FileStorage(Protocol):
-    async def save(self, key: str, data: BinaryIO) -> None: ...
-    async def open(self, key: str) -> AsyncIterator[bytes]: ...
+class FileStorage(Protocol):                # Step 2
+    async def save(self, key: str, source: BinaryIO) -> None: ...
+    async def read_bytes(self, key: str) -> bytes: ...
     async def delete(self, key: str) -> None: ...
 ```
 
-`ChunkFilter` always contains `owner_user_id`. It is a required field, so a search without the
-family filter cannot even be written.
+There is no separate `VectorStore` class: vectors live in PostgreSQL (pgvector) next to the chunk,
+and `app/rag/retrieval.py` searches them with the filters in the same SQL statement. `ChunkFilter`
+there takes `owner_user_id` as a required argument, so a search without the family filter cannot
+even be written. There is no `Reranker` yet either (see [doc 5](05-rag-pipeline.md), stage 7).
 
-**Model tiers** keep cost under control: `fast` for small jobs (understanding a query, checking
-one thing), `default` for writing questions and explanations, `strong` for the hardest checks.
-Each tier maps to a model name through an environment variable.
+**Model tiers** keep cost under control: `fast` for small jobs (understanding a question), `default`
+for writing explanations and questions, `strong` for the hardest checks. Each tier has a model
+(`LLM_MODEL_*`) and an effort level (low / medium / high). All three default to Claude Opus 5.5;
+a cheaper model for a tier is a setting, not a code change.
+
+**Errors** the API returns: `503 ai_not_configured` (AI switched off), `503 ai_unavailable` (the
+provider is busy, unreachable or rejects the key - details in the log), `422 ai_declined` (the
+model declined for safety reasons).
 
 **Changing the embedding model** changes the vector size and meaning, so all books must be embedded
-again. The vector size is fixed in a migration; a re-embed command is part of Step 3.
+again: a migration for the column size, then `python -m scripts.reembed`.
 
 ## 6.3 From prompt to trusted object
 
@@ -132,32 +127,34 @@ For Nursery–Class 2 the ladder is shorter and gentler: encouragement → show 
 ## 6.6 Cost and speed
 
 - Batch generation; reuse saved questions; cache identical requests (Redis, Step 12).
-- Small model for small jobs (tiers).
+- Lower effort for small jobs (tiers); a cheaper model per tier is one setting. The system prompt is cached.
+- The search model runs locally, so reading and searching books costs nothing per book.
 - Token budget per request for passages; per-family daily limits (Step 12).
 - Every call logs model, tier, input / output tokens, latency and outcome (passed, regenerated, dropped).
 
 ## 6.7 Settings (added in Step 3)
 
 ```
-LLM_PROVIDER=            # which adapter to use
-LLM_API_KEY=
-LLM_MODEL_FAST=
-LLM_MODEL_DEFAULT=
-LLM_MODEL_STRONG=
-EMBEDDING_PROVIDER=
-EMBEDDING_API_KEY=
-EMBEDDING_MODEL=
-EMBEDDING_DIMENSION=
-RERANK_PROVIDER=none
-OCR_PROVIDER=
+LLM_PROVIDER=none            # none | anthropic
+ANTHROPIC_API_KEY=           # required when LLM_PROVIDER=anthropic
+LLM_MODEL_FAST=claude-opus-5-5
+LLM_MODEL_DEFAULT=claude-opus-5-5
+LLM_MODEL_STRONG=claude-opus-5-5
+MODEL_CACHE_DIR=storage/models   # the local search model (~1 GB, downloaded on first use)
 ```
 
-The first adapter is chosen at the start of Step 3 according to which provider you have an API key
-for. Because Hindi and Hinglish matter here, the embedding model must be a **multilingual** one.
+**The first adapters.** Language model: Claude through the official `anthropic` SDK (2.x, API
+version 2026-10-21) - structured output with `messages.parse`, adaptive thinking with effort per
+tier, the system prompt cached, and server-side `fallbacks: "default"` so a request the model
+declines is retried on the model Anthropic recommends for that kind of refusal. Search model:
+`intfloat/multilingual-e5-base` (MIT, 768 dimensions, Hindi and Hinglish included) running on the
+server through ONNX - no API key, no per-book cost, small enough for a laptop with 8 GB of memory.
 
 ## 6.8 Testing
 
 - Unit tests use a scripted test double that implements `LLMProvider` and lives in `tests/` — it
   lets us test the retry, validation and hint logic exactly, without network or cost.
-- A small opt-in suite (`pytest -m live`) runs against the real provider to catch prompt and
-  schema regressions. It is skipped when no API key is set.
+- A small opt-in suite (`pytest -m live`, in `tests/live/`) runs against the real provider to catch
+  prompt and schema regressions. It is not part of the normal run and is skipped when no API key is set.
+- Search tests use a bag-of-words stand-in for the search model; `python -m scripts.eval_retrieval`
+  measures the real model on the sample book (doc 5, 5.6).

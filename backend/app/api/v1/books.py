@@ -54,9 +54,11 @@ async def get_book(book_id: uuid.UUID, principal: CurrentPrincipal, db: DbSessio
 
 @router.patch("/{book_id}", response_model=BookOut, summary="Change a book's details")
 async def update_book(
-    book_id: uuid.UUID, data: BookUpdate, principal: CurrentPrincipal, db: DbSession
+    book_id: uuid.UUID, data: BookUpdate, principal: CurrentPrincipal, db: DbSession, queue: Queue
 ) -> BookOut:
-    return await _book_response(db, await library_service.update_book(db, principal, book_id, data))
+    return await _book_response(
+        db, await library_service.update_book(db, principal, book_id, data, queue=queue)
+    )
 
 
 @router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a book")
