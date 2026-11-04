@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { copy } from "@/lib/copy";
+import { getCopy } from "@/lib/copy/server";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const copy = await getCopy();
   return (
     <main className="grid min-h-dvh place-items-center px-4 text-center">
       <div className="grid gap-4">

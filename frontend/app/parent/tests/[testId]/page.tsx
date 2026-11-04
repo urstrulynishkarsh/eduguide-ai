@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -7,18 +6,18 @@ import { SubmitButton } from "@/components/submit-button";
 import { placeOf, TestReportView, testSummary, testTitle } from "@/components/test-report";
 import { startChildMode } from "@/lib/actions/students";
 import { getReport, getStudents, getTest } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 import { cn, formatDay } from "@/lib/utils";
 
-const text = copy.tests;
-
-export const metadata: Metadata = { title: text.title };
+export const generateMetadata = titled((copy) => copy.tests.title);
 
 /**
  * A test the parent made: wait while its questions are written, hand the device to the child with
  * "Start now with …", then each sitting and its report (`?attempt=` picks one; the latest by default).
  */
 export default async function ParentTestPage({ params, searchParams }: PageProps<"/parent/tests/[testId]">) {
+  const copy = await getCopy();
+  const text = copy.tests;
   const [{ testId }, query] = await Promise.all([params, searchParams]);
   const [test, children] = await Promise.all([getTest(testId), getStudents()]);
   const name = children.find((child) => child.id === test.student_id)?.name ?? "";
@@ -33,9 +32,9 @@ export default async function ParentTestPage({ params, searchParams }: PageProps
         <Link href="/parent/tests" className="text-sm text-muted-foreground hover:underline">
           ← {text.title}
         </Link>
-        <h1 className="text-3xl font-extrabold">{testTitle(test.kind, placeOf(test))}</h1>
+        <h1 className="text-3xl font-extrabold">{testTitle(copy, test.kind, placeOf(test))}</h1>
         <p className="text-muted-foreground">
-          {testSummary(test)} · {copy.difficulties[test.difficulty]}
+          {testSummary(copy, test)} · {copy.difficulties[test.difficulty]}
         </p>
       </div>
 
@@ -48,7 +47,7 @@ export default async function ParentTestPage({ params, searchParams }: PageProps
       {test.status === "failed" && (
         <div className="grid gap-3">
           <h2 className="text-2xl font-extrabold">{text.failedTitle}</h2>
-          <FormMessage message={test.error?.message} />
+          <FormMessage error={test.error} />
         </div>
       )}
       {test.status === "ready" && (
@@ -62,7 +61,7 @@ export default async function ParentTestPage({ params, searchParams }: PageProps
           <h2 className="text-xl font-bold">{text.sittings}</h2>
           <ul className="flex flex-wrap gap-2">
             {test.attempts.map((sitting) => {
-              const label = `${formatDay(sitting.started_at)} · ${
+              const label = `${formatDay(copy.language.locale, sitting.started_at)} · ${
                 sitting.submitted_at ? `${sitting.score} / ${test.total_marks}` : text.inProgress
               }`;
               return (
@@ -93,7 +92,7 @@ export default async function ParentTestPage({ params, searchParams }: PageProps
       {report && (
         <section className="grid gap-3">
           <h2 className="text-xl font-bold">{text.reportTitle}</h2>
-          <TestReportView report={report} />
+          <TestReportView copy={copy} report={report} />
         </section>
       )}
 

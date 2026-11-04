@@ -1,14 +1,13 @@
-import type { Metadata } from "next";
-
 import { LearnerProfileForm } from "@/components/learner-profile-form";
 import { getOptions } from "@/lib/api";
 import { addChild } from "@/lib/actions/students";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-export const metadata: Metadata = { title: copy.onboarding.childTitle };
+export const generateMetadata = titled((copy) => copy.onboarding.childTitle);
 
 /** The parent's first child, straight after sign-up. */
 export default async function OnboardingChildPage() {
+  const copy = await getCopy();
   const options = await getOptions();
   return (
     <div className="grid gap-6">

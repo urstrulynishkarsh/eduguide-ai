@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { copy } from "@/lib/copy";
+import { useCopy } from "@/components/copy-provider";
 import { PARENT_NAV, studentNav, type NavItem } from "@/lib/navigation";
 import type { ClassFeatures, UIMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ function isActive(pathname: string, href: string): boolean {
 /** The menu of the parent area or of the learner's layout. */
 export function NavLinks(props: NavLinksProps) {
   const pathname = usePathname();
+  const copy = useCopy();
   const items: NavItem[] = props.area === "parent" ? PARENT_NAV : studentNav(props.area, props.features);
   const showEmoji = props.area === "playful" || props.area === "friendly";
 

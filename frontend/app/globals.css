@@ -13,8 +13,9 @@
 @custom-variant dense (&:where([data-ui-mode="dense"], [data-ui-mode="dense"] *));
 
 @theme inline {
-  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-rounded), ui-rounded, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-body), var(--font-devanagari), ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    var(--font-rounded), var(--font-devanagari), ui-rounded, ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -50,7 +51,7 @@
   --card: oklch(1 0 0);
   --primary: oklch(0.5 0.16 262);
   --primary-foreground: oklch(0.99 0 0);
-  /* The lighter step of primary for charts (checked: one hue, 2.5:1 on the card). Parent area only. */
+  /* The lighter step of primary for charts: one hue, lighter, 2:1+ on the card (dataviz validator, --ordinal). */
   --primary-light: oklch(0.72 0.1 262);
   --secondary: oklch(0.95 0.025 262);
   --secondary-foreground: oklch(0.32 0.1 262);
@@ -80,6 +81,7 @@
   --radius: 1.125rem;
   --background: oklch(0.985 0.018 170);
   --primary: oklch(0.55 0.13 178);
+  --primary-light: oklch(0.76 0.08 178);
   --secondary: oklch(0.95 0.04 170);
   --secondary-foreground: oklch(0.33 0.08 180);
   --border: oklch(0.9 0.03 170);
@@ -91,6 +93,7 @@
   --radius: 0.5rem;
   --background: oklch(0.982 0.003 262);
   --primary: oklch(0.43 0.14 268);
+  --primary-light: oklch(0.7 0.09 268);
   --secondary: oklch(0.95 0.015 268);
   --border: oklch(0.91 0.006 262);
 }

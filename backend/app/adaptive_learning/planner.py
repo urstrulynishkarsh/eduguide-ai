@@ -21,24 +21,20 @@ plan follows performance. The minutes are starting values to tune, like those of
 
 import math
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 LEARN_MINUTES = 15
 PRACTICE_MINUTES = 20
 GAIN = 0.25  # about how much one practice raises a chapter's mastery
-
-_TEST_REASON = {
-    "full_mock": "A full mock test, timed like the exam.",
-    "practice": "A practice test on the whole book.",
-}
 
 
 @dataclass(frozen=True, slots=True)
 class WeakArea:
     topic_id: uuid.UUID | None  # None: the chapter in general
     difficulty: str
-    right_lately: str  # e.g. "33% right in the last 6 answers"
+    right_lately: Mapping[str, Any]  # mastery.right_lately(): {"accuracy": 0.33, "answers": 6}
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +61,7 @@ class Task:
     topic_id: uuid.UUID | None
     difficulty: str
     minutes: int
-    reason: str
+    reason: dict[str, Any]  # a code and its numbers; the screens put it into words
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +71,12 @@ class Placed:
 
 
 def _task(
-    chapter: Chapter, kind: str, topic: uuid.UUID | None, difficulty: str, minutes: int, reason: str
+    chapter: Chapter,
+    kind: str,
+    topic: uuid.UUID | None,
+    difficulty: str,
+    minutes: int,
+    reason: dict[str, Any],
 ) -> Task:
     return Task(kind, chapter.book_id, chapter.chapter_id, topic, difficulty, minutes, reason)
 
@@ -93,37 +94,35 @@ def tasks(
     work: list[Task] = []
     again: list[tuple[int, Task]] = []  # (round, task): the practices after a chapter's first
     final: list[Task] = []
-    aim = f"the aim is {round(target * 100)}%"
     for chapter in chapters:
         for area in chapter.weak:
             if area.topic_id not in chapter.learnt:
-                reason = f"{area.right_lately}. Revise the idea."
+                reason = {"code": "revise", **area.right_lately}
                 weak.append(_task(chapter, "learn", area.topic_id, "mixed", LEARN_MINUTES, reason))
-            reason = f"Then strengthen it with {area.difficulty} questions."
+            reason = {"code": "strengthen", "difficulty": area.difficulty}
             weak.append(_task(chapter, "practice", area.topic_id, area.difficulty, PRACTICE_MINUTES, reason))
         if chapter.mastery is not None and chapter.mastery >= target:
-            reason = f"{round(chapter.mastery * 100)}% mastered. A quick review before the exam."
+            reason = {"code": "final_review", "mastery": round(chapter.mastery, 2)}
             final.append(_task(chapter, "practice", None, chapter.difficulty, PRACTICE_MINUTES, reason))
             continue
         if chapter.mastery is None:
             if None not in chapter.learnt:
-                reason = "Not practised yet. Learn the idea first."
+                reason = {"code": "learn_first"}
                 work.append(_task(chapter, "learn", None, "mixed", LEARN_MINUTES, reason))
-            reason = "A first practice of this chapter."
+            reason = {"code": "first_practice"}
             work.append(_task(chapter, "practice", None, chapter.difficulty, PRACTICE_MINUTES, reason))
         elif not any(area.topic_id is None for area in chapter.weak):  # a weak chapter is practised above
-            reason = f"{round(chapter.mastery * 100)}% mastered; {aim}."
+            reason = {"code": "towards_aim", "mastery": round(chapter.mastery, 2), "aim": target}
             work.append(_task(chapter, "practice", None, chapter.difficulty, PRACTICE_MINUTES, reason))
-        reason = f"More practice: {aim}."
+        reason = {"code": "more_practice", "aim": target}
         for round_ in range(1, _practices_needed(chapter.mastery, target)):
             again.append(
                 (round_, _task(chapter, "practice", None, chapter.difficulty, PRACTICE_MINUTES, reason))
             )
     if final_test is not None:
         for book_id in dict.fromkeys(chapter.book_id for chapter in chapters):
-            final.append(
-                Task("test", book_id, None, None, "mixed", final_test.minutes, _TEST_REASON[final_test.kind])
-            )
+            reason = {"code": f"{final_test.kind}_test"}  # full_mock_test | practice_test
+            final.append(Task("test", book_id, None, None, "mixed", final_test.minutes, reason))
     again.sort(key=lambda planned: planned[0])  # stable: book order inside each round
     return weak + work + [task for _, task in again], final
 

@@ -1,9 +1,16 @@
 import { ApiError } from "@/lib/backend";
-import { copy } from "@/lib/copy";
+
+/**
+ * A refusal to show: its code and the backend's (English) message. `FormMessage` says it in the
+ * screen language by its code where it can.
+ */
+export interface Refusal {
+  code?: string;
+  message?: string;
+}
 
 /** What a Server Action hands back to its form when the backend says no. */
-export interface FormState {
-  message?: string;
+export interface FormState extends Refusal {
   fieldErrors?: Record<string, string>;
   /** Typed values to put back, so a failed sign-in doesn't empty the form. */
   values?: Record<string, string>;
@@ -21,7 +28,7 @@ export function formError(error: unknown): FormState {
   for (const detail of error.body.details ?? []) {
     fieldErrors[formFieldName(detail.field)] ??= detail.message;
   }
-  return { message: error.body.message, fieldErrors };
+  return { code: error.body.code, message: error.body.message, fieldErrors };
 }
 
 function text(formData: FormData, name: string): string {
@@ -64,27 +71,32 @@ export function questionRequestFromForm(formData: FormData) {
   };
 }
 
-/** A refused practice or test. "The AI is off" is said more helpfully than the API can. */
-export function questionsError(error: unknown): FormState {
+/**
+ * A backend refusal as form state, where "the AI is off" (`ai_not_configured`) is told by where it
+ * happened (`aiOff`, a code of lib/copy `errors`): said more helpfully than the API can.
+ */
+export function refusedWith(error: unknown, aiOff: string): FormState {
   const state = formError(error);
-  if (error instanceof ApiError && error.body.code === "ai_not_configured") {
-    state.message = copy.errors.ai_not_configured;
-  }
+  if (state.code === "ai_not_configured") state.code = aiOff;
   return state;
 }
 
-/** What a Server Action hands back to a client component: the data, or a message to show. */
-export type Result<T> = { data: T } | { error: string };
+/** A refused practice or test. */
+export const questionsError = (error: unknown) => refusedWith(error, "questions_ai_not_configured");
+
+/** What a Server Action hands back to a client component: the data, or the refusal to show. */
+export type Result<T> = { data: T } | { error: Refusal };
 
 export async function attempt<T>(
   call: () => Promise<T>,
-  aiOff: string = copy.errors.explain_ai_not_configured,
+  aiOff = "explain_ai_not_configured",
 ): Promise<Result<T>> {
   try {
     return { data: await call() };
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
-    return { error: error.body.code === "ai_not_configured" ? aiOff : error.body.message };
+    const { code, message } = refusedWith(error, aiOff);
+    return { error: { code, message } };
   }
 }
 

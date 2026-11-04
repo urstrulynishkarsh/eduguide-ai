@@ -2,17 +2,16 @@
 
 import { useState, useTransition } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { FormMessage } from "@/components/form-message";
 import { SourceLine } from "@/components/source-line";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { setTaskStatus } from "@/lib/actions/plans";
 import { explainConcept } from "@/lib/actions/practice";
-import { copy } from "@/lib/copy";
+import type { Refusal } from "@/lib/forms";
 import type { Explanation } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const text = copy.concepts;
 
 /**
  * "Explain this": a question about one chapter, answered from the learner's own books with sources.
@@ -29,10 +28,12 @@ export function ExplainBox({
   initialQuestion?: string;
   taskId?: string;
 }) {
+  const copy = useCopy();
+  const text = copy.concepts;
   const [question, setQuestion] = useState(initialQuestion);
   const [style, setStyle] = useState("normal");
   const [result, setResult] = useState<Explanation | null>(null);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Refusal>();
   const [pending, startTransition] = useTransition();
 
   function ask(event: React.FormEvent) {
@@ -81,7 +82,7 @@ export function ExplainBox({
           {pending ? copy.practice.busy : text.explain}
         </Button>
       </form>
-      <FormMessage message={error} />
+      <FormMessage error={error} />
       {result && (
         <div className="grid gap-3 rounded-xl border bg-card p-5 shadow-sm">
           <p className="whitespace-pre-line">{result.explanation}</p>

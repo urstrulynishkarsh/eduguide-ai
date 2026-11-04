@@ -1,13 +1,13 @@
 import { AutoRefresh } from "@/components/auto-refresh";
+import { Sparkline } from "@/components/charts";
 import { FormMessage } from "@/components/form-message";
 import { StartButton } from "@/components/start-button";
 import { analysePapers } from "@/lib/actions/books";
 import { createPractice } from "@/lib/actions/practice";
 import { createTest } from "@/lib/actions/tests";
-import { copy } from "@/lib/copy";
+import type { Copy } from "@/lib/copy";
 import type { PaperAnalysis } from "@/lib/types";
 
-const text = copy.papers;
 const card = "grid content-start gap-3 rounded-xl border bg-card p-5 shadow-sm";
 const percent = (share: number) => `${Math.round(share * 100)}%`;
 
@@ -22,12 +22,15 @@ export function PaperAnalysisView({
   analysis,
   studentId,
   classLabel,
+  copy,
 }: {
   bookId: string;
   analysis: PaperAnalysis;
   studentId: string | null;
   classLabel: string;
+  copy: Copy;
 }) {
+  const text = copy.papers;
   const preparing = analysis.status === "preparing";
   const forChild = (fields: Record<string, string | number | null>) => ({ ...fields, student_id: studentId });
 
@@ -52,7 +55,7 @@ export function PaperAnalysisView({
                   ? copy.loading
                   : text.notYet}
             </span>
-            <FormMessage message={paper.error?.message} />
+            <FormMessage error={paper.error} />
           </li>
         ))}
       </ul>
@@ -85,11 +88,19 @@ export function PaperAnalysisView({
               {analysis.chapters.map((chapter) => (
                 <li key={chapter.chapter_id} className="flex flex-wrap items-center justify-between gap-3">
                   <div className="grid min-w-56 flex-1 gap-1">
-                    <div className="flex flex-wrap justify-between gap-x-4 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 text-sm">
                       <span className="font-medium">{chapter.chapter}</span>
-                      <span className="text-muted-foreground">
+                      <span className="flex items-center gap-2 text-muted-foreground">
                         {text.marksLine(chapter.marks_per_paper, chapter.papers, analysis.papers.length)}
                         {chapter.trend && ` · ${text.trend[chapter.trend]}`}
+                        {chapter.by_year.length > 1 && (
+                          <Sparkline
+                            values={chapter.by_year.map((year) => year.marks)}
+                            label={copy.trends.byYear(
+                              chapter.by_year.map(({ year, marks }) => `${year}: ${marks}`).join(", "),
+                            )}
+                          />
+                        )}
                       </span>
                     </div>
                     <div

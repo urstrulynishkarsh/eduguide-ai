@@ -3,10 +3,11 @@ import { Logo } from "@/components/logo";
 import { NavLinks } from "@/components/nav-links";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy } from "@/lib/copy/server";
 
 /** The parent area: a calm menu (a sidebar on wide screens, a scrolling strip on phones). */
 export default async function ParentLayout({ children }: LayoutProps<"/parent">) {
+  const copy = await getCopy();
   const { children: learners, child } = await getChosenChild();
   return (
     <div className="mx-auto min-h-dvh max-w-6xl lg:grid lg:grid-cols-[15rem_1fr] lg:gap-8 lg:px-6">

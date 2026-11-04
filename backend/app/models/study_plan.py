@@ -7,9 +7,10 @@ and topics, so a deleted book takes its tasks with it.
 
 import uuid
 from datetime import date
+from typing import Any
 
 from sqlalchemy import Date, ForeignKey, Index, SmallInteger, String, Uuid, text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -44,5 +45,5 @@ class StudyPlanItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("topics.id", ondelete="CASCADE"))
     difficulty: Mapped[str] = mapped_column(String(8))  # easy | medium | hard | mixed
     minutes: Mapped[int] = mapped_column(SmallInteger)
-    reason: Mapped[str] = mapped_column(String(300))
+    reason: Mapped[dict[str, Any]] = mapped_column(JSONB)  # schemas.adaptive.Reason
     status: Mapped[str] = mapped_column(String(8))  # pending | done | skipped | missed

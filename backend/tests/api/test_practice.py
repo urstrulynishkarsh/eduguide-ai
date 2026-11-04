@@ -162,6 +162,7 @@ async def test_answers_help_and_completion(client: AsyncClient, writer, db_sessi
         "feedback": None,
         "correct_answer": "x = 3",
         "session_completed": False,
+        "rewards": {"xp": 10, "badges": []},  # the first answer, right
     }
     wrong = await client.post(
         f"{base}/answers",

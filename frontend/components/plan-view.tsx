@@ -6,24 +6,26 @@ import { Button } from "@/components/ui/button";
 import { setTaskStatus } from "@/lib/actions/plans";
 import { createPractice } from "@/lib/actions/practice";
 import { createTest } from "@/lib/actions/tests";
-import { copy } from "@/lib/copy";
+import { reasonText, type Copy } from "@/lib/copy";
 import { conceptHref } from "@/lib/navigation";
 import type { PlanItem, StudyPlan } from "@/lib/types";
 import { formatDay } from "@/lib/utils";
 
-const text = copy.plans;
 const EMOJI: Record<PlanItem["kind"], string> = { learn: "💡", practice: "✏️", test: "📝" };
 
-function taskName(item: PlanItem): string {
+function taskName(copy: Copy, item: PlanItem): string {
   return item.kind === "test"
-    ? text.wholeBook(item.book_title)
+    ? copy.plans.wholeBook(item.book_title)
     : (item.topic ?? item.chapter ?? item.book_title);
 }
 
 /** Exam date, days left, tasks done, and what to change when not everything fits. */
-export function PlanSummary({ plan }: { plan: StudyPlan }) {
+export function PlanSummary({ plan, copy }: { plan: StudyPlan; copy: Copy }) {
+  const text = copy.plans;
   const line = [
-    text.examOn(formatDay(plan.exam_date, { day: "numeric", month: "long", year: "numeric" })),
+    text.examOn(
+      formatDay(copy.language.locale, plan.exam_date, { day: "numeric", month: "long", year: "numeric" }),
+    ),
     text.daysLeft(plan.days_left),
     text.progress(plan.done, plan.total),
     plan.missed > 0 && text.missed(plan.missed),
@@ -48,15 +50,24 @@ export function PlanSummary({ plan }: { plan: StudyPlan }) {
 }
 
 /** A task: what, where, how long and why. `children` replaces its status (the learner's buttons). */
-export function TaskLine({ item, children }: { item: PlanItem; children?: React.ReactNode }) {
+export function TaskLine({
+  item,
+  copy,
+  children,
+}: {
+  item: PlanItem;
+  copy: Copy;
+  children?: React.ReactNode;
+}) {
+  const text = copy.plans;
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
       <div className="grid gap-1">
         <p className="font-semibold">
-          <span aria-hidden>{EMOJI[item.kind]}</span> {text.kinds[item.kind]}: {taskName(item)}
+          <span aria-hidden>{EMOJI[item.kind]}</span> {text.kinds[item.kind]}: {taskName(copy, item)}
         </p>
         <p className="text-sm text-muted-foreground">
-          {text.minutes(item.minutes)} · {item.reason}
+          {text.minutes(item.minutes)} · {reasonText(copy, item.reason)}
         </p>
       </div>
       {children ?? (
@@ -70,7 +81,8 @@ export function TaskLine({ item, children }: { item: PlanItem; children?: React.
  * Start a task, or tick it off. A practice or a test is made from the task as planned (it is ticked
  * off by finishing it); a learn task opens Learn a Concept with its question filled in.
  */
-export function TaskActions({ item }: { item: PlanItem }) {
+export function TaskActions({ item, copy }: { item: PlanItem; copy: Copy }) {
+  const text = copy.plans;
   if (item.status === "done") {
     return (
       <form action={setTaskStatus.bind(null, item.id, "pending")} className="flex items-center gap-2">
@@ -84,7 +96,7 @@ export function TaskActions({ item }: { item: PlanItem }) {
   if (item.status !== "pending") {
     return <span className="text-sm font-medium text-muted-foreground">{text.status[item.status]}</span>;
   }
-  const label = `${copy.start}: ${taskName(item)}`;
+  const label = `${copy.start}: ${taskName(copy, item)}`;
   return (
     <div className="flex flex-wrap gap-2">
       {item.practice && (
@@ -112,18 +124,18 @@ export function TaskActions({ item }: { item: PlanItem }) {
 }
 
 /** The plan day by day (read only). */
-export function PlanDays({ days }: { days: StudyPlan["days"] }) {
+export function PlanDays({ days, copy }: { days: StudyPlan["days"]; copy: Copy }) {
   return (
     <ol className="grid gap-5">
       {days.map((day) => (
         <li key={day.day} className="grid gap-2">
           <h3 className="font-bold">
-            {formatDay(day.day, { weekday: "short", day: "numeric", month: "short" })}
-            <span className="font-normal text-muted-foreground"> · {text.minutes(day.minutes)}</span>
+            {formatDay(copy.language.locale, day.day, { weekday: "short", day: "numeric", month: "short" })}
+            <span className="font-normal text-muted-foreground"> · {copy.plans.minutes(day.minutes)}</span>
           </h3>
           <ul className="grid gap-2">
             {day.items.map((item) => (
-              <TaskLine key={item.id} item={item} />
+              <TaskLine key={item.id} item={item} copy={copy} />
             ))}
           </ul>
         </li>

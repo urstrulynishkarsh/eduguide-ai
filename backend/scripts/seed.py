@@ -97,7 +97,6 @@ async def _seed_parent() -> None:
                 full_name="Sunita Sharma",
                 email=PARENT_EMAIL,
                 password=PARENT_PASSWORD,
-                preferred_language="hinglish",
             ),
         )
         principal = Principal(user=user, role=Role.PARENT)

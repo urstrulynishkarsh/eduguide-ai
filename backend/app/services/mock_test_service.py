@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import llm
 from app.adaptive_learning import mastery, misconceptions
+from app.analytics import rewards
 from app.auth.principal import Principal
 from app.core.enums import QuestionFormat
 from app.core.errors import InvalidInputError, NotFoundError
@@ -567,6 +568,9 @@ async def _mark(db: AsyncSession, attempt: MockTestAttempt, test: MockTest) -> l
     attempt.submitted_at = utcnow()
     attempt.score = sum(a.marks or 0 for a in marked)
     await study_plan_service.book_test_done(db, test)
+    if marked:  # an empty sitting earns nothing
+        work = rewards.Work(answers=len(marked), right=sum(a.is_correct for a in marked), finished="test")
+        await rewards.record(db, student, work)
     await db.commit()
     return due
 

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ChatBox } from "@/components/chat-box";
 import { getChat, getChats } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy } from "@/lib/copy/server";
 import type { ChatKind, Student } from "@/lib/types";
 
 /**
@@ -21,7 +21,11 @@ export async function ChatScreen({
   chatId?: string;
   basePath: "/parent/assistant" | "/learn/tutor";
 }) {
-  const [chats, chat] = await Promise.all([getChats(kind, student.id), chatId ? getChat(chatId) : null]);
+  const [chats, chat, copy] = await Promise.all([
+    getChats(kind, student.id),
+    chatId ? getChat(chatId) : null,
+    getCopy(),
+  ]);
   if (chat && chat.student_id !== student.id) redirect(basePath);
   const words = copy.chat[kind];
 

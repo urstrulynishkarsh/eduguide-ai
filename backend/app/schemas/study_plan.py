@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.adaptive import Reason
 from app.schemas.learn import ExplainRequest
 from app.schemas.mock_test import MockTestCreate
 from app.schemas.practice import PracticeCreate
@@ -37,7 +38,7 @@ class PlanItemOut(BaseModel):
     status: ItemStatus = Field(description="`missed`: a day passed with the task still pending.")
     minutes: int
     difficulty: str
-    reason: str
+    reason: Reason
     book_id: uuid.UUID
     book_title: str
     chapter_id: uuid.UUID | None = Field(description="Null for a test of the whole book.")

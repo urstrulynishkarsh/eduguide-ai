@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
 from app.core.enums import Role
 from app.core.languages import DEFAULT_LANGUAGE, is_content_language
@@ -14,19 +14,26 @@ Password = Annotated[str, Field(min_length=8, max_length=128)]
 PersonName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 
 
+def _supported(language: str) -> str:
+    if not is_content_language(language):
+        raise ValueError("This language is not available yet.")
+    return language
+
+
+# The language of the screens (and of the AI for a parent): one the platform can use today.
+ScreenLanguage = Annotated[str, AfterValidator(_supported)]
+
+
 class RegisterRequest(BaseModel):
     role: Role
     full_name: PersonName
     email: EmailStr
     password: Password
-    preferred_language: str = DEFAULT_LANGUAGE
+    preferred_language: ScreenLanguage = DEFAULT_LANGUAGE
 
-    @field_validator("preferred_language")
-    @classmethod
-    def _language_must_be_supported(cls, value: str) -> str:
-        if not is_content_language(value):
-            raise ValueError("This language is not available yet.")
-        return value
+
+class AccountUpdate(BaseModel):
+    preferred_language: ScreenLanguage
 
 
 class LoginRequest(BaseModel):

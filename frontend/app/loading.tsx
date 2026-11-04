@@ -1,4 +1,6 @@
-import { copy } from "@/lib/copy";
+"use client";
+
+import { useCopy } from "@/components/copy-provider";
 
 /**
  * Shown while a signed-in page asks the backend for its data.
@@ -9,6 +11,7 @@ import { copy } from "@/lib/copy";
  * dev server reports "uncached data during prerendering or a navigation".
  */
 export default function Loading() {
+  const copy = useCopy();
   return (
     <div role="status" className="grid min-h-[50dvh] place-items-center text-muted-foreground">
       <span className="flex items-center gap-3">

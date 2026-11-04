@@ -99,10 +99,12 @@ export async function practiseChapter(page: Page, bookTitle: string) {
   await expect(page).toHaveURL(/\/parent\/practice\/[^/?]+$/);
 }
 
+/** Leaves child mode. Its screens are in the child's language, so the form is found by its fields. */
 export async function leaveChildMode(page: Page) {
   await page.goto("/learn/exit");
-  await page.getByLabel("Parent's password").fill("DemoParent123");
-  await page.getByRole("button", { name: "Continue" }).click();
+  const form = page.locator("main form").filter({ visible: true });
+  await form.locator('input[name="password"]').fill("DemoParent123");
+  await form.getByRole("button").click();
   await expect(page).toHaveURL(/\/who-is-learning$/);
 }
 

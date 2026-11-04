@@ -14,7 +14,7 @@ Each one carries what Create Practice needs. Finishing a practice of its place m
 """
 
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, select, update
@@ -22,6 +22,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adaptive_learning import mastery
+from app.analytics.progress import INDIA
 from app.class_profiles import get_class_profile
 from app.models import Book, Chapter, PracticeSession, Recommendation, Student, StudentMastery
 from app.models.base import utcnow
@@ -29,7 +30,6 @@ from app.schemas.adaptive import RecommendationOut, RecommendationsOut
 from app.schemas.learn import ExplainRequest
 from app.schemas.practice import PracticeCreate
 
-INDIA = timezone(timedelta(hours=5, minutes=30))  # no daylight saving, so a fixed offset is exact
 PER_DAY = 3
 REVIEW_AFTER = timedelta(days=7)
 
@@ -53,7 +53,7 @@ async def _plan(
     ).all()
     week_ago = utcnow() - REVIEW_AFTER
 
-    def item(kind: str, area: StudentMastery, difficulty: str, reason: str) -> dict[str, Any]:
+    def item(kind: str, area: StudentMastery, difficulty: str, reason: dict[str, Any]) -> dict[str, Any]:
         return {
             "kind": kind,
             "chapter_id": area.chapter_id,
@@ -66,23 +66,20 @@ async def _plan(
     for area in filter(mastery.is_weak, areas):
         difficulty = mastery.practice_level(area, features, "easy")
         if features.weak_topic_detection:
-            reason = f"{mastery.right_lately(area)}. Revise the idea, then practise {difficulty} questions."
+            reason = {"code": "weak", **mastery.right_lately(area), "difficulty": difficulty}
         else:
-            reason = "Let's practise this again, with easy questions."
+            reason = {"code": "again"}
         plan.append(item("strengthen", area, difficulty, reason))
     for area in areas:
         # Strong (at the hardest level, where there are levels): nothing to do until it is due a review.
         learnt = mastery.is_strong(area) and (not adaptive or area.difficulty == "hard")
         if not mastery.is_weak(area) and not learnt and area.last_practised_at >= week_ago:
             difficulty = mastery.practice_level(area, features, "mixed")
-            ahead = (
-                f"Next: {difficulty} questions." if adaptive else "A little more practice makes it strong."
-            )
-            plan.append(item("continue", area, difficulty, f"{mastery.right_lately(area)}. {ahead}"))
+            ahead = {"code": "next_level", "difficulty": difficulty} if adaptive else {"code": "keep_going"}
+            plan.append(item("continue", area, difficulty, {**ahead, **mastery.right_lately(area)}))
     for area in sorted(areas, key=lambda a: a.last_practised_at):
         if not mastery.is_weak(area) and area.last_practised_at < week_ago:
-            days = (utcnow() - area.last_practised_at).days
-            reason = f"Last practised {days} days ago. A short practice keeps it fresh."
+            reason = {"code": "review", "days": (utcnow() - area.last_practised_at).days}
             plan.append(item("review", area, mastery.practice_level(area, features, "mixed"), reason))
     if len(plan) < PER_DAY:
         practised = select(StudentMastery.chapter_id).where(StudentMastery.student_id == student.id)
@@ -103,7 +100,7 @@ async def _plan(
                 "chapter_id": chapter_id,
                 "topic_id": None,
                 "difficulty": "mixed",
-                "reason": "Not practised yet. Start with a short practice.",
+                "reason": {"code": "new_chapter"},
             }
             for chapter_id in chapters
         ]

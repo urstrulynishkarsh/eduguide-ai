@@ -1,18 +1,18 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ExplainBox } from "@/components/explain-box";
 import { getChapter } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 import { searchParam } from "@/lib/utils";
 
-export const metadata: Metadata = { title: copy.concepts.title };
+export const generateMetadata = titled((copy) => copy.concepts.title);
 
 /** Learn a Concept for one chapter. `?q=` fills in the question; `?task=` is the plan's learn task. */
 export default async function ConceptPage({
   params,
   searchParams,
 }: PageProps<"/learn/concepts/[chapterId]">) {
+  const copy = await getCopy();
   const [{ chapterId }, query] = await Promise.all([params, searchParams]);
   const chapter = await getChapter(chapterId);
   const [question, taskId] = [searchParam(query, "q"), searchParam(query, "task")];

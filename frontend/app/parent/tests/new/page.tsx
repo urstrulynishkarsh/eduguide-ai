@@ -1,13 +1,12 @@
-import type { Metadata } from "next";
-
 import { chosenFrom, TestChooser } from "@/components/question-chooser";
 import { getBooks, getClassProfile, getOptions, requireChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-export const metadata: Metadata = { title: copy.tests.create };
+export const generateMetadata = titled((copy) => copy.tests.create);
 
 /** Create Test for the chosen child. `?kind=&book=&chapter=` preselect it. */
 export default async function NewTestPage({ searchParams }: PageProps<"/parent/tests/new">) {
+  const copy = await getCopy();
   const child = await requireChosenChild();
   const profile = child.profile!;
   const [query, options, books, classProfile] = await Promise.all([

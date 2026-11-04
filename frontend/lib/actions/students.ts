@@ -68,7 +68,8 @@ export async function startChildMode(
   const sitting =
     start.test && (await api<TestAttempt>(`/mock-tests/${id(start.test)}/attempts`, { method: "POST" }));
   const session = await api<ChildSession>(`${path(studentId)}/session`, { method: "POST" });
-  await saveSession(session.access_token, null);
+  // The screens in the child's language (the language of their explanations) until a grown-up returns.
+  await saveSession(session.access_token, null, session.student.profile?.primary_language ?? "en");
   if (sitting) redirect(`/learn/tests/${id(sitting.id)}`);
   redirect(start.practice ? `/learn/practice/${id(start.practice)}` : "/learn");
 }

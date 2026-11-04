@@ -12,7 +12,7 @@ User roles: parent and student. A student is either a child profile under a pare
 
 - Backend: Python 3.12 (3.11+ works) + FastAPI, fully async
 - Database: PostgreSQL 16 with pgvector, run in Docker (`pgvector/pgvector:pg16`)
-- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0008` so far)
+- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0009` so far)
 - Auth: JWT access tokens (30 min) + refresh tokens (14 days) with PyJWT; passwords hashed with Argon2. Child mode is a parent token limited to one child.
 - Frontend: Next.js 16 (App Router, Cache Components on) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui (radix), Node.js 22/24 LTS. Versions are pinned exactly in `frontend/package.json`. Next.js 16 differs from older versions: read `frontend/node_modules/next/dist/docs/` before using an API you are unsure of (`middleware` is now `proxy.ts`)
 - Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API), ESLint, Prettier (print width 110), `tsc`
@@ -38,7 +38,7 @@ backend/
     rag/                 # reading books (ingestion/), OCR, embeddings, search, explanations
     llm/                 # AI provider interface + Claude adapter
     question_generation/ # write -> check -> independent review of questions; marking answers; test papers
-    analytics/           # progress numbers; previous-year paper analysis
+    analytics/           # progress numbers and progress over time; previous-year paper analysis; streaks, XP, badges
     adaptive_learning/   # mastery per topic, difficulty that follows it, daily recommendations, study planner,
                          # misconceptions
     chat/                # the Student AI Tutor (hint ladder) and the Parent AI Assistant
@@ -50,7 +50,8 @@ frontend/
   app/                   # screens: (entry)/ sign-in, sign-up, onboarding, who-is-learning; parent/; learn/;
                          # api/ holds the two route handlers: book upload, chat replies (streamed)
   proxy.ts               # before every page: renews tokens, sends each session to its area
-  lib/                   # session cookies, backend calls (server only), Server Actions, copy.ts (all wording), navigation
+  lib/                   # session cookies, backend calls (server only), Server Actions, navigation;
+                         # copy/ holds every word on screen, one file per language (en, hi, hinglish)
   components/            # shared pieces; ui/ holds the shadcn components in use
   tests/                 # unit/ (Vitest), e2e/ (Playwright; needs the database and the API)
 docs/                    # design docs 01-07
@@ -92,7 +93,7 @@ npm run test:e2e                    # browser journeys; needs the API and `pytho
 npm run lint && npm run typecheck && npm run format:check && npm run build
 
 # Database migrations
-alembic revision --autogenerate -m "what changed" --rev-id 0008   # next free number; review the file
+alembic revision --autogenerate -m "what changed" --rev-id 0010   # next free number; review the file
 alembic upgrade head
 ```
 
@@ -118,7 +119,12 @@ alembic upgrade head
   misconception detection (the AI names repeated wrong ideas, a rule resolves them; shown to parent
   and learner, given to the question writer and the assistant); JEE / NEET / CUET modes (exam
   patterns with negative marking, by the learner's goal)
-- Next: step 11, Hindi / Hinglish screens, gamification (streaks, XP, badges), advanced analytics
+- Step 11: every screen in English, Hindi and Hinglish (a language picker; child mode in the child's
+  language; backend reasons and errors worded by code), streaks / XP / levels / badges (stars and
+  stickers for Nursery–Class 2), progress over time (12-week chart, test scores, by subject, kind of
+  question and difficulty; marks by year on a paper analysis)
+- Next: step 12, production hardening (rate limiting, Redis workers, Docker images, CI, monitoring,
+  security review)
 
 See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff section.
 
@@ -126,7 +132,11 @@ See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff s
 
 - Keep route handlers thin; put logic in services.
 - Every new endpoint needs input validation and at least one test. Every new screen needs at least one unit or browser test.
-- Screen text goes in `frontend/lib/copy.ts`, never inline; parent screens use the words in docs/04 §4.5.
+- Screen text goes in `frontend/lib/copy/`, never inline: add it to `en.ts`, `hi.ts` and `hinglish.ts` (the
+  `Copy` type fails the build if one is missing). Pages, layouts and async server components use
+  `await getCopy()`, synchronous server components a `copy` prop, client components `useCopy()`
+  (docs/04 §4.6). The backend sends codes, not sentences, for anything a screen shows. Parent screens
+  use the words in docs/04 §4.5.
 - Every frontend page that loads data gets its own `loading.tsx` (`export { default } from "@/app/loading";`),
   or moving between pages waits on the server with no sign of life (see `frontend/app/loading.tsx`).
 - Every new database table or column needs a migration.

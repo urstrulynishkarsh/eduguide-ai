@@ -1,20 +1,19 @@
-import type { Metadata } from "next";
-
+import { LanguagePicker } from "@/components/language-picker";
 import { SignOutButton } from "@/components/sign-out-button";
-import { getMe, getOptions } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getMe } from "@/lib/api";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.parent;
-
-export const metadata: Metadata = { title: text.settingsTitle };
+export const generateMetadata = titled((copy) => copy.parent.settingsTitle);
 
 export default async function SettingsPage() {
-  const [{ user }, options] = await Promise.all([getMe(), getOptions()]);
-  const language = options.languages.find((option) => option.code === user.preferred_language);
-  const rows = [
+  const copy = await getCopy();
+  const text = copy.parent;
+  const { user } = await getMe();
+  const rows: [string, React.ReactNode][] = [
     [text.name, user.full_name],
     [text.email, user.email],
-    [text.language, language?.label ?? user.preferred_language],
+    // The account's language: every screen, on every device it signs in on.
+    [text.language, <LanguagePicker key="language" />],
   ];
 
   return (

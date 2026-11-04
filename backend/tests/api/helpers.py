@@ -77,6 +77,11 @@ async def start_child_session(client: AsyncClient, parent: Account, student_id: 
     return bearer(response.json()["access_token"])
 
 
+def reason(item: dict[str, Any]) -> dict[str, Any]:
+    """A recommendation's or a plan task's reason, without the numbers its code does not use."""
+    return {key: value for key, value in item["reason"].items() if value is not None}
+
+
 def error_code(response: Any) -> str:
     return response.json()["error"]["code"]
 

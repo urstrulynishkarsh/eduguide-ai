@@ -29,12 +29,11 @@ Status: ✅ done · ⏭ next · ⬜ later
 | Step | Status | What you get | Folders it fills | Spec items (§46) |
 |---|---|---|---|---|
 | **10** | ✅ | **Previous-year paper analysis, misconception detection, JEE / NEET / CUET modes.** Papers read into sections and questions, matched to the textbook chapters by the AI, where the marks go and a test like them; repeated wrong ideas found and put right; exam patterns with negative marking. Plus their screens. | `backend/app/analytics` · `backend/app/adaptive_learning` · `backend/app/question_generation` | 1 Previous-year analysis · 2 Misconception detection · 3 Competitive exam modes |
-| **11** | ⏭ | **Languages, gamification, advanced analytics.** Hindi / Hinglish screens, structure for more Indian languages, streaks / XP / badges, richer charts. | `frontend/` · `backend/app/analytics` | 4 Multi-language support · 5 Gamification · 6 Advanced analytics |
-| **12** | ⬜ | **Production hardening.** Rate limiting, background workers on Redis, Docker images, CI, monitoring, a security review. | `infra/` · whole project | — |
+| **11** | ✅ | **Languages, gamification, advanced analytics.** Hindi / Hinglish screens, structure for more Indian languages, streaks / XP / badges, richer charts. | `frontend/` · `backend/app/analytics` | 4 Multi-language support · 5 Gamification · 6 Advanced analytics |
+| **12** | ⏭ | **Production hardening.** Rate limiting, background workers on Redis, Docker images, CI, monitoring, a security review. | `infra/` · whole project | — |
 
-Note: content in **Hindi and Hinglish** already works. Explanations have it from Step 3 and
-practice questions from Step 4, because the language is part of every request to the AI.
-Step 11 adds translated screens and further languages.
+Note: content in **Hindi and Hinglish** works from Steps 3–4 (the language is part of every request
+to the AI); Step 11 translated the screens and made a place for further Indian languages.
 
 ## How every step is delivered
 
@@ -336,90 +335,118 @@ frontend/
 To update a Step 9 setup: `alembic upgrade head` (migration 0008 - already applied to this machine's
 database), then restart the API and rebuild or restart the frontend. No new libraries, no seed change.
 
+## What Step 11 added
+
+```
+backend/
+├── alembic/versions/0009_…py            student_rewards, student_badges; the reason columns of
+│                                        recommendations and study_plan_items become jsonb
+├── app/analytics/rewards.py             XP, levels, streaks, the day's goal, badges: record() (in the
+│                                        answer's transaction) and summary()
+├── app/analytics/progress.py            weeks() and shares() beside week(), one counting function (_periods)
+├── app/models/rewards.py · schemas/rewards.py · api/v1/rewards.py   GET /students/{id}/rewards
+├── app/schemas/adaptive.py              Reason: a code and its numbers instead of an English sentence
+├── app/adaptive_learning/recommendations.py · planner.py · mastery.right_lately()   reasons as codes
+├── app/schemas/auth.py · auth/service.py · api/v1/auth.py   PATCH /auth/me (screen language)
+├── app/services/dashboard_service.py    rewards on the dashboard; trends() → GET …/progress/trends
+├── app/services/practice_service.py · mock_test_service.py   rewards counted with each answer / submit
+├── scripts/seed.py                      the demo parent's screens are English
+└── tests/                               test_rewards (unit + api), test_trends; reasons as codes
+frontend/
+├── lib/copy/                            en.ts · hi.ts · hinglish.ts (one shape, `Copy`), index.ts (the
+│                                        languages, said(), classLabel(), reasonText()), server.ts
+│                                        (getCopy(), titled())
+├── components/copy-provider.tsx         useCopy() for client components
+├── components/language-picker.tsx       landing, entry pages, parent Settings, a solo student's header
+├── components/form-message.tsx          errors worded by their code
+├── components/rewards.tsx               RewardStrip, BadgeList
+├── components/charts.tsx                ColumnChart (the week chart, generalised), LineChart, Sparkline,
+│                                        DataTable
+├── components/progress-over-time.tsx    the Progress pages' charts
+├── app/layout.tsx                       the screen language (cookie), Noto Sans Devanagari
+├── app/**                               every page: getCopy() / titled(); class labels, reasons, dates
+│                                        in the screen language
+└── tests/unit (132): languages, rewards, charts · tests/e2e (15 journeys): languages.spec.ts;
+                                         practice journeys in the child's language, with rewards
+```
+
+To update a Step 10 setup: `alembic upgrade head` (migration 0009 - already applied to this machine's
+database; it removes today's recommendations, which are made again on the next visit), then restart
+the API and rebuild or restart the frontend. No new libraries. The demo parent now signs in to
+English screens; on a database seeded before Step 11 its account stays Hinglish until it is switched
+in Settings (this machine's database was switched).
+
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 10.*
+*Rewritten at the end of every step. Last updated: end of Step 11.*
 
 ### Where things stand
 
-- Steps 1–10 are done. Backend: 366 tests pass (live tests skipped), `ruff` clean. Frontend: 115 unit
-  tests and 14 browser journeys (desktop + phone, twice in a row) pass; `lint`, `typecheck`,
-  `format:check` and `build` are clean.
-- Looked at in a real browser (production build, AI off): a paper book's page with an analysis and
-  the dashboard's Understand Mistakes, on a desktop and a phone. The analysis shown was written
-  straight into the database for an e2e family (`papers-…@example.com`), as the AI was off.
-- **Not tried on a real model**: reading a paper (one call per paper; a 38-question paper is a few
-  thousand tokens in, ~1,500 out) and looking at wrong answers for misconceptions. Worth one check
-  with `LLM_PROVIDER=groq`: upload a real CBSE paper next to its textbook and analyse it. Step 9's
-  assistant and tutor screens are still untried on a real model too.
+- Steps 1–11 are done. Backend: 381 tests pass (live tests skipped), `ruff` clean. Frontend: 132 unit
+  tests and 15 browser journeys (desktop + phone) pass; `lint`, `typecheck`, `format:check` and
+  `build` are clean.
+- Looked at in a real browser (production build, AI off, desktop and phone): the landing page and
+  parent dashboard in Hindi; a Class 7 child's practice, home and Progress in Hinglish (XP after an
+  answer, streak and goal, the 12-week chart, badges); the parent's Progress in English.
 - Node.js: run frontend commands as `PATH="$HOME/.local/node-v24/bin:$PATH" npm …` (unchanged).
 
-### What Step 10 built
+### What Step 11 built
 
-- **Reading a paper.** A book of "Previous-year papers" is read in question-paper mode
-  (`StructureDetector(question_paper=True)`): each file one chapter named after it (a year is not a
-  chapter number), sections as exercises (`Section A`, `Part A Physics · Section B`, `खण्ड अ`), each
-  numbered question an exercise question, the front page as `other` text, no topics. A paper without
-  sections is one block, "Questions", starting at question 1 (after numbered general instructions).
-- **Analysis** (`POST/GET /books/{id}/paper-analysis`): one background job and AI call per paper
-  (`analytics/paper_reading.py`): marks, format and a textbook area code per question, chosen from a
-  numbered list of the family's books of the paper's class (its subject first); year (else from the
-  file name), time, negative marks. Rows in `paper_analyses` / `paper_questions`; the report is worked
-  out on reading (`analytics/papers.py`): chapters by marks a paper, share, in how many papers, trend
-  (three or more dated papers), topics asked most, kinds, the latest paper's layout. POST analyses
-  every paper again (a textbook added later changes the matches).
-- **A test like the papers** (`kind: "previous_year"`, `book_id` = the paper book): the latest
-  paper's sections and marks (titled by their kind of question), its number of questions (≤ 50),
-  each section spread over the learner's chapters by marks (`question_bank.ChapterPlace`; the
-  section's JSON carries `chapters`), the paper's negative marks on objective sections, always timed
-  at the paper's pace.
-- **Exam modes**: a Class 11–12 learner whose goal is JEE / NEET / CUET gets every test in
-  `paper.EXAMS` (sections, +4 / −1 or +5 / −1, pace); `mock_tests.exam`; a wrong objective answer earns
-  `−negative`, so scores can be negative. The study plan's final test is timed the same way. Board
-  papers keep the old rule (every section at least one question); exam patterns keep their ratio
-  (JEE 20 : 5).
-- **Misconceptions**: after each answer (practice, or a submitted test) `misconceptions.after_answer`
-  resolves put-right ones (last 3 first answers right, all after it was last seen) and says whether
-  3+ wrong first answers are waiting; then `examine` claims them (`student_mastery.examined_until`,
-  one conditional UPDATE, so two jobs never look at the same answers) and asks the AI for wrong ideas
-  shared by 2+ answers. Shown on the dashboard (3), `GET /students/{id}/misconceptions`, both
-  Progress pages; given to the question writer for that place and to the Parent AI Assistant.
-  Class 3–12 (`misconception_detection`, a new class switch).
-- **Screens**: the analysis on the paper book's page (Analyse, Practise per chapter, Make a test like
-  these papers — for the chosen child when in the papers' class); Understand Mistakes; the exam note
-  on Create Test; the exam in a test's summary; "−1 for a wrong answer" in section titles; a lost mark
-  in red. A paper book lists "Papers" and "Sections".
+- **Languages.** Every word on screen is in `frontend/lib/copy/{en,hi,hinglish}.ts` (the `Copy`
+  type makes a missing key a build error). The screen language is the `eg_lang` cookie: from the
+  account at sign-in and sign-up (`users.preferred_language`; sign-up keeps the language the screens
+  were in), from the child's `primary_language` in child mode, and from the **language picker**
+  (landing, entry pages, parent Settings, a solo student's header; signed in it also calls
+  `PATCH /auth/me`, which child mode may not). The root layout wraps the page in its `lang` (`hi`,
+  `hi-Latn`) and the client provider; `<html lang>` stays `en` (Cache Components can't read the cookie
+  there). Hindi uses Noto Sans Devanagari; dates use `hi-IN`. The backend sends **codes, not
+  sentences**: recommendation and plan-task reasons are `{code, …numbers}` (`schemas/adaptive.Reason`,
+  worded by `reasonText`); errors are worded by `code` in `FormMessage` (English keeps the backend's
+  own message); class / board / stream / goal / material labels by code (`said`, `classLabel`). Book,
+  chapter and exercise titles stay as printed. Another language = one file, one line in
+  `lib/copy/index.ts`, and `content_enabled` in `app/core/languages.py`.
+- **Rewards** (`analytics/rewards.py`, tables `student_rewards`, `student_badges`): counted with each
+  answer, never recomputed (a deleted book takes nothing away). First answer +2, right first time +8
+  more, a finished practice or a submitted test +20, the day's goal (`default_session_questions`)
+  +10; levels at 100, 250, 450, … XP; the streak counts India-time days with an answer and lasts
+  until the end of the next day; 11 badges. The practice answer carries `rewards: {xp, badges}`; the
+  dashboard and `GET /students/{id}/rewards` the summary. Nursery–Class 2 see stars and stickers, no
+  XP or levels.
+- **Progress over time** (`GET /students/{id}/progress/trends`): 12 weeks (each by its Monday),
+  accuracy by subject, format and difficulty, the last 20 tests. Charts are server-rendered HTML/SVG
+  (`components/charts.tsx`): stacked columns (the dashboard's week chart is the same component), a
+  line for test scores (below 0 with negative marking), a sparkline of a paper chapter's marks by
+  year; each with a hover / focus readout, accessible names and a "Show the numbers" table.
+  `--primary-light` now exists for the Class 3–5 and 9–12 palettes too (checked with the dataviz
+  validator). Class 3–5 get the weeks and subjects; Nursery–Class 2 no charts.
 
 ### Known issues
 
-- **Exam patterns are starting constants** (NTA 2026): sources disagree on details, e.g. whether
-  JEE numerical answers lose a mark (−1 assumed) and NEET's exact time. Check each year's bulletin.
-- Reading a paper relies on numbered questions and on "Section / Part / खण्ड" headings; a sectionless
-  paper with numbered instructions but no "General Instructions" heading takes instruction 1 for
-  question 1. Scanned papers need OCR, as books do.
-- Every analysis reads every paper again (one AI call each). Changing a book's material type after a
-  file is read does not read it again (retry the file).
-- Recommendations and study plans treat a paper's chapter like a textbook chapter (practice from the
-  paper's own text), as before Step 10. Leaving paper books out of them may be better.
-- A failed look at wrong answers is given back, so with the AI on but failing, each later wrong
-  answer in that area tries again (one call each). The tutor does not use misconceptions yet.
-- Students who signed up alone have no book screens, so they cannot analyse papers in the browser.
-- Unchanged from Step 9: written test answers need the AI to be marked; the server does not submit a
-  test whose time ran out; lists show the first 50; a failed first chat message leaves an empty
-  conversation; replies are plain text; reading a book can hold the API up for a few seconds;
-  recommendations and reasons are English sentences (misconceptions are in the learner's language);
-  `npm audit` (17 moderate); no rate limiting, token revocation or security headers yet (Step 12).
+- **The Hindi and Hinglish wording has not been read by a native speaker.** Read `lib/copy/hi.ts`
+  and `hinglish.ts` before real families use them (the tone is "आप" / "aap", with "तुम" in a few lines
+  for the youngest).
+- Field-level validation messages from the backend (rare: the forms check first) stay English, as do
+  errors whose code the dictionaries don't know yet. Chapter labels say "Chapter 4 …" as the backend
+  makes them.
+- In child mode the screens follow the child's explanation language and there is no picker; to
+  change them, change the child's language.
+- The XP rules, levels, the goal and the badges are starting values. Retaking a test earns its XP
+  again (each sitting's first answers count, as for accuracy).
+- Unchanged: written test answers need the AI to be marked; the server does not submit a test whose
+  time ran out; lists show the first 50; a failed first chat message leaves an empty conversation;
+  reading a book can hold the API up for a few seconds; `npm audit` (17 moderate); no rate limiting,
+  token revocation or security headers yet; reading a paper and the assistant / tutor are untried on
+  a real model (worth one check with `LLM_PROVIDER=groq`).
 - **Running the browser tests next to your own servers:** start the API with `LLM_PROVIDER=none` (or
   use separate ports), or the paper and assistant journeys call the AI.
 
-### What Step 11 needs to know
+### What Step 12 needs to know
 
-- Step 11 is **Hindi / Hinglish screens, gamification (streaks, XP, badges), advanced analytics**.
-  All wording is in `frontend/lib/copy.ts` (one object, English); `users.preferred_language` exists.
-  Texts made by the backend are English sentences (recommendation and plan reasons, error messages),
-  except what the AI writes (in the learner's language: questions, explanations, misconceptions).
-- Gamification tables are planned in docs/02 §2.10. Every answer is a `question_attempts` row
-  (with marks for tests); `analytics/progress.week()` counts days in India time.
-- Richer charts: the dashboard's week is plain CSS columns (`components/dashboard.tsx`); a paper
-  analysis already returns each chapter's marks `by_year`, ready for a trend chart.
-- Every new page that loads data needs its own `loading.tsx`; all wording in `frontend/lib/copy.ts`.
+- Step 12 is **production hardening**: rate limiting, background workers on Redis (the in-process
+  `TaskQueue` in `core/tasks.py` is the seam), Docker images, CI, monitoring, a security review.
+- Work done in the background today: reading books, writing practice and tests, analysing papers,
+  looking for misconceptions; start-up resumes unfinished work (`app/main.py`).
+- Rewards rely on a row lock (`SELECT … FOR UPDATE` on `student_rewards`) inside each answer's
+  transaction; keep that when work moves to workers.
+- `eg_lang` is not secret; `eg_access` / `eg_refresh` are httpOnly. Security headers, a CSP (the
+  charts and bars size themselves with inline styles) and token revocation are still to do.

@@ -3,37 +3,37 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { createBook } from "@/lib/actions/books";
-import { copy } from "@/lib/copy";
-import type { FormState } from "@/lib/forms";
+import { said } from "@/lib/copy";
+import type { FormState, Refusal } from "@/lib/forms";
 import type { OnboardingOptions, Student } from "@/lib/types";
 
-const text = copy.upload;
 const selectClass =
   "h-9 rounded-md border border-input bg-card px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 /** Sends the file to the upload route, reporting how much has gone (fetch cannot report that). */
 function send(bookId: string, file: File, onProgress: (percent: number) => void) {
-  return new Promise<{ status: number; message?: string }>((resolve) => {
+  return new Promise<{ status: number; error?: Refusal }>((resolve) => {
     const request = new XMLHttpRequest();
     request.open("POST", `/api/books/${encodeURIComponent(bookId)}/documents`);
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
     };
     request.onload = () => {
-      let message: string | undefined;
+      let error: Refusal | undefined;
       try {
-        message = JSON.parse(request.responseText)?.error?.message;
+        error = JSON.parse(request.responseText)?.error;
       } catch {
         // Not JSON: the generic message is shown.
       }
-      resolve({ status: request.status, message });
+      resolve({ status: request.status, error });
     };
-    request.onerror = () => resolve({ status: 0, message: copy.errors.unreachable });
+    request.onerror = () => resolve({ status: 0, error: { code: "unreachable" } });
     const body = new FormData();
     body.append("file", file);
     request.send(body);
@@ -59,6 +59,8 @@ export function BookUploader({
   newBook?: NewBook;
   limits: OnboardingOptions["upload"];
 }) {
+  const copy = useCopy();
+  const text = copy.upload;
   const router = useRouter();
   const [state, setState] = useState<FormState>({});
   const [percent, setPercent] = useState<number | null>(null);
@@ -92,7 +94,7 @@ export function BookUploader({
       else router.push(`/parent/books/${target}`);
     } else {
       // A book made a moment ago stays: the file can be sent again from its page.
-      setState({ message: result.message ?? text.failed });
+      setState(result.error ?? { message: text.failed });
       setPercent(null);
       if (!bookId) router.push(`/parent/books/${target}`);
     }
@@ -128,7 +130,7 @@ export function BookUploader({
               <select id="material_type" name="material_type" className={selectClass}>
                 {newBook.options.material_types.map((option) => (
                   <option key={option.code} value={option.code}>
-                    {option.label}
+                    {said(copy.options.material_types, option.code, option.label)}
                   </option>
                 ))}
               </select>
@@ -162,7 +164,7 @@ export function BookUploader({
               >
                 {newBook.options.classes.map((option) => (
                   <option key={option.class_level} value={option.class_level}>
-                    {option.label}
+                    {said(copy.options.classes, option.class_level, option.label)}
                   </option>
                 ))}
               </select>
@@ -180,7 +182,7 @@ export function BookUploader({
         error={errors.file}
         className="h-auto py-2"
       />
-      <FormMessage message={state.message} />
+      <FormMessage error={state} />
       {sending && (
         <div className="grid gap-1" role="status">
           <div className="h-2 overflow-hidden rounded-full bg-muted">

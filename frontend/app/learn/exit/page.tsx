@@ -1,19 +1,18 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { getMe } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
 import { ExitForm } from "./exit-form";
 
-const text = copy.exitChildMode;
-
-export const metadata: Metadata = { title: text.title };
+export const generateMetadata = titled((copy) => copy.exitChildMode.title);
 
 /** Leaving child mode needs the parent's password (docs/04 §4.6). */
 export default async function ExitChildModePage() {
+  const copy = await getCopy();
+  const text = copy.exitChildMode;
   const me = await getMe();
   if (me.user.role !== "parent") redirect("/learn"); // a student who signed up alone has nothing to leave
 

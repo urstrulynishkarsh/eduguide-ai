@@ -4,10 +4,11 @@ import { describe, expect, it } from "vitest";
 import { stepsInParentWords } from "@/components/document-checklist";
 import { ProgressView } from "@/components/progress-view";
 import type { Progress } from "@/lib/types";
+import { en } from "@/lib/copy/en";
 
 describe("stepsInParentWords", () => {
   it("tells the parent what is happening in plain words, one line per idea", () => {
-    const lines = stepsInParentWords([
+    const lines = stepsInParentWords(en, [
       { step: "extract_text", state: "done" },
       { step: "detect_chapters", state: "done" },
       { step: "detect_exercises", state: "active" },
@@ -31,7 +32,7 @@ describe("stepsInParentWords", () => {
 
   it("marks a shared line done only when all of its steps are", () => {
     expect(
-      stepsInParentWords([
+      stepsInParentWords(en, [
         { step: "make_chunks", state: "done" },
         { step: "embed_chunks", state: "active" },
       ]),
@@ -53,14 +54,14 @@ const progress: Progress = {
 
 describe("ProgressView", () => {
   it("shows numbers and accuracy by chapter", () => {
-    render(<ProgressView progress={progress} />);
+    render(<ProgressView copy={en} progress={progress} />);
     expect(screen.getByText("Correct the first time").nextSibling).toHaveTextContent("70%");
     expect(screen.getByText("Chapter 4 Simple Equations")).toBeInTheDocument();
     expect(screen.getByText("5 min")).toBeInTheDocument();
   });
 
   it("shows the youngest stars, never marks or percentages", () => {
-    const { container } = render(<ProgressView progress={progress} stars />);
+    const { container } = render(<ProgressView copy={en} progress={progress} stars />);
     expect(screen.getByText("You earned 7 stars!")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/%|correct/i);
   });

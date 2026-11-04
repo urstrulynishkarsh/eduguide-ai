@@ -1,6 +1,6 @@
 import { CheckCircle2, Circle, LoaderCircle, XCircle } from "lucide-react";
 
-import { copy } from "@/lib/copy";
+import type { Copy } from "@/lib/copy";
 import type { BookDocument } from "@/lib/types";
 
 type State = BookDocument["progress"][number]["state"];
@@ -9,7 +9,10 @@ type State = BookDocument["progress"][number]["state"];
  * The reading progress of one file, in parent words (docs/04 §4.5). Backend steps that share a
  * label ("Getting practice ready") are shown as one line.
  */
-export function stepsInParentWords(progress: BookDocument["progress"]): { label: string; state: State }[] {
+export function stepsInParentWords(
+  copy: Copy,
+  progress: BookDocument["progress"],
+): { label: string; state: State }[] {
   const lines: { label: string; states: State[] }[] = [];
   for (const { step, state } of progress) {
     const label = copy.upload.steps[step] ?? step;
@@ -32,10 +35,10 @@ const ICONS = {
   pending: <Circle aria-hidden className="size-4 text-muted-foreground/50" />,
 };
 
-export function DocumentChecklist({ document }: { document: BookDocument }) {
+export function DocumentChecklist({ document, copy }: { document: BookDocument; copy: Copy }) {
   return (
     <ul className="grid gap-1.5 text-sm">
-      {stepsInParentWords(document.progress).map((line) => (
+      {stepsInParentWords(copy, document.progress).map((line) => (
         <li key={line.label} className="flex items-center gap-2" data-state={line.state}>
           {ICONS[line.state]}
           <span className={line.state === "pending" ? "text-muted-foreground" : undefined}>{line.label}</span>

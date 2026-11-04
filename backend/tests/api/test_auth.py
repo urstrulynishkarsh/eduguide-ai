@@ -2,7 +2,7 @@
 
 from httpx import AsyncClient
 
-from tests.api.helpers import API, PASSWORD, bearer, error_code, register
+from tests.api.helpers import API, PASSWORD, add_child, bearer, error_code, register, start_child_session
 
 
 async def test_parent_can_register_and_is_signed_in(client: AsyncClient):
@@ -149,3 +149,31 @@ async def test_hindi_and_hinglish_are_accepted_as_interface_language(client: Asy
     for language in ("hi", "hinglish"):
         account = await register(client, preferred_language=language)
         assert account.user["preferred_language"] == language
+
+
+async def test_the_account_holder_changes_the_screen_language(client: AsyncClient):
+    for role in ("parent", "student"):
+        account = await register(client, role=role)
+        changed = await client.patch(
+            f"{API}/auth/me", json={"preferred_language": "hi"}, headers=account.headers
+        )
+        assert changed.status_code == 200, changed.text
+        assert changed.json()["preferred_language"] == "hi"
+        me = (await client.get(f"{API}/auth/me", headers=account.headers)).json()
+        assert me["user"]["preferred_language"] == "hi"
+
+    refused = await client.patch(f"{API}/auth/me", json={"preferred_language": "ta"}, headers=account.headers)
+    assert refused.status_code == 422 and error_code(refused) == "validation_error"
+    unsigned = await client.patch(f"{API}/auth/me", json={"preferred_language": "hi"})
+    assert unsigned.status_code == 401
+
+
+async def test_a_child_cannot_change_the_parents_account(client: AsyncClient):
+    parent = await register(client)
+    child = await add_child(client, parent)
+    headers = await start_child_session(client, parent, child["id"])
+
+    refused = await client.patch(f"{API}/auth/me", json={"preferred_language": "hi"}, headers=headers)
+    assert refused.status_code == 403 and error_code(refused) == "parent_required"
+    me = (await client.get(f"{API}/auth/me", headers=parent.headers)).json()
+    assert me["user"]["preferred_language"] == "en"

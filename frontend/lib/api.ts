@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { ApiError, callBackend } from "@/lib/backend";
-import { ACCESS_COOKIE, storeTokens } from "@/lib/session";
+import { ACCESS_COOKIE, storeLanguage, storeTokens } from "@/lib/session";
 import type {
   Book,
   Chapter,
@@ -24,10 +24,12 @@ import type {
   PaperAnalysis,
   PracticeSession,
   Progress,
+  Rewards,
   Student,
   StudyPlan,
   TestAttempt,
   TestReport,
+  Trends,
 } from "@/lib/types";
 
 type Options = Parameters<typeof callBackend>[1];
@@ -113,6 +115,8 @@ export const getPractice = (sessionId: string) =>
   load<PracticeSession>(`/practice/sessions/${id(sessionId)}`);
 export const getProgress = (studentId: string) => load<Progress>(`/students/${id(studentId)}/progress`);
 export const getDashboard = (studentId: string) => load<Dashboard>(`/students/${id(studentId)}/dashboard`);
+export const getTrends = (studentId: string) => load<Trends>(`/students/${id(studentId)}/progress/trends`);
+export const getRewards = (studentId: string) => load<Rewards>(`/students/${id(studentId)}/rewards`);
 export const getMisconceptions = async (studentId: string) =>
   (await load<{ items: Misconception[] }>(`/students/${id(studentId)}/misconceptions`)).items;
 export const getPaperAnalysis = (bookId: string) =>
@@ -153,7 +157,24 @@ export const getOptions = () => callBackend<OnboardingOptions>("/meta/options");
 export const getClassProfile = (classLevel: string) =>
   callBackend<ClassProfile>(`/meta/classes/${id(classLevel)}`);
 
-/** Keeps the tokens of a sign-in, sign-up or child-mode start in the session cookies. */
-export async function saveSession(accessToken: string, refreshToken: string | null): Promise<void> {
-  storeTokens(await cookies(), accessToken, refreshToken);
+/**
+ * Keeps the tokens of a sign-in, sign-up or child-mode start in the session cookies, and the screen
+ * language the session starts in: the account's, or in child mode the child's.
+ */
+export async function saveSession(
+  accessToken: string,
+  refreshToken: string | null,
+  language: string,
+): Promise<void> {
+  const store = await cookies();
+  storeTokens(store, accessToken, refreshToken);
+  storeLanguage(store, language);
+}
+
+/** The screen language chosen on the language picker: the device's, and the account's when signed in. */
+export async function saveLanguage(language: string): Promise<void> {
+  const store = await cookies();
+  if (store.has(ACCESS_COOKIE))
+    await api("/auth/me", { method: "PATCH", body: { preferred_language: language } });
+  storeLanguage(store, language);
 }

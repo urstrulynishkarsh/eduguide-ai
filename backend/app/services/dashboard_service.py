@@ -10,13 +10,14 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adaptive_learning import mastery, misconceptions, recommendations
-from app.analytics import progress
+from app.analytics import progress, rewards
 from app.auth.principal import Principal
 from app.models import Student
-from app.schemas.dashboard import DashboardOut, PlanToday
+from app.schemas.dashboard import DashboardOut, PlanToday, TrendsOut
 from app.services import library_service, mock_test_service, student_service, study_plan_service
 
 SHOWN = 3  # strong areas, areas that need attention, misconceptions, and tests
+TREND_WEEKS, TREND_TESTS = 12, 20
 
 
 async def snapshot(db: AsyncSession, student: Student) -> DashboardOut:
@@ -45,9 +46,24 @@ async def snapshot(db: AsyncSession, student: Student) -> DashboardOut:
         )
         if plan
         else None,
+        rewards=await rewards.summary(db, student),
     )
 
 
 async def dashboard(db: AsyncSession, principal: Principal, student_id: uuid.UUID) -> DashboardOut:
     student = student_service.require_profile(await student_service.get_student(db, principal, student_id))
     return await snapshot(db, student)
+
+
+async def trends(db: AsyncSession, principal: Principal, student_id: uuid.UUID) -> TrendsOut:
+    """Progress over time: the weeks, how each subject, kind of question and difficulty goes, tests."""
+    student = student_service.require_profile(await student_service.get_student(db, principal, student_id))
+    subjects, formats, difficulties = await progress.shares(db, student.id)
+    return TrendsOut(
+        student_id=student.id,
+        weeks=await progress.weeks(db, student.id, recommendations.today(), TREND_WEEKS),
+        subjects=subjects,
+        formats=formats,
+        difficulties=difficulties,
+        tests=list(reversed(await mock_test_service.recent_results(db, student.id, TREND_TESTS))),
+    )

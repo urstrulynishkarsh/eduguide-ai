@@ -205,7 +205,7 @@ Worked out again from `question_attempts` after every answer, in the same transa
 | `kind` | varchar(16) | `strengthen` · `continue` · `review` · `new_chapter` |
 | `chapter_id`, `topic_id` | uuid, FK (topic null) | the place to practise |
 | `difficulty` | varchar(8) | `easy` / `medium` / `hard` / `mixed` |
-| `reason` | varchar(300) | one sentence, e.g. "20% right in the last 5 answers. Revise the idea, then practise easy questions." |
+| `reason` | jsonb | why, as a code and its numbers (Step 11, so the screens word it in any language): `{"code": "weak", "accuracy": 0.2, "answers": 5, "difficulty": "easy"}` |
 | `status` | varchar(8) | `active` → `done` when a practice of the place is finished |
 
 Changed from the plan: real `chapter_id` / `topic_id` columns instead of a `payload` jsonb (so the
@@ -234,7 +234,7 @@ exactly one of `practice_session_id` / `test_attempt_id` filled. The plan named 
 | Table | Columns |
 |---|---|
 | `study_plans` | `student_id` (**unique**: one plan per learner), `exam_date`, `daily_minutes`, `target_score` (percent), `chapter_ids` uuid[] (empty = every chapter of the learner's books for their class), `planned_on` (the India-time day the rest was last planned), `unscheduled` (tasks that did not fit) |
-| `study_plan_items` | `plan_id`, `day`, `position`, `kind` `learn` / `practice` / `test`, `book_id`, `chapter_id` (empty for a test of the whole book), `topic_id`, `difficulty`, `minutes`, `reason`, `status` `pending` → `done` / `skipped` / `missed` |
+| `study_plan_items` | `plan_id`, `day`, `position`, `kind` `learn` / `practice` / `test`, `book_id`, `chapter_id` (empty for a test of the whole book), `topic_id`, `difficulty`, `minutes`, `reason` (jsonb since Step 11: a code and its numbers, as for recommendations), `status` `pending` → `done` / `skipped` / `missed` |
 
 Changed from the plan: real `book_id` / `chapter_id` / `topic_id` columns (`ON DELETE CASCADE`)
 instead of a `task` jsonb, as for recommendations — a deleted book takes its tasks with it; the
@@ -266,9 +266,23 @@ Migration `0008` (also `mock_tests.exam` and `student_mastery.examined_until`, a
 The trends of a paper analysis are not stored: they are worked out from these rows when it is read,
 so they follow the papers and textbooks there are now.
 
-## 2.9 The whole picture
+## 2.9 Tables added in Step 11 — streaks, XP and badges
 
-Every table built so far (the planned ones are in 2.9).
+Migration `0009` (also the `reason` columns above, from text to jsonb). Both go with the learner
+(`ON DELETE CASCADE`).
+
+| Table | Columns |
+|---|---|
+| `student_rewards` | one per learner, made with their first answer: `student_id` (primary key), `xp`, `right_answers` (first time), `streak`, `longest_streak`, `last_active_on` (India time), `day_answers` (first answers that day, for the day's goal) |
+| `student_badges` | `student_id`, `badge` (a code of `analytics/rewards.BADGES`), unique together; `created_at` is when it was earned |
+
+Counted as the learner works (`analytics/rewards.record`, in the answer's transaction, the reward row
+locked) and never worked out again from history: a book deleted later takes no XP, streak or badge
+away. Progress over time (`GET …/progress/trends`) is worked out on reading, like basic progress.
+
+## 2.10 The whole picture
+
+Every table built so far.
 
 ```mermaid
 erDiagram
@@ -316,16 +330,12 @@ erDiagram
     chapters ||--o{ paper_questions : "teaches"
     students ||--o{ student_misconceptions : shows
     chapters ||--o{ student_misconceptions : "found in"
+
+    students ||--o| student_rewards : earns
+    students ||--o{ student_badges : earns
 ```
 
-## 2.10 Planned tables
-
-| Table | Step | Purpose | Important columns |
-|---|---|---|---|
-| gamification tables | 11 | Streaks, XP, badges | decided in that step |
-
-`?` marks an optional column. Exact columns are fixed in the step that creates the table; this list
-is the plan, not a promise.
+No more tables are planned: Step 12 (production hardening) moves the background work to Redis.
 
 **Why `books` and `documents` are separate:** NCERT publishes a textbook as one PDF per chapter. A
 parent should see *one* "Class 8 Mathematics" in the library even if it arrived as 13 files.

@@ -13,11 +13,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import type { copy } from "@/lib/copy";
+import type { Copy } from "@/lib/copy";
 import type { ClassFeatures, ReviseRequest, UIMode } from "@/lib/types";
 
 export interface NavItem {
-  label: keyof typeof copy.nav;
+  label: keyof Copy["nav"];
   href: string;
   icon: LucideIcon;
   /** Shown instead of the icon in the two younger layouts. */

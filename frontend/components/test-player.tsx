@@ -3,17 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { AnswerInput, answerFor, CHOICE, draftOf, type Draft } from "@/components/answer-input";
 import { FormMessage } from "@/components/form-message";
 import { Button } from "@/components/ui/button";
 import { saveTestAnswer, submitTest } from "@/lib/actions/tests";
-import { copy } from "@/lib/copy";
+import type { Refusal } from "@/lib/forms";
 import type { Question, TestAttempt } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const text = copy.tests;
 /** A call that did not get through (the connection dropped): said, and the screen carries on. */
-const offline = () => ({ error: copy.errors.unreachable });
+const offline = () => ({ error: { code: "unreachable" } });
 
 /** 754 → "12:34"; 3754 → "1:02:34". */
 export function clock(seconds: number): string {
@@ -24,6 +24,8 @@ export function clock(seconds: number): string {
 
 /** Counts down from the seconds the backend said were left, and says when they run out. */
 function Countdown({ seconds, onEnd }: { seconds: number; onEnd: () => void }) {
+  const copy = useCopy();
+  const text = copy.tests;
   const [left, setLeft] = useState(seconds);
   const end = useEffectEvent(onEnd);
   useEffect(() => {
@@ -56,6 +58,8 @@ function Countdown({ seconds, onEnd }: { seconds: number; onEnd: () => void }) {
  * time runs out. The page then shows the report.
  */
 export function TestPlayer({ attempt, title }: { attempt: TestAttempt; title: string }) {
+  const copy = useCopy();
+  const text = copy.tests;
   const router = useRouter();
   const items = attempt.sections.flatMap((section) =>
     section.questions.map((question) => ({ question, section })),
@@ -66,7 +70,7 @@ export function TestPlayer({ attempt, title }: { attempt: TestAttempt; title: st
   );
   const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Refusal>();
   // Answers not sent yet, and the saves in order (a later answer must not arrive first).
   const unsaved = useRef(new Map<string, { draft: Draft; timer: ReturnType<typeof setTimeout> }>());
   const saves = useRef(Promise.resolve());
@@ -137,7 +141,7 @@ export function TestPlayer({ attempt, title }: { attempt: TestAttempt; title: st
           )}
         </div>
       )}
-      <FormMessage message={error} />
+      <FormMessage error={error} />
 
       <nav aria-label={text.grid} className="flex flex-wrap gap-1.5">
         {items.map((item, i) => (

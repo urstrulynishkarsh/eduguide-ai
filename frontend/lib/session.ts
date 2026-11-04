@@ -10,6 +10,8 @@ import type { Role } from "@/lib/types";
  */
 export const ACCESS_COOKIE = "eg_access";
 export const REFRESH_COOKIE = "eg_refresh";
+/** The device's screen language (lib/copy). Not secret; kept when the session ends. */
+export const LANGUAGE_COOKIE = "eg_lang";
 
 /** Renew a token this long before it runs out, so it can't expire on the way to the backend. */
 const EXPIRY_MARGIN_MS = 30_000;
@@ -68,6 +70,17 @@ export function storeTokens(store: CookieStore, accessToken: string, refreshToke
   store.set(ACCESS_COOKIE, accessToken, cookieOptions(accessToken));
   if (refreshToken) store.set(REFRESH_COOKIE, refreshToken, cookieOptions(refreshToken));
   else store.delete(REFRESH_COOKIE);
+}
+
+/** Keeps the screen language for a year. Readers check the code (lib/copy `screenLanguage`). */
+export function storeLanguage(store: CookieStore, language: string): void {
+  store.set(LANGUAGE_COOKIE, language, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+  });
 }
 
 export function clearTokens(store: CookieStore): void {

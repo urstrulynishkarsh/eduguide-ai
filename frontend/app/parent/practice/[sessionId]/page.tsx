@@ -1,19 +1,17 @@
-import type { Metadata } from "next";
-
 import { AutoRefresh } from "@/components/auto-refresh";
 import { FormMessage } from "@/components/form-message";
 import { SourceLine } from "@/components/source-line";
 import { SubmitButton } from "@/components/submit-button";
 import { getPractice, getStudents } from "@/lib/api";
 import { startChildMode } from "@/lib/actions/students";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.practice;
-
-export const metadata: Metadata = { title: copy.nav.practice };
+export const generateMetadata = titled((copy) => copy.nav.practice);
 
 /** A practice the parent made: wait while it is prepared, then hand the device to the child. */
 export default async function ParentPracticePage({ params }: PageProps<"/parent/practice/[sessionId]">) {
+  const copy = await getCopy();
+  const text = copy.practice;
   const { sessionId } = await params;
   const [session, children] = await Promise.all([getPractice(sessionId), getStudents()]);
   const child = children.find((item) => item.id === session.student_id);
@@ -31,7 +29,7 @@ export default async function ParentPracticePage({ params }: PageProps<"/parent/
       {session.status === "failed" && (
         <div className="grid gap-3">
           <h1 className="text-2xl font-extrabold">{text.failedTitle}</h1>
-          <FormMessage message={session.error?.message} />
+          <FormMessage error={session.error} />
         </div>
       )}
       {(session.status === "ready" || session.status === "completed") && (

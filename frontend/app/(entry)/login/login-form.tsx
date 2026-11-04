@@ -2,13 +2,14 @@
 
 import { useActionState } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { signIn } from "@/lib/actions/auth";
-import { copy } from "@/lib/copy";
 
 export function LoginForm() {
+  const copy = useCopy();
   const [state, formAction] = useActionState(signIn, {});
   return (
     <form action={formAction} className="grid gap-4">
@@ -29,7 +30,7 @@ export function LoginForm() {
         required
         error={state.fieldErrors?.password}
       />
-      <FormMessage message={state.message} />
+      <FormMessage error={state} />
       <SubmitButton size="lg">{copy.login.submit}</SubmitButton>
     </form>
   );

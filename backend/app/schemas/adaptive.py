@@ -14,6 +14,23 @@ MasteryStatus = Literal["needs_attention", "learning", "strong"]
 RecommendationKind = Literal["strengthen", "continue", "review", "new_chapter"]
 
 
+class Reason(BaseModel):
+    """Why a recommendation or a plan task was chosen: a code and the numbers it needs. The screens
+    say it in the screen language (frontend/lib/copy); the backend writes no sentence."""
+
+    code: str = Field(
+        description="Recommendations: weak · again · next_level · keep_going · review · new_chapter. "
+        "Plan tasks: revise · strengthen · final_review · learn_first · first_practice · towards_aim · "
+        "more_practice · full_mock_test · practice_test."
+    )
+    accuracy: float | None = Field(default=None, description="Share right in the last `answers` answers.")
+    answers: int | None = None
+    difficulty: Level | None = Field(default=None, description="The level of the practice it leads to.")
+    days: int | None = Field(default=None, description="Days since the area was last practised.")
+    mastery: float | None = Field(default=None, description="The chapter's mastery, 0-1.")
+    aim: float | None = Field(default=None, description="The plan's target score, 0-1.")
+
+
 class Area(BaseModel):
     """A topic of a chapter - or the chapter itself, for questions that have no topic."""
 
@@ -57,7 +74,7 @@ class RecommendationOut(Area):
         "week) · new_chapter (never practised)"
     )
     status: Literal["active", "done"] = Field(description="done once a practice of this place is finished.")
-    reason: str
+    reason: Reason
     practice: PracticeCreate = Field(
         description="Start Recommended Practice: send as-is to POST /practice/sessions."
     )

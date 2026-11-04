@@ -2,15 +2,17 @@ import Link from "next/link";
 
 import { Recommendations } from "@/components/dashboard";
 import { TaskActions, TaskLine } from "@/components/plan-view";
+import { RewardStrip } from "@/components/rewards";
 import { getDashboard, getLearner, getProgress } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { classLabel } from "@/lib/copy";
+import { getCopy } from "@/lib/copy/server";
 import { studentNav } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
-const text = copy.learn;
-
 /** Home: the way in to everything in the learner's menu, Recommended for You, today's plan, practice to continue. */
 export default async function LearnHomePage() {
+  const copy = await getCopy();
+  const text = copy.learn;
   const { student, profile, classProfile } = await getLearner();
   const [progress, board] = await Promise.all([getProgress(student.id), getDashboard(student.id)]);
   const tiles = studentNav(classProfile.ui_mode, classProfile.features).filter(
@@ -27,9 +29,11 @@ export default async function LearnHomePage() {
         </h1>
         <p className="text-muted-foreground playful:text-2xl friendly:text-xl">
           {classProfile.ui_mode === "playful" ? text.playfulIntro : text.intro}
-          <span className="hidden standard:inline dense:inline"> · {profile.class_label}</span>
+          <span className="hidden standard:inline dense:inline"> · {classLabel(copy, profile)}</span>
         </p>
       </div>
+
+      <RewardStrip copy={copy} rewards={board.rewards} playful={classProfile.ui_mode === "playful"} />
 
       <ul
         className={cn(
@@ -69,7 +73,7 @@ export default async function LearnHomePage() {
       {board.recommendations.length > 0 && (
         <section className="grid gap-3">
           <h2 className="text-lg font-bold playful:text-2xl">{text.recommended}</h2>
-          <Recommendations items={board.recommendations} area="learn" />
+          <Recommendations copy={copy} items={board.recommendations} area="learn" />
         </section>
       )}
 
@@ -83,8 +87,8 @@ export default async function LearnHomePage() {
           </div>
           <ul className="grid gap-2">
             {board.plan.today.map((item) => (
-              <TaskLine key={item.id} item={item}>
-                <TaskActions item={item} />
+              <TaskLine copy={copy} key={item.id} item={item}>
+                <TaskActions copy={copy} item={item} />
               </TaskLine>
             ))}
           </ul>

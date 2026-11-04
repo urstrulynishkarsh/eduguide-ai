@@ -30,7 +30,7 @@ Navigation (spec §38): Dashboard · Children · My Books · Practice · Mock Te
 
 | URL | Screen | Step |
 |---|---|---|
-| `/parent/dashboard` | This week day by day (answered, right the first time, minutes), strong areas and needs attention, **Understand Mistakes** (up to 3 mistakes the child keeps making, with what to remember and Practise this), Recommended with **Start Recommended Practice**, today's study plan, recent tests — one call (`GET /students/{id}/dashboard`) | 6 basic · 9 full · 10 |
+| `/parent/dashboard` | This week day by day (answered, right the first time, minutes), Recommended with **Start Recommended Practice**, **Streak and badges** (streak, level and XP, today's goal, the newest badges), strong areas and needs attention, **Understand Mistakes** (up to 3 mistakes the child keeps making, with what to remember and Practise this), today's study plan, recent tests — one call (`GET /students/{id}/dashboard`) | 6 basic · 9 full · 10 · 11 |
 | `/parent/children` · `/parent/children/new` · `/parent/children/[studentId]` | List, add, edit children | 5 |
 | `/parent/books` | My Learning Library: every family book, labelled with the child it is for | 6 |
 | `/parent/books/upload` | Upload Book: the book's details, then the file with a progress bar | 6 |
@@ -40,9 +40,9 @@ Navigation (spec §38): Dashboard · Children · My Books · Practice · Mock Te
 | `/parent/practice/[sessionId]` | A practice the parent made: "getting ready", then its questions and **Start now with {child}** (child mode straight into it) | 6 |
 | `/parent/tests` · `/parent/tests/new` · `/parent/tests/[testId]` | The chosen child's tests; Create Test (`?kind=&book=&chapter=`: the kinds and the time limit follow the class's `practice_tests`, `chapter_tests`, `full_mock_tests`, `timed_tests`; a JEE / NEET / CUET learner is told their tests follow the exam's pattern, with marks lost for a wrong answer); a test: "getting ready", **Start now with {child}** (child mode straight into the test), its sittings and the report of one (`?attempt=`) | 9 |
 | `/parent/plans` · `/parent/plans/new` | The chosen child's study plan day by day (one per learner, API: `GET /students/{id}/study-plan`), and making a new one: exam date, minutes a day, target, chapters | 9 |
-| `/parent/progress` | Numbers, by chapter and topic, recent practice, Understand Mistakes (current and put right), recent tests | 6 basic · 9 · 10 · 11 |
+| `/parent/progress` | Numbers, by chapter and topic, recent practice, **Progress over time** (the last 12 weeks, test scores, by subject, by kind of question, by difficulty — each with "Show the numbers"), streak and every badge, Understand Mistakes (current and put right), recent tests | 6 basic · 9 · 10 · 11 |
 | `/parent/assistant` · `/parent/assistant/[chatId]` | Parent AI Assistant about the chosen child: suggested questions, replies as they are written with the books they used, earlier conversations. A new conversation is made with its first message and then opens at its own address | 9 |
-| `/parent/settings` | Account, language, sign out | 5 |
+| `/parent/settings` | Account, the language of the screens (the picker; saved on the account), sign out | 5 · 11 |
 
 A child switcher at the top of the parent area (Step 6, kept in the `eg_child` cookie) chooses whose
 dashboard, practice and progress are shown. My Books always lists all of the family's books.
@@ -53,11 +53,11 @@ Navigation (spec §38): Home · Practice · Learn · Tests · Progress · Study 
 
 | URL | Screen | Step |
 |---|---|---|
-| `/learn` | Home: the menu as tiles, **Recommended for You** (Start; a weak topic can be revised first), **Today's plan** (Start, ✓ Done), practice to continue. (Daily challenge and streak: Step 11) | 6 · 9 |
-| `/learn/practice` · `/learn/practice/[sessionId]` | Choose and do practice; **Hint → Show Steps → Show Answer**. Nursery–Class 2: big "Play" tiles per chapter, one tap answers, a number pad for counting, "try again" instead of a wrong mark, stars at the end | 6 |
+| `/learn` | Home: the streak, level and XP, today's goal (the class's usual practice length), the menu as tiles, **Recommended for You** (Start; a weak topic can be revised first), **Today's plan** (Start, ✓ Done), practice to continue | 6 · 9 · 11 |
+| `/learn/practice` · `/learn/practice/[sessionId]` | Choose and do practice; **Hint → Show Steps → Show Answer**; "+10 XP" and a new badge after an answer, the streak and goal at the end. Nursery–Class 2: big "Play" tiles per chapter, one tap answers, a number pad for counting, "try again" instead of a wrong mark, stars and stickers at the end, no XP | 6 · 11 |
 | `/learn/concepts` · `/learn/concepts/[chapterId]` | Learn a concept; "Explain simply / Like I'm 10 / in Hindi / in Hinglish". `?q=` fills in the question, `?task=` is a learn task of the plan (ticked off once explained) | 6 · 9 |
 | `/learn/tests` · `/learn/tests/[attemptId]` | My tests (Start, Continue, See result, Take again) and Create Test; the test screen: sections, a question grid, the timer (when the test has a time limit), each answer saved as it is given, submit — by the button or when the time runs out — then the result report | 9 |
-| `/learn/progress` | My progress; Mistakes to fix (Class 3+: Revise the idea first, Practise this) | 6 · 10 |
+| `/learn/progress` | My progress; Progress over time (Class 6+; Class 3–5: the weeks and subjects); streak and badges (My stickers for Nursery–Class 2, with no charts); Mistakes to fix (Class 3+: Revise the idea first, Practise this) | 6 · 10 · 11 |
 | `/learn/plan` · `/learn/plan/new` | Today's tasks from the study plan (Start, ✓ Done), then the days to come. A student who signed up alone makes their own plan; a child's is made by the parent | 9 |
 | `/learn/tutor` · `/learn/tutor/[chatId]` | AI Tutor: hint first, answer last; each reply shows its rung (Hint 1 … Answer) and the books it used | 9 |
 
@@ -127,8 +127,23 @@ Built in Step 5 (`frontend/lib/session.ts`, `frontend/proxy.ts`).
   through a second route handler, `/api/chat/[chatId]/messages`, which passes them on piece by piece
   (`lib/sse.ts` reads them in the browser). It runs behind `proxy.ts`, so an expired token is renewed
   first; only the upload route is left out of the proxy.
-- Screen language follows `users.preferred_language` (from Step 11; all wording is already in
-  `frontend/lib/copy.ts`); content language follows the child's `primary_language`.
+- **Screen language** (Step 11): English, Hindi or Hinglish, in the `eg_lang` cookie (not secret; it
+  stays when the session ends). Sign-in and sign-up set it from the account (`users.preferred_language`;
+  sign-up gives the account the language the screens were in); child mode sets it to the child's
+  language (`primary_language`, which the AI uses too) until a grown-up signs back in. The
+  **language picker** (each language in its own words) is on the landing page, the sign-in, sign-up
+  and onboarding pages, parent Settings and a solo student's header; signed in, it saves the account's
+  language too (`PATCH /auth/me`). Not in child mode.
+- **Where the words live**: `frontend/lib/copy/` has one file per language with the same shape
+  (`en.ts`, `hi.ts`, `hinglish.ts`; the `Copy` type checks every key). Pages, layouts and async server
+  components call `await getCopy()`; synchronous server components take a `copy` prop; client
+  components call `useCopy()`. Page titles come from `titled()`. The page is marked with its `lang`
+  (`hi`, `hi-Latn` for Hinglish; `<html>` stays `en`, as Cache Components cannot wait for the cookie
+  there). Hindi is shown in Noto Sans Devanagari. Words the backend sends are put into the screen
+  language by their code: error messages (`FormMessage`), class / board / goal labels, and the reasons
+  of recommendations and plan tasks. Book, chapter and exercise titles stay as the book prints them.
+- **Another Indian language** later: a new file in `lib/copy/` (the type lists what to translate),
+  one line in `lib/copy/index.ts`, and `content_enabled` in the backend's `app/core/languages.py`.
 
 ### Landing after sign-in
 

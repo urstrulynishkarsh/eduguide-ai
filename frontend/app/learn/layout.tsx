@@ -1,18 +1,20 @@
 import { Lock } from "lucide-react";
 import Link from "next/link";
 
+import { LanguagePicker } from "@/components/language-picker";
 import { Logo } from "@/components/logo";
 import { NavLinks } from "@/components/nav-links";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Button } from "@/components/ui/button";
 import { getLearner } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy } from "@/lib/copy/server";
 
 /**
  * The student area. The learner's class profile picks one of four layouts (`ui_mode`) and which
  * menu items exist (`features`); the pages are the same for every class (docs/04 §4.4).
  */
 export default async function LearnLayout({ children }: LayoutProps<"/learn">) {
+  const copy = await getCopy();
   const { me, classProfile } = await getLearner();
   const childMode = me.user.role === "parent";
 
@@ -35,6 +37,7 @@ export default async function LearnLayout({ children }: LayoutProps<"/learn">) {
           </Button>
         ) : (
           <div className="flex items-center gap-1">
+            <LanguagePicker />
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
               <Link href="/onboarding/profile">{copy.learn.myClassDetails}</Link>
             </Button>

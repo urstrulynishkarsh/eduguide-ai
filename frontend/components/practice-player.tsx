@@ -3,17 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { AnswerInput, answerFor, CHOICE, NUMBER, type Draft } from "@/components/answer-input";
 import { FormMessage } from "@/components/form-message";
+import { BADGE_EMOJI, badgeName } from "@/components/rewards";
 import { SourceLine } from "@/components/source-line";
 import { Button } from "@/components/ui/button";
 import { answerQuestion, explainQuestion, getHelp } from "@/lib/actions/practice";
-import { copy } from "@/lib/copy";
-import type { Result } from "@/lib/forms";
+import type { Refusal, Result } from "@/lib/forms";
 import type { AnswerResult, Explanation, Help, PracticeSession, UIMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const text = copy.practice;
 
 /**
  * One question at a time: answer, then Hint → Show Steps → Show Answer, and "explain this".
@@ -21,6 +20,8 @@ const text = copy.practice;
  * invitation to try again, and there are no marks.
  */
 export function PracticePlayer({ session, uiMode }: { session: PracticeSession; uiMode: UIMode }) {
+  const copy = useCopy();
+  const text = copy.practice;
   const router = useRouter();
   const playful = uiMode === "playful";
   const firstOpen = session.items.findIndex((item) => item.correct === null);
@@ -33,7 +34,7 @@ export function PracticePlayer({ session, uiMode }: { session: PracticeSession; 
       session.items[Math.max(firstOpen, 0)].hints_total - session.items[Math.max(firstOpen, 0)].hints_shown,
   });
   const [explanation, setExplanation] = useState<Explanation | null>(null);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Refusal>();
   const [pending, startTransition] = useTransition();
   const shownAt = useRef(0);
 
@@ -161,9 +162,19 @@ export function PracticePlayer({ session, uiMode }: { session: PracticeSession; 
               <p className="font-normal">{text.correctAnswer(result.correct_answer)}</p>
             )}
             {result.feedback && <p className="font-normal text-foreground">{result.feedback}</p>}
+            {/* What the answer earned: XP (not for the youngest, who collect stars) and new badges. */}
+            {result.rewards.xp > 0 && !playful && (
+              <p className="text-sm font-bold text-primary">{copy.rewards.gained(result.rewards.xp)}</p>
+            )}
+            {result.rewards.badges.map((code) => (
+              <p key={code} className="text-sm font-bold text-foreground playful:text-xl">
+                {BADGE_EMOJI[code] ?? "🏅"}{" "}
+                {(playful ? copy.rewards.newSticker : copy.rewards.newBadge)(badgeName(copy, code))}
+              </p>
+            ))}
           </div>
         )}
-        <FormMessage message={error} />
+        <FormMessage error={error} />
 
         <div className="flex flex-wrap gap-2">
           {final ? (

@@ -1,17 +1,16 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Mistakes, Recommendations, RecentTests, WeekChart } from "@/components/dashboard";
 import { TaskLine } from "@/components/plan-view";
 import { Bars } from "@/components/progress-view";
+import { BadgeList, RewardStrip } from "@/components/rewards";
 import { Button } from "@/components/ui/button";
 import { getBooks, getDashboard, requireChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { classLabel } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 import type { AreaMastery } from "@/lib/types";
 
-const text = copy.dashboard;
-
-export const metadata: Metadata = { title: copy.nav.dashboard };
+export const generateMetadata = titled((copy) => copy.nav.dashboard);
 
 /** Areas as bars of their mastery. */
 const asBars = (areas: AreaMastery[]) =>
@@ -30,6 +29,8 @@ const card = "grid content-start gap-3 rounded-xl border bg-card p-5 shadow-sm";
  * the last tests.
  */
 export default async function DashboardPage() {
+  const copy = await getCopy();
+  const text = copy.dashboard;
   const child = await requireChosenChild();
   const [board, books] = await Promise.all([getDashboard(child.id), getBooks(child.id)]);
   const answered = board.week.reduce((sum, day) => sum + day.answered, 0);
@@ -41,7 +42,9 @@ export default async function DashboardPage() {
         <div className="grid gap-1">
           <h1 className="text-3xl font-extrabold">{text.title(child.name)}</h1>
           <p className="text-muted-foreground">
-            {[child.profile?.class_label, text.books(books.length)].filter(Boolean).join(" · ")}
+            {[child.profile && classLabel(copy, child.profile), text.books(books.length)]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -60,15 +63,26 @@ export default async function DashboardPage() {
             <h2 className="text-lg font-bold">{text.week}</h2>
             <p className="text-sm text-muted-foreground">{text.weekTotal(answered, minutes)}</p>
           </div>
-          <WeekChart week={board.week} />
+          <WeekChart copy={copy} week={board.week} />
         </section>
         {board.recommendations.length > 0 && (
           <section className="grid content-start gap-3">
             <h2 className="text-lg font-bold">{text.recommended}</h2>
-            <Recommendations items={board.recommendations} area="parent" />
+            <Recommendations copy={copy} items={board.recommendations} area="parent" />
           </section>
         )}
       </div>
+
+      <section className="grid gap-3">
+        <h2 className="text-lg font-bold">{copy.rewards.title}</h2>
+        <RewardStrip copy={copy} rewards={board.rewards} />
+        {board.rewards.badges[0]?.earned_at && (
+          <BadgeList
+            copy={copy}
+            badges={board.rewards.badges.filter((badge) => badge.earned_at).slice(0, 4)}
+          />
+        )}
+      </section>
 
       {board.strong.length + board.needs_attention.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
@@ -82,7 +96,7 @@ export default async function DashboardPage() {
       {board.misconceptions.length > 0 && (
         <section className="grid gap-3">
           <h2 className="text-lg font-bold">{copy.mistakes.title}</h2>
-          <Mistakes items={board.misconceptions} area="parent" />
+          <Mistakes copy={copy} items={board.misconceptions} area="parent" />
         </section>
       )}
 
@@ -97,7 +111,7 @@ export default async function DashboardPage() {
               {board.plan.today.length > 0 ? (
                 <ul className="grid gap-2">
                   {board.plan.today.map((item) => (
-                    <TaskLine key={item.id} item={item} />
+                    <TaskLine copy={copy} key={item.id} item={item} />
                   ))}
                 </ul>
               ) : (
@@ -118,7 +132,7 @@ export default async function DashboardPage() {
         </section>
         <section className={card}>
           <h2 className="text-lg font-bold">{text.recentTests}</h2>
-          <RecentTests tests={board.tests} />
+          <RecentTests copy={copy} tests={board.tests} />
           <Link href="/parent/tests" className="text-sm font-semibold text-primary hover:underline">
             {text.allTests} →
           </Link>

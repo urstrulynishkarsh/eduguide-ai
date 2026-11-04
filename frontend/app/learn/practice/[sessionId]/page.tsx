@@ -1,20 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { FormMessage } from "@/components/form-message";
 import { PracticePlayer } from "@/components/practice-player";
+import { RewardStrip } from "@/components/rewards";
 import { Button } from "@/components/ui/button";
-import { getLearner, getPractice } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getLearner, getPractice, getRewards } from "@/lib/api";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.practice;
-
-export const metadata: Metadata = { title: copy.nav.practice };
+export const generateMetadata = titled((copy) => copy.nav.practice);
 
 export default async function PracticeSessionPage({ params }: PageProps<"/learn/practice/[sessionId]">) {
+  const copy = await getCopy();
+  const text = copy.practice;
   const { sessionId } = await params;
-  const [{ classProfile }, session] = await Promise.all([getLearner(), getPractice(sessionId)]);
+  const [{ student, classProfile }, session] = await Promise.all([getLearner(), getPractice(sessionId)]);
   const playful = classProfile.ui_mode === "playful";
 
   if (session.status === "preparing") {
@@ -32,6 +32,7 @@ export default async function PracticeSessionPage({ params }: PageProps<"/learn/
 
   if (session.status === "failed" || session.status === "completed") {
     const failed = session.status === "failed";
+    const rewards = failed ? null : await getRewards(student.id);
     return (
       <div className="mx-auto grid max-w-xl justify-items-center gap-4 py-10 text-center">
         <p aria-hidden className="text-6xl">
@@ -41,13 +42,18 @@ export default async function PracticeSessionPage({ params }: PageProps<"/learn/
           {failed ? text.failedTitle : playful ? text.playfulDoneTitle : text.doneTitle}
         </h1>
         {failed ? (
-          <FormMessage message={session.error?.message} />
+          <FormMessage error={session.error} />
         ) : playful ? (
           <p className="text-3xl font-bold">
             {"⭐".repeat(session.correct)} {text.stars(session.correct)}
           </p>
         ) : (
           <p className="text-xl">{text.score(session.correct, session.items.length)}</p>
+        )}
+        {rewards && (
+          <div className="w-full text-left">
+            <RewardStrip copy={copy} rewards={rewards} playful={playful} />
+          </div>
         )}
         <div className="flex flex-wrap justify-center gap-2">
           <Button asChild size="lg" className="playful:h-16 playful:text-2xl">

@@ -50,6 +50,7 @@ export interface AuthResponse {
 
 export interface ChildSession {
   access_token: string;
+  student: Student;
 }
 
 export interface Option {
@@ -213,12 +214,19 @@ export interface PracticeSession {
   correct: number;
 }
 
+/** What an answer earned (trying again earns nothing). */
+export interface RewardGain {
+  xp: number;
+  badges: string[];
+}
+
 export interface AnswerResult {
   correct: boolean;
   try_again: boolean;
   feedback: string | null;
   correct_answer: string | null;
   session_completed: boolean;
+  rewards: RewardGain;
 }
 
 export interface Help {
@@ -345,12 +353,23 @@ export interface TestReport {
 
 // ---- Study plans (docs/03 §3.7)
 
+/** Why a recommendation or a plan task was chosen: a code and its numbers (lib/copy words it). */
+export interface Reason {
+  code: string;
+  accuracy: number | null;
+  answers: number | null;
+  difficulty: string | null;
+  days: number | null;
+  mastery: number | null;
+  aim: number | null;
+}
+
 export interface PlanItem {
   id: string;
   kind: "learn" | "practice" | "test";
   status: "pending" | "done" | "skipped" | "missed";
   minutes: number;
-  reason: string;
+  reason: Reason;
   book_title: string;
   chapter: string | null;
   topic: string | null;
@@ -391,12 +410,43 @@ export interface AreaMastery extends Area {
 export interface Recommendation extends Area {
   id: string;
   status: "active" | "done";
-  reason: string;
+  reason: Reason;
   practice: RequestBody;
   revise: ReviseRequest | null;
 }
 
+/** Streak, XP and badges (docs/03 §3.8). */
+export interface Rewards {
+  xp: number;
+  level: number;
+  /** XP earned inside the level, of the `level_size` it takes. */
+  level_xp: number;
+  level_size: number;
+  streak: number;
+  longest_streak: number;
+  today: { answered: number; goal: number };
+  /** Every badge, the earned ones first (newest first). */
+  badges: { code: string; earned_at: string | null }[];
+}
+
+/** How well one kind of work goes: a subject, a question format or a difficulty. */
+export interface Share {
+  code: string;
+  answered: number;
+  accuracy: number;
+}
+
+/** Progress over time (docs/03 §3.8): the last 12 weeks (each by its Monday), shares, tests. */
+export interface Trends {
+  weeks: Dashboard["week"];
+  subjects: Share[];
+  formats: Share[];
+  difficulties: Share[];
+  tests: Dashboard["tests"];
+}
+
 export interface Dashboard {
+  rewards: Rewards;
   week: { day: string; answered: number; correct: number; minutes: number }[];
   strong: AreaMastery[];
   needs_attention: AreaMastery[];
@@ -445,6 +495,8 @@ export interface PaperAnalysis {
     share: number;
     papers: number;
     trend: "rising" | "falling" | "steady" | null;
+    /** Its marks in each paper that shows its year, oldest first. */
+    by_year: { year: number; marks: number }[];
     practice: RequestBody;
   })[];
   unmatched: { questions: number };

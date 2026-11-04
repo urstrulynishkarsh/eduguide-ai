@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { copy } from "@/lib/copy";
+import { APP_NAME } from "@/lib/copy";
 
 export function Logo({ href = "/" }: { href?: string }) {
   return (
@@ -14,7 +14,7 @@ export function Logo({ href = "/" }: { href?: string }) {
       >
         📖
       </span>
-      {copy.appName}
+      {APP_NAME}
     </Link>
   );
 }

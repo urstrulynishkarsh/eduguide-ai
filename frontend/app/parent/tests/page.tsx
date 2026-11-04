@@ -1,19 +1,17 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { TestHeading } from "@/components/test-report";
 import { Button } from "@/components/ui/button";
 import { getTests, requireChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import type { Copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 import type { MockTest } from "@/lib/types";
 
-const text = copy.tests;
-
-export const metadata: Metadata = { title: text.title };
+export const generateMetadata = titled((copy) => copy.tests.title);
 
 /** Where a test stands: being made, the latest score, or a sitting not finished. */
-function standing(test: MockTest): string {
+function standing(text: Copy["tests"], test: MockTest): string {
   if (test.status !== "ready")
     return test.status === "preparing" ? `⏳ ${text.preparingTitle}` : text.failedTitle;
   const sitting = test.attempts.at(-1);
@@ -23,6 +21,8 @@ function standing(test: MockTest): string {
 
 /** The chosen child's tests, newest first. */
 export default async function ParentTestsPage() {
+  const copy = await getCopy();
+  const text = copy.tests;
   const child = await requireChosenChild();
   const tests = await getTests(child.id);
 
@@ -50,8 +50,10 @@ export default async function ParentTestsPage() {
                 href={`/parent/tests/${test.id}`}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4 hover:border-primary"
               >
-                <TestHeading test={test} />
-                <span className="font-semibold text-muted-foreground tabular-nums">{standing(test)}</span>
+                <TestHeading copy={copy} test={test} />
+                <span className="font-semibold text-muted-foreground tabular-nums">
+                  {standing(text, test)}
+                </span>
               </Link>
             </li>
           ))}

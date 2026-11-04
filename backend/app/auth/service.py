@@ -11,7 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from app.auth.principal import Principal
 from app.core.config import get_settings
 from app.core.enums import Role
-from app.core.errors import AuthenticationError, ConflictError
+from app.core.errors import AuthenticationError, ConflictError, PermissionDeniedError
 from app.core.security import (
     TokenError,
     TokenType,
@@ -21,7 +21,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models import Parent, Student, User
-from app.schemas.auth import RegisterRequest, TokenPair
+from app.schemas.auth import AccountUpdate, RegisterRequest, TokenPair
 from app.services import student_service
 
 # Checked when the email is unknown, so "no such account" and "wrong password"
@@ -64,6 +64,15 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
         await db.rollback()
         raise ConflictError(_EMAIL_TAKEN, code="email_already_registered") from None
     return user
+
+
+async def update_account(db: AsyncSession, principal: Principal, data: AccountUpdate) -> User:
+    """The account's own settings. Not in child mode: the child must not change the parent's account."""
+    if principal.role is Role.STUDENT and principal.user.role == Role.PARENT:
+        raise PermissionDeniedError("Only the account holder can change this.", code="parent_required")
+    principal.user.preferred_language = data.preferred_language
+    await db.commit()
+    return principal.user
 
 
 async def authenticate(db: AsyncSession, email: str, password: str) -> User:

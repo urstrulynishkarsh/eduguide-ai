@@ -13,24 +13,24 @@ def _chapter(mastery: float | None = None, **values) -> Chapter:
     return Chapter(book_id=BOOK, chapter_id=uuid.uuid4(), mastery=mastery, difficulty="medium", **values)
 
 
-def _kinds(tasks: list[Task]) -> list[tuple[str, str]]:
+def _kinds(tasks: list[Task]) -> list[tuple[str, dict]]:
     return [(task.kind, task.reason) for task in tasks]
 
 
 def test_weak_areas_come_first_then_the_chapters_in_book_order():
     below = _chapter(0.5)
     new = _chapter()
-    weak = _chapter(0.4, weak=[WeakArea(TOPIC, "easy", "20% right in the last 5 answers")])
+    weak = _chapter(0.4, weak=[WeakArea(TOPIC, "easy", {"accuracy": 0.2, "answers": 5})])
 
     work, final = planner.tasks([below, new, weak], target=0.8, final_test=None)
 
     assert _kinds(work)[:6] == [
-        ("learn", "20% right in the last 5 answers. Revise the idea."),
-        ("practice", "Then strengthen it with easy questions."),
-        ("practice", "50% mastered; the aim is 80%."),
-        ("learn", "Not practised yet. Learn the idea first."),
-        ("practice", "A first practice of this chapter."),
-        ("practice", "40% mastered; the aim is 80%."),  # the weak chapter's other topics
+        ("learn", {"code": "revise", "accuracy": 0.2, "answers": 5}),
+        ("practice", {"code": "strengthen", "difficulty": "easy"}),
+        ("practice", {"code": "towards_aim", "mastery": 0.5, "aim": 0.8}),
+        ("learn", {"code": "learn_first"}),
+        ("practice", {"code": "first_practice"}),
+        ("practice", {"code": "towards_aim", "mastery": 0.4, "aim": 0.8}),  # the weak chapter's other topics
     ]
     assert (work[0].topic_id, work[1].difficulty) == (TOPIC, "easy")
     assert work[5].chapter_id == weak.chapter_id and final == []
@@ -53,7 +53,7 @@ def test_a_chapter_gets_the_practices_it_needs_to_reach_the_target_spread_in_rou
         ("new", "practice"),  # round 3
         ("new", "practice"),  # round 4
     ]
-    assert work[4].reason == "More practice: the aim is 80%."
+    assert work[4].reason == {"code": "more_practice", "aim": 0.8}
 
 
 def test_strong_chapters_are_reviewed_at_the_end_and_each_book_ends_with_a_test():
@@ -64,9 +64,9 @@ def test_strong_chapters_are_reviewed_at_the_end_and_each_book_ends_with_a_test(
 
     assert [task.kind for task in work] == ["learn", "practice", "practice", "practice", "practice"]
     assert _kinds(final) == [
-        ("practice", "90% mastered. A quick review before the exam."),
-        ("test", "A full mock test, timed like the exam."),
-        ("test", "A full mock test, timed like the exam."),
+        ("practice", {"code": "final_review", "mastery": 0.9}),
+        ("test", {"code": "full_mock_test"}),
+        ("test", {"code": "full_mock_test"}),
     ]
     assert [(task.book_id, task.chapter_id, task.minutes) for task in final[1:]] == [
         (BOOK, None, 125),
@@ -76,7 +76,7 @@ def test_strong_chapters_are_reviewed_at_the_end_and_each_book_ends_with_a_test(
 
 def test_what_was_learnt_is_not_learnt_again_and_a_weak_chapter_is_practised_once():
     learnt_new = _chapter(learnt=frozenset({None}))
-    weak_chapter = _chapter(0.3, weak=[WeakArea(None, "easy", "30% right in the last 10 answers")])
+    weak_chapter = _chapter(0.3, weak=[WeakArea(None, "easy", {"accuracy": 0.3, "answers": 10})])
 
     work, _ = planner.tasks([learnt_new, weak_chapter], target=0.8, final_test=None)
 
@@ -92,7 +92,7 @@ def test_what_was_learnt_is_not_learnt_again_and_a_weak_chapter_is_practised_onc
 
 
 def _task(minutes: int = 20, kind: str = "practice") -> Task:
-    return Task(kind, BOOK, None, None, "mixed", minutes, "")
+    return Task(kind, BOOK, None, None, "mixed", minutes, {"code": "first_practice"})
 
 
 def test_the_test_is_on_the_last_day_and_the_work_is_spread_evenly_before_it():

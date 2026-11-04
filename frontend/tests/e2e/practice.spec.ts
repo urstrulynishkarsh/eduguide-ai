@@ -24,11 +24,14 @@ test.afterEach(async ({ browser }) => {
   child = undefined;
 });
 
-/** Answers the youngest's question by trying each choice in turn: a wrong one only means "try again". */
+/**
+ * Answers the youngest's question by trying each choice in turn: a wrong one only means "try again".
+ * The UKG child learns in Hindi, so the buttons are in Hindi.
+ */
 async function answerByTrying(page: Page) {
   const card = page.locator("section[aria-busy]").filter({ visible: true });
   await expect(card).toBeVisible(); // the first question streams in after the page's loading screen
-  const next = page.getByRole("button", { name: /Next question|See results/ });
+  const next = page.getByRole("button", { name: /अगला प्रश्न|नतीजे देखें/ });
   /** One answer: wait for the server's reply and the card to settle, then say whether it was right. */
   const settled = async (answer: () => Promise<void>) => {
     const reply = page.waitForResponse((response) => response.request().method() === "POST");
@@ -49,7 +52,7 @@ async function answerByTrying(page: Page) {
       [2, 1, 0],
     ]) {
       for (const [i, j] of order.entries()) await groups.nth(i).getByRole("button").nth(j).click();
-      if (await settled(() => page.getByRole("button", { name: "Check", exact: true }).click())) return;
+      if (await settled(() => page.getByRole("button", { name: "जाँचें", exact: true }).click())) return;
     }
   }
   const choices = card.locator("button[aria-pressed], .grid-cols-4 button");
@@ -71,24 +74,29 @@ test("a parent prepares chapter practice, and a Class 7 child does all of it", a
   await page.getByRole("button", { name: `Start now with ${name}` }).click();
   await expect(page).toHaveURL(/\/learn\/practice\/[^/]+$/);
 
-  // Help comes in order: a hint, then the worked steps.
+  // The child's screens are in their language (Hinglish). Help comes in order: a hint, then the steps.
   await page.getByRole("button", { name: /Hint/ }).click();
   await expect(page.getByText(/^💡 /).filter({ visible: true })).toBeVisible();
-  await page.getByRole("button", { name: /Show Steps/ }).click();
+  await page.getByRole("button", { name: /Steps dikhaiye/ }).click();
   await expect(page.getByText("Concept:")).toBeVisible();
 
   for (let i = 0; i < 10; i++) {
     await page.locator("section button[aria-pressed]").filter({ visible: true }).first().click();
-    await page.getByRole("button", { name: "Check", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: /Correct|Not quite/ })).toBeVisible();
-    await page.getByRole("button", { name: /Next question|See results/ }).click();
-    if (await page.getByRole("heading", { name: "Practice complete!" }).isVisible()) break;
+    await page.getByRole("button", { name: "Check karein", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: /Sahi!|Poori tarah sahi nahin/ })).toBeVisible();
+    await page.getByRole("button", { name: /Agla question|Result dekhiye/ }).click();
+    if (await page.getByRole("heading", { name: "Practice poori!" }).isVisible()) break;
   }
-  await expect(page.getByRole("heading", { name: "Practice complete!" })).toBeVisible();
-  await expect(page.getByText(/of 10 correct the first time/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Practice poori!" })).toBeVisible();
+  await expect(page.getByText(/10 mein se \d+ pehli baar mein sahi/)).toBeVisible();
+  await expect(page.getByText("🔥 1 din lagaataar")).toBeVisible(); // the streak has begun
+  await expect(page.getByText("Aaj ka goal poora! 🎉")).toBeVisible(); // 10 answers: Class 7's goal
 
   await page.getByRole("link", { name: "Progress" }).filter({ visible: true }).first().click();
-  await expect(page.getByText("Questions answered").locator("..")).toContainText("10");
+  await expect(page.getByText("Kiye gaye questions").locator("..")).toContainText("10");
+  await expect(page.locator('[data-earned="true"]', { hasText: "Pehli practice" })).toBeVisible();
+  const weeks = page.getByRole("group", { name: "Pichhle 12 hafte" }).filter({ visible: true });
+  await expect(weeks.getByRole("img", { name: /10 kiye, \d+ pehli baar mein sahi$/ })).toBeVisible();
 
   await leaveChildMode(page);
 });
@@ -100,18 +108,18 @@ test("a UKG child plays picture practice: try again, stars, no marks", async ({ 
   await practiseChapter(page, "Sample: UKG Picture Book");
   await page.getByRole("button", { name: `Start now with ${name}` }).click();
   await expect(page.locator('[data-ui-mode="playful"]').first()).toBeVisible();
-  await expect(page.getByText(/Question \d+ of/)).toHaveCount(0);
+  await expect(page.getByText(/प्रश्न \d+ \//)).toHaveCount(0); // no "Question 2 of 5" for the youngest
 
   for (let i = 0; i < 5; i++) {
     await answerByTrying(page);
-    await page.getByRole("button", { name: /Next question|See results/ }).click();
-    if (await page.getByRole("heading", { name: /You did it/ }).isVisible()) break;
+    await page.getByRole("button", { name: /अगला प्रश्न|नतीजे देखें/ }).click();
+    if (await page.getByRole("heading", { name: /तुमने कर दिखाया/ }).isVisible()) break;
   }
-  await expect(page.getByRole("heading", { name: /You did it/ })).toBeVisible();
-  await expect(page.getByText(/You earned \d+ stars?!/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /तुमने कर दिखाया/ })).toBeVisible();
+  await expect(page.getByText(/आपको \d+ (सितारा|सितारे) मिले!/)).toBeVisible();
 
-  await page.getByRole("link", { name: "My Stars" }).filter({ visible: true }).first().click();
-  await expect(page.getByRole("heading", { name: /My Stars/ })).toBeVisible();
+  await page.getByRole("link", { name: "मेरे सितारे" }).filter({ visible: true }).first().click();
+  await expect(page.getByRole("heading", { name: /मेरे सितारे/ })).toBeVisible();
   await expect(page.locator("main").filter({ visible: true })).not.toContainText("%");
 
   await leaveChildMode(page);
@@ -143,25 +151,26 @@ test("a parent makes a chapter test, the Class 7 child takes it, and both see th
   await expect(page).toHaveURL(/\/learn\/tests\/[^/]+$/);
 
   // Written answers are marked by the AI, so only section A (8 objective questions) is answered.
-  const grid = page.getByRole("navigation", { name: "Go to a question" }).filter({ visible: true });
+  // The child's screens are in Hinglish.
+  const grid = page.getByRole("navigation", { name: "Kisi question par jaiye" }).filter({ visible: true });
   for (let i = 1; i <= 8; i++) {
     await grid.getByRole("button", { name: String(i), exact: true }).click();
     await page.locator("section button[aria-pressed]").filter({ visible: true }).first().click();
   }
-  await expect(page.getByText("8 of 15 answered")).toBeVisible();
-  await page.getByRole("button", { name: "Submit test" }).click();
-  await expect(page.getByText("7 questions not answered yet. Submit anyway?")).toBeVisible();
-  await page.getByRole("button", { name: "Yes, submit" }).click();
+  await expect(page.getByText("15 mein se 8 kiye")).toBeVisible();
+  await page.getByRole("button", { name: "Test submit karein" }).click();
+  await expect(page.getByText("7 questions abhi baaki hain. Phir bhi submit karein?")).toBeVisible();
+  await page.getByRole("button", { name: "Haan, submit karein" }).click();
 
   // The answers still on their way go first, then the marking: allow it a while on a busy server.
   const result = page.getByRole("heading", { name: /^Result: Chapter test/ });
   await expect(result).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator("dt", { hasText: "Not answered" }).locator("..")).toContainText("7");
+  await expect(page.locator("dt", { hasText: "Nahin kiya" }).locator("..")).toContainText("7");
   await page.reload(); // a submitted test stays submitted
   await expect(result).toBeVisible();
-  await page.getByRole("link", { name: "← All tests" }).click();
-  await expect(page.getByRole("button", { name: "Take again" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /See result · \d+(\.5)? \/ 31/ })).toBeVisible();
+  await page.getByRole("link", { name: "← Saare tests" }).click();
+  await expect(page.getByRole("button", { name: "Phir se dijiye" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Result dekhiye · \d+(\.5)? \/ 31/ })).toBeVisible();
 
   await leaveChildMode(page);
   await page.goto("/parent/tests");

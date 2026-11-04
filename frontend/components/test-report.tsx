@@ -1,33 +1,31 @@
 import { Bars } from "@/components/progress-view";
-import { copy } from "@/lib/copy";
+import type { Copy } from "@/lib/copy";
 import type { Answer, MockTest, Question, TestKind, TestReport } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const text = copy.tests;
-
 /** "Chapter test · Chapter 4 Simple Equations"; a test without a place covers all books. */
-export function testTitle(kind: TestKind, place: string | null): string {
-  return `${copy.testKinds[kind]} · ${place ?? text.allBooks}`;
+export function testTitle(copy: Copy, kind: TestKind, place: string | null): string {
+  return `${copy.testKinds[kind]} · ${place ?? copy.tests.allBooks}`;
 }
 
 /** The most specific place of a test: its exercise, topic, chapter or book. */
 export const placeOf = (test: MockTest) => test.exercise ?? test.topic ?? test.chapter ?? test.book_title;
 
 /** Its size and time, and the exam whose pattern it follows (JEE / NEET / CUET mode). */
-export const testSummary = (test: MockTest) =>
+export const testSummary = (copy: Copy, test: MockTest) =>
   [
-    text.summary(test.question_count, test.total_marks, test.duration_minutes),
+    copy.tests.summary(test.question_count, test.total_marks, test.duration_minutes),
     test.exam && copy.exams[test.exam],
   ]
     .filter(Boolean)
     .join(" · ");
 
 /** A test in a list: its name and size. */
-export function TestHeading({ test }: { test: MockTest }) {
+export function TestHeading({ test, copy }: { test: MockTest; copy: Copy }) {
   return (
     <div className="grid gap-1">
-      <p className="font-semibold">{testTitle(test.kind, placeOf(test))}</p>
-      <p className="text-sm text-muted-foreground">{testSummary(test)}</p>
+      <p className="font-semibold">{testTitle(copy, test.kind, placeOf(test))}</p>
+      <p className="text-sm text-muted-foreground">{testSummary(copy, test)}</p>
     </div>
   );
 }
@@ -43,7 +41,8 @@ function answerText(question: Question, answer: Answer): string {
  * The result report: the score, each section, the chapters and topics weakest first, and every
  * question with the answer given, its marks and the worked solution.
  */
-export function TestReportView({ report }: { report: TestReport }) {
+export function TestReportView({ report, copy }: { report: TestReport; copy: Copy }) {
+  const text = copy.tests;
   const tiles = [
     [text.score, `${report.score} / ${report.total_marks}`, `${Math.round(report.percentage)}%`],
     [text.correct, String(report.correct)],

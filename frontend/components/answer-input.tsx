@@ -1,13 +1,12 @@
 "use client";
 
+import { useCopy } from "@/components/copy-provider";
 import { Input } from "@/components/ui/input";
-import { copy } from "@/lib/copy";
 import type { Answer, Question } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /* Answering a question in each format: shared by practice and tests. */
 
-const text = copy.practice;
 export const CHOICE = ["mcq", "true_false", "assertion_reason", "case_based", "visual_choice"];
 export const NUMBER = ["numerical", "counting"];
 
@@ -71,6 +70,8 @@ export function AnswerInput({
   disabled: boolean;
   playful?: boolean;
 }) {
+  const copy = useCopy();
+  const text = copy.practice;
   if (CHOICE.includes(question.format)) {
     return (
       <div

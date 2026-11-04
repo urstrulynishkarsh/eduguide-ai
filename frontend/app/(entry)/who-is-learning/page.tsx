@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -6,14 +5,15 @@ import { ChildAvatar } from "@/components/child-avatar";
 import { Button } from "@/components/ui/button";
 import { getStudents } from "@/lib/api";
 import { startChildMode } from "@/lib/actions/students";
-import { copy } from "@/lib/copy";
+import { classLabel } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.whoIsLearning;
-
-export const metadata: Metadata = { title: text.title };
+export const generateMetadata = titled((copy) => copy.whoIsLearning.title);
 
 /** The parent's home on a shared device: tap a child to start child mode. */
 export default async function WhoIsLearningPage() {
+  const copy = await getCopy();
+  const text = copy.whoIsLearning;
   const children = await getStudents();
   if (children.length === 0) redirect("/onboarding/child");
 
@@ -33,7 +33,9 @@ export default async function WhoIsLearningPage() {
               >
                 <ChildAvatar name={child.name} className="size-20 text-3xl" />
                 <span className="font-display text-xl font-bold">{child.name}</span>
-                <span className="text-sm text-muted-foreground">{child.profile?.class_label}</span>
+                <span className="text-sm text-muted-foreground">
+                  {child.profile && classLabel(copy, child.profile)}
+                </span>
               </button>
             </form>
           </li>

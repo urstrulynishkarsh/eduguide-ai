@@ -1,10 +1,8 @@
-import type { Metadata } from "next";
-
 import { ChatScreen } from "@/components/chat-screen";
 import { requireChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { titled } from "@/lib/copy/server";
 
-export const metadata: Metadata = { title: copy.chat.assistant.title };
+export const generateMetadata = titled((copy) => copy.chat.assistant.title);
 
 export default async function AssistantChatPage({ params }: PageProps<"/parent/assistant/[chatId]">) {
   const [{ chatId }, child] = await Promise.all([params, requireChosenChild()]);

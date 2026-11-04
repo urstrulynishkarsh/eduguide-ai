@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import llm
 from app.adaptive_learning import mastery, misconceptions, recommendations
+from app.analytics import rewards
 from app.auth.principal import Principal
 from app.core.enums import LearningBand
 from app.core.errors import InvalidInputError, NotFoundError
@@ -181,6 +182,11 @@ async def answer(
         )
         correct, feedback = grade.is_correct, grade.feedback
 
+    # Only the first answer to a question earns XP (trying again is free, as accuracy counts it).
+    answered_before = exists().where(
+        QuestionAttempt.practice_session_id == session.id, QuestionAttempt.question_id == question.id
+    )
+    first = not await db.scalar(select(answered_before))
     db.add(
         QuestionAttempt(
             student_id=student.id,
@@ -209,10 +215,18 @@ async def answer(
             ),
         )
     )
-    if unanswered == 0 and session.status != "completed":
+    finished = unanswered == 0 and session.status != "completed"
+    if finished:
         session.status, session.completed_at = "completed", utcnow()
         await recommendations.mark_done(db, session)
         await study_plan_service.practice_done(db, session)
+    work = rewards.Work(
+        answers=int(first),
+        right=int(first and correct),
+        finished="practice" if finished else None,
+        perfect=finished and await rewards.perfect_practice(db, student.id, session.id),
+    )
+    gained = await rewards.record(db, student, work)
     await db.commit()
     if examine:
         await queue.enqueue(
@@ -230,6 +244,7 @@ async def answer(
         feedback=feedback,
         correct_answer=None if try_again else question.solution["final_answer"],
         session_completed=session.status == "completed",
+        rewards=gained,
     )
 
 

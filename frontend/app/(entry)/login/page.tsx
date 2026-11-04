@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
 import { LoginForm } from "./login-form";
 
-export const metadata: Metadata = { title: copy.login.submit };
+export const generateMetadata = titled((copy) => copy.login.submit);
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const copy = await getCopy();
   return (
     <div className="mx-auto grid max-w-sm gap-6">
       <div className="grid gap-1">

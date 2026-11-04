@@ -1,9 +1,10 @@
 import { LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { copy } from "@/lib/copy";
+import { getCopy } from "@/lib/copy/server";
 
-export function SignOutButton() {
+export async function SignOutButton() {
+  const copy = await getCopy();
   return (
     <form action="/signout" method="post">
       <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">

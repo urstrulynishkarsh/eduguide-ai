@@ -7,6 +7,7 @@ deleted book never leaves a recommendation pointing at nothing.
 
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, SmallInteger, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -54,7 +55,7 @@ class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     chapter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("chapters.id", ondelete="CASCADE"))
     topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("topics.id", ondelete="CASCADE"))
     difficulty: Mapped[str] = mapped_column(String(8))  # easy | medium | hard | mixed
-    reason: Mapped[str] = mapped_column(String(300))
+    reason: Mapped[dict[str, Any]] = mapped_column(JSONB)  # schemas.adaptive.Reason
     status: Mapped[str] = mapped_column(String(8))  # active | done
 
 

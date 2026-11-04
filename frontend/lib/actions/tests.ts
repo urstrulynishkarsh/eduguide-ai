@@ -3,7 +3,6 @@
 import { redirect } from "next/navigation";
 
 import { api } from "@/lib/api";
-import { copy } from "@/lib/copy";
 import {
   attempt,
   formText,
@@ -64,6 +63,6 @@ export async function saveTestAnswer(
 export async function submitTest(attemptId: string): Promise<Result<void>> {
   return attempt(
     () => api<void>(`/test-attempts/${id(attemptId)}/submit`, { method: "POST" }),
-    copy.errors.marking_ai_not_configured,
+    "marking_ai_not_configured",
   );
 }

@@ -5,6 +5,7 @@ from fastapi import APIRouter, status
 from app.api.deps import CurrentPrincipal, DbSession
 from app.auth import service as auth_service
 from app.schemas.auth import (
+    AccountUpdate,
     AuthResponse,
     LoginRequest,
     MeResponse,
@@ -46,6 +47,13 @@ async def login(data: LoginRequest, db: DbSession) -> AuthResponse:
 @router.post("/refresh", response_model=TokenPair, summary="Swap a refresh token for new tokens")
 async def refresh(data: RefreshRequest, db: DbSession) -> TokenPair:
     return await auth_service.refresh_tokens(db, data.refresh_token)
+
+
+@router.patch("/me", response_model=UserOut, summary="Change the account's screen language")
+async def update_me(data: AccountUpdate, principal: CurrentPrincipal, db: DbSession) -> UserOut:
+    """Settings: `preferred_language`, the language of the screens (en, hi, hinglish). Refused in
+    child mode."""
+    return UserOut.model_validate(await auth_service.update_account(db, principal, data))
 
 
 @router.get("/me", response_model=MeResponse, summary="The signed-in account and its current mode")

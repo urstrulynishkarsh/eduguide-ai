@@ -2,16 +2,14 @@
 
 import { useActionState, useState } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { Choice, ChoiceGroup, SelectField } from "@/components/choice";
 import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { createPractice } from "@/lib/actions/practice";
 import { createTest } from "@/lib/actions/tests";
-import { copy } from "@/lib/copy";
 import type { ClassProfile, Option, TestKind } from "@/lib/types";
-
-const text = copy.practiceForm;
 
 /**
  * The settings for a chosen place (spec §18): how many questions, how hard, the question type of a
@@ -34,6 +32,8 @@ export function QuestionSettingsForm({
   languages: Option[];
   defaultLanguage: string;
 }) {
+  const copy = useCopy();
+  const text = copy.practiceForm;
   const [state, formAction] = useActionState((test ? createTest : createPractice).bind(null, area), {});
   const [difficulty, setDifficulty] = useState("mixed");
   const [type, setType] = useState("mixed");
@@ -108,7 +108,7 @@ export function QuestionSettingsForm({
         />
       </div>
       {needsChapter && <p className="text-sm text-muted-foreground">{copy.tests.chooseChapter}</p>}
-      <FormMessage message={state.message} />
+      <FormMessage error={state} />
       <SubmitButton size="lg" disabled={needsChapter} className="justify-self-start">
         {test ? copy.tests.create : text.submit}
       </SubmitButton>

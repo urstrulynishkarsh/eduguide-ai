@@ -3,8 +3,8 @@
 import { useState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
+import { useCopy } from "@/components/copy-provider";
 import { Button } from "@/components/ui/button";
-import { copy } from "@/lib/copy";
 
 /** A button for something that cannot be undone: it asks a second, explicit time. */
 export function ConfirmButton({
@@ -17,6 +17,7 @@ export function ConfirmButton({
   action: () => Promise<void>;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const copy = useCopy();
   if (!confirming) {
     return (
       <Button variant="outline" className="text-destructive" onClick={() => setConfirming(true)}>

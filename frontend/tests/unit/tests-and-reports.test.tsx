@@ -6,6 +6,7 @@ import { clock, TestPlayer } from "@/components/test-player";
 import { TestReportView } from "@/components/test-report";
 import { saveTestAnswer, submitTest } from "@/lib/actions/tests";
 import type { TestAttempt, TestReport } from "@/lib/types";
+import { en } from "@/lib/copy/en";
 
 import { question } from "./fixtures";
 
@@ -108,12 +109,16 @@ describe("TestPlayer", () => {
   });
 
   it("keeps the answers when marking fails, so the test can be sent again", async () => {
-    vi.mocked(submitTest).mockResolvedValue({ error: "Written answers are marked by the AI." });
+    vi.mocked(submitTest).mockResolvedValue({
+      error: { code: "marking_ai_not_configured", message: "Written answers need the AI." },
+    });
     render(<TestPlayer attempt={sitting()} title="Chapter test" />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Submit test" }));
     await user.click(screen.getByRole("button", { name: "Yes, submit" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Written answers are marked by the AI.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Written answers are marked by the AI, which is not switched on yet.",
+    );
     expect(screen.getByRole("button", { name: "Submit test" })).toBeEnabled();
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -180,7 +185,7 @@ const report: TestReport = {
 
 describe("TestReportView", () => {
   it("shows the score, each section, the weakest topics and every question", () => {
-    render(<TestReportView report={report} />);
+    render(<TestReportView copy={en} report={report} />);
     expect(screen.getByText("Score").nextSibling).toHaveTextContent("2.5 / 8 31%");
     expect(screen.getByText("Time taken").nextSibling).toHaveTextContent("12 min");
     expect(screen.getByText("C · Short answer questions").nextSibling).toHaveTextContent("1.5 / 2");

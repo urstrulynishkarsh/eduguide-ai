@@ -1,15 +1,14 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getBooks, getChapters } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.concepts;
-
-export const metadata: Metadata = { title: text.title };
+export const generateMetadata = titled((copy) => copy.concepts.title);
 
 /** Learn a Concept: the chapters of the learner's books. */
 export default async function ConceptsPage() {
+  const copy = await getCopy();
+  const text = copy.concepts;
   const books = await getBooks();
   const chapters = await Promise.all(books.map((book) => getChapters(book.id)));
 

@@ -1,13 +1,12 @@
-import type { Metadata } from "next";
-
 import { LearnerProfileForm } from "@/components/learner-profile-form";
 import { getOptions } from "@/lib/api";
 import { addChild } from "@/lib/actions/students";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-export const metadata: Metadata = { title: copy.parent.newChildTitle };
+export const generateMetadata = titled((copy) => copy.parent.newChildTitle);
 
 export default async function NewChildPage() {
+  const copy = await getCopy();
   const options = await getOptions();
   return (
     <div className="grid max-w-3xl gap-6">

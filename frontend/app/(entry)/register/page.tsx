@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
 import { RegisterForm } from "./register-form";
 
-export const metadata: Metadata = { title: copy.register.submit };
+export const generateMetadata = titled((copy) => copy.register.submit);
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const copy = await getCopy();
   return (
     <div className="mx-auto grid max-w-md gap-6">
       <h1 className="text-3xl font-extrabold">{copy.register.title}</h1>

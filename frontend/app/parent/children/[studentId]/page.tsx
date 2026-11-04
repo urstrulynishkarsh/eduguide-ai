@@ -1,17 +1,15 @@
-import type { Metadata } from "next";
-
 import { ChildAvatar } from "@/components/child-avatar";
 import { ConfirmButton } from "@/components/confirm-button";
 import { LearnerProfileForm } from "@/components/learner-profile-form";
 import { getOptions, getStudent } from "@/lib/api";
 import { removeChild, updateChild } from "@/lib/actions/students";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.parent;
-
-export const metadata: Metadata = { title: text.editTitle };
+export const generateMetadata = titled((copy) => copy.parent.editTitle);
 
 export default async function EditChildPage({ params }: PageProps<"/parent/children/[studentId]">) {
+  const copy = await getCopy();
+  const text = copy.parent;
   const { studentId } = await params;
   const [child, options] = await Promise.all([getStudent(studentId), getOptions()]);
 

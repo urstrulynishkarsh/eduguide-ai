@@ -1,17 +1,17 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { getBooks, getChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { classLabel } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 import { cn } from "@/lib/utils";
 
-const text = copy.library;
-
-export const metadata: Metadata = { title: text.title };
+export const generateMetadata = titled((copy) => copy.library.title);
 
 /** My Learning Library: every book of the family, labelled with the child it is for. */
 export default async function LibraryPage() {
+  const copy = await getCopy();
+  const text = copy.library;
   const [{ children }, books] = await Promise.all([getChosenChild(), getBooks()]);
   const nameOf = (studentId: string | null) =>
     studentId ? text.forChild(children.find((c) => c.id === studentId)?.name ?? "") : text.forFamily;
@@ -54,7 +54,7 @@ export default async function LibraryPage() {
                 <p className="text-sm text-muted-foreground">
                   {[
                     book.subject,
-                    book.class_label,
+                    classLabel(copy, book),
                     nameOf(book.student_id),
                     text.chapters(book.chapter_count),
                   ].join(" · ")}

@@ -1,12 +1,11 @@
-import type { Metadata } from "next";
-
 import { BookUploader } from "@/components/book-uploader";
 import { getChosenChild, getOptions } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-export const metadata: Metadata = { title: copy.upload.title };
+export const generateMetadata = titled((copy) => copy.upload.title);
 
 export default async function UploadPage() {
+  const copy = await getCopy();
   const [{ children, child }, options] = await Promise.all([getChosenChild(), getOptions()]);
   return (
     <div className="grid max-w-3xl gap-6">

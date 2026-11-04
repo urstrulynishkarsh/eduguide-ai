@@ -1,18 +1,21 @@
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
+import { LanguagePicker } from "@/components/language-picker";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
-import { copy } from "@/lib/copy";
+import { APP_NAME, type Copy } from "@/lib/copy";
+import { getCopy } from "@/lib/copy/server";
 
-const text = copy.landing;
-
-export default function LandingPage() {
+export default async function LandingPage() {
+  const copy = await getCopy();
+  const text = copy.landing;
   return (
     <div className="mx-auto flex min-h-dvh max-w-6xl flex-col px-4 sm:px-6">
       <header className="flex items-center justify-between py-5">
         <Logo />
         <nav className="flex items-center gap-2">
+          <LanguagePicker />
           <Button asChild variant="ghost">
             <Link href="/login">{text.signIn}</Link>
           </Button>
@@ -44,7 +47,7 @@ export default function LandingPage() {
               {text.trust}
             </p>
           </div>
-          <PracticePreview />
+          <PracticePreview text={text} />
         </section>
 
         <section id="how-it-works" className="scroll-mt-8 py-12">
@@ -90,13 +93,13 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t py-6 text-center text-sm text-muted-foreground">© {copy.appName}</footer>
+      <footer className="border-t py-6 text-center text-sm text-muted-foreground">© {APP_NAME}</footer>
     </div>
   );
 }
 
 /** A Nursery-style question, the kind spec §5 asks for, as a picture of what children see. */
-function PracticePreview() {
+function PracticePreview({ text }: { text: Copy["landing"] }) {
   return (
     <div
       aria-hidden

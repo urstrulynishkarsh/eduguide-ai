@@ -1,10 +1,9 @@
 import Link from "next/link";
 
-import { copy } from "@/lib/copy";
+import type { Copy } from "@/lib/copy";
 import type { Progress } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, formatDay } from "@/lib/utils";
 
-const text = copy.progress;
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
 /** How often each area (a chapter, a topic) was right, weakest in the accent colour. */
@@ -41,14 +40,17 @@ export function Bars({ title, areas }: { title: string; areas: Progress["by_chap
  */
 export function ProgressView({
   progress,
+  copy,
   stars = false,
   sessionHref,
 }: {
   progress: Progress;
+  copy: Copy;
   stars?: boolean;
   /** Where a recent session opens; none when the viewer cannot do practice (the parent). */
   sessionHref?: (sessionId: string) => string;
 }) {
+  const text = copy.progress;
   if (progress.questions_answered === 0 && progress.recent_sessions.length === 0) {
     return <p className="text-muted-foreground">{text.none}</p>;
   }
@@ -96,7 +98,12 @@ export function ProgressView({
                     {text.sessionLine(session.answered, session.questions, session.correct)}
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    {text.status[session.status]} · {new Date(session.created_at).toLocaleDateString("en-IN")}
+                    {text.status[session.status]} ·{" "}
+                    {formatDay(copy.language.locale, session.created_at, {
+                      day: "numeric",
+                      month: "numeric",
+                      year: "numeric",
+                    })}
                   </span>
                 </>
               );

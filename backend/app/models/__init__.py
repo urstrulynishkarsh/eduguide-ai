@@ -11,6 +11,7 @@ from app.models.library import Book, Chapter, Document, DocumentChunk, Exercise,
 from app.models.mock_test import MockTest, MockTestAttempt, MockTestQuestion
 from app.models.paper import PaperAnalysis, PaperQuestion
 from app.models.practice import PracticeItem, PracticeSession, Question, QuestionAttempt
+from app.models.rewards import StudentBadge, StudentReward
 from app.models.student import Student, StudentProfile
 from app.models.study_plan import StudyPlan, StudyPlanItem
 from app.models.user import Parent, User
@@ -36,9 +37,11 @@ __all__ = [
     "QuestionAttempt",
     "Recommendation",
     "Student",
+    "StudentBadge",
     "StudentMastery",
     "StudentMisconception",
     "StudentProfile",
+    "StudentReward",
     "StudyPlan",
     "StudyPlanItem",
     "Topic",

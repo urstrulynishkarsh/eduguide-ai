@@ -105,7 +105,13 @@ def child_data(board: DashboardOut, areas: list[AreaMastery], overall: ProgressO
             for m in board.misconceptions
         ],
         "recommended_today": [
-            {"kind": r.kind, "chapter": r.chapter, "topic": r.topic, "reason": r.reason, "status": r.status}
+            {
+                "kind": r.kind,
+                "chapter": r.chapter,
+                "topic": r.topic,
+                "reason": r.reason.model_dump(exclude_none=True),
+                "status": r.status,
+            }
             for r in board.recommendations
         ],
         "recent_tests": [

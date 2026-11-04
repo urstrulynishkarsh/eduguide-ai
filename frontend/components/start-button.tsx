@@ -35,7 +35,7 @@ export function StartButton({
       <SubmitButton variant={variant} className={className} aria-label={label}>
         {children ?? label}
       </SubmitButton>
-      <FormMessage message={state.message} />
+      <FormMessage error={state} />
     </form>
   );
 }

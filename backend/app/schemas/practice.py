@@ -11,6 +11,7 @@ from app.core.languages import is_content_language
 from app.models import Question
 from app.rag.answering import ExplainStyle
 from app.schemas.library import DocumentError, Source
+from app.schemas.rewards import RewardGain
 
 SessionDifficulty = Literal["easy", "medium", "hard", "mixed"]
 SessionStatus = Literal["preparing", "ready", "completed", "failed"]
@@ -143,6 +144,7 @@ class AnswerResult(BaseModel):
     feedback: str | None = Field(description="Feedback on written answers.")
     correct_answer: str | None = Field(description="Shown once the answer is final.")
     session_completed: bool
+    rewards: RewardGain = Field(description="The XP and badges this answer earned (trying again earns none).")
 
 
 class HelpIn(BaseModel):

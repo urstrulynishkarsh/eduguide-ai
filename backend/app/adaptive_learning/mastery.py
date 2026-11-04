@@ -106,9 +106,10 @@ def practice_level(area: StudentMastery, features: ClassFeatures, without_levels
     return (area.difficulty or START_LEVEL) if features.adaptive_difficulty else without_levels
 
 
-def right_lately(area: StudentMastery) -> str:
-    """e.g. "33% right in the last 6 answers"."""
-    return f"{round(area.accuracy * 100)}% right in the last {min(area.attempts, WINDOW)} answers"
+def right_lately(area: StudentMastery) -> dict[str, Any]:
+    """How the last answers went, for a reason: {"accuracy": 0.33, "answers": 6} ("33% right in the
+    last 6 answers")."""
+    return {"accuracy": round(area.accuracy, 2), "answers": min(area.attempts, WINDOW)}
 
 
 async def record_answer(db: AsyncSession, student: Student, question: Question) -> None:

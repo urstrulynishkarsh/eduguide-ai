@@ -1,20 +1,19 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PlanDays, PlanSummary, TaskActions, TaskLine } from "@/components/plan-view";
 import { Button } from "@/components/ui/button";
 import { getLearner, getPlan } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.plans;
-
-export const metadata: Metadata = { title: text.myTitle };
+export const generateMetadata = titled((copy) => copy.plans.myTitle);
 
 /**
  * The learner's study plan: today's tasks to start and tick off, then the days to come. A student
  * who signed up alone makes their own plan; a child's plan is made by the parent.
  */
 export default async function LearnPlanPage() {
+  const copy = await getCopy();
+  const text = copy.plans;
   const { me, student } = await getLearner();
   const plan = await getPlan(student.id);
   const solo = me.user.role === "student";
@@ -33,14 +32,14 @@ export default async function LearnPlanPage() {
       </div>
       {plan ? (
         <>
-          <PlanSummary plan={plan} />
+          <PlanSummary copy={copy} plan={plan} />
           <section className="grid gap-3">
             <h2 className="text-xl font-bold">{text.today}</h2>
             {today.length > 0 ? (
               <ul className="grid gap-2">
                 {today.map((item) => (
-                  <TaskLine key={item.id} item={item}>
-                    <TaskActions item={item} />
+                  <TaskLine copy={copy} key={item.id} item={item}>
+                    <TaskActions copy={copy} item={item} />
                   </TaskLine>
                 ))}
               </ul>
@@ -51,7 +50,7 @@ export default async function LearnPlanPage() {
           {comingUp.length > 0 && (
             <section className="grid gap-3">
               <h2 className="text-xl font-bold">{text.comingUp}</h2>
-              <PlanDays days={comingUp} />
+              <PlanDays copy={copy} days={comingUp} />
             </section>
           )}
         </>

@@ -1,13 +1,12 @@
-import type { Metadata } from "next";
-
 import { chosenFrom, PracticeChooser } from "@/components/question-chooser";
 import { getBooks, getClassProfile, getOptions, requireChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-export const metadata: Metadata = { title: copy.practiceForm.title };
+export const generateMetadata = titled((copy) => copy.practiceForm.title);
 
 /** Create Practice for the chosen child. `?book=&chapter=&exercise=` preselect the source. */
 export default async function CreatePracticePage({ searchParams }: PageProps<"/parent/practice">) {
+  const copy = await getCopy();
   const child = await requireChosenChild();
   const [query, options, books] = await Promise.all([searchParams, getOptions(), getBooks(child.id)]);
   const profile = child.profile!;

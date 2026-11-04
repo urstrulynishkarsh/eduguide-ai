@@ -2,17 +2,17 @@
 
 import { useActionState, useState } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { Choice, ChoiceGroup, ErrorText, SelectField } from "@/components/choice";
 import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { copy } from "@/lib/copy";
+import { said } from "@/lib/copy";
 import type { FormState } from "@/lib/forms";
 import type { OnboardingOptions, Student } from "@/lib/types";
 
-const text = copy.profileForm;
 /** Boards whose real name the backend keeps (board_name). */
 const NAMED_BOARDS = ["state", "other"];
 
@@ -37,6 +37,8 @@ export function LearnerProfileForm({
   student,
   askName,
 }: LearnerProfileFormProps) {
+  const copy = useCopy();
+  const text = copy.profileForm;
   const [state, formAction] = useActionState(action, {});
   const profile = student?.profile;
   const errors = state.fieldErrors ?? {};
@@ -80,7 +82,8 @@ export function LearnerProfileForm({
   const suggestions =
     (stream && chosenClass?.suggested_subjects_by_stream?.[stream]) || chosenClass?.suggested_subjects || [];
   const subjectChoices = [...suggestions, ...subjects.filter((subject) => !suggestions.includes(subject))];
-  const goalLabel = (code: string) => options.goals.find((option) => option.code === code)?.label ?? code;
+  const goalLabel = (code: string) =>
+    said(copy.options.goals, code, options.goals.find((option) => option.code === code)?.label ?? code);
 
   return (
     <form action={formAction} className="grid gap-8">
@@ -100,7 +103,7 @@ export function LearnerProfileForm({
                     key={option.class_level}
                     name="class_level"
                     value={option.class_level}
-                    label={option.label}
+                    label={said(copy.options.classes, option.class_level, option.label)}
                     checked={classLevel === option.class_level}
                     onChange={() => chooseClass(option.class_level)}
                   />
@@ -145,7 +148,10 @@ export function LearnerProfileForm({
               label={text.board}
               value={board}
               onChange={setBoard}
-              options={options.boards}
+              options={options.boards.map(({ code, label }) => ({
+                code,
+                label: said(copy.options.boards, code, label),
+              }))}
               error={errors.board}
             />
             {NAMED_BOARDS.includes(board) && (
@@ -193,7 +199,7 @@ export function LearnerProfileForm({
                   key={option.code}
                   name="stream"
                   value={option.code}
-                  label={option.label}
+                  label={said(copy.options.streams, option.code, option.label)}
                   checked={stream === option.code}
                   onChange={() => setStream(option.code)}
                 />
@@ -249,7 +255,7 @@ export function LearnerProfileForm({
         </>
       )}
 
-      <FormMessage message={state.message} />
+      <FormMessage error={state} />
       <SubmitButton size="lg" disabled={!chosenClass} className="justify-self-start">
         {submitLabel}
       </SubmitButton>

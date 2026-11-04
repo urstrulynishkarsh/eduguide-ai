@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ChildAvatar } from "@/components/child-avatar";
@@ -6,16 +5,17 @@ import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { getOptions, getStudents } from "@/lib/api";
 import { startChildMode } from "@/lib/actions/students";
-import { copy } from "@/lib/copy";
+import { classLabel, said } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.parent;
-
-export const metadata: Metadata = { title: text.childrenTitle };
+export const generateMetadata = titled((copy) => copy.parent.childrenTitle);
 
 export default async function ChildrenPage() {
+  const copy = await getCopy();
+  const text = copy.parent;
   const [children, options] = await Promise.all([getStudents(), getOptions()]);
-  const label = (list: { code: string; label: string }[], code: string) =>
-    list.find((option) => option.code === code)?.label ?? code;
+  const label = (words: Record<string, string>, list: { code: string; label: string }[], code: string) =>
+    said(words, code, list.find((option) => option.code === code)?.label ?? code);
 
   return (
     <div className="grid gap-6">
@@ -38,12 +38,15 @@ export default async function ChildrenPage() {
                 <h2 className="text-xl font-bold">{child.name}</h2>
                 <p className="text-sm text-muted-foreground">
                   {child.profile
-                    ? [child.profile.class_label, label(options.boards, child.profile.board)].join(" · ")
+                    ? [
+                        classLabel(copy, child.profile),
+                        label(copy.options.boards, options.boards, child.profile.board),
+                      ].join(" · ")
                     : text.noProfile}
                 </p>
                 {child.profile && (
                   <p className="text-sm text-muted-foreground">
-                    {text.goal}: {label(options.goals, child.profile.goal)}
+                    {text.goal}: {label(copy.options.goals, options.goals, child.profile.goal)}
                   </p>
                 )}
               </div>

@@ -18,6 +18,7 @@ from tests.api.helpers import (
     bank,
     error_code,
     family_with_book,
+    reason,
     register,
     start_child_session,
 )
@@ -76,7 +77,7 @@ async def test_a_plan_from_today_to_the_exam(client: AsyncClient):
         0,
     )
     learn, practice, *_, test = (item for day in plan["days"] for item in day["items"])
-    assert (learn["minutes"], learn["reason"]) == (15, "Not practised yet. Learn the idea first.")
+    assert (learn["minutes"], reason(learn)) == (15, {"code": "learn_first"})
     assert learn["revise"]["question"] == first and learn["practice"] is None
     assert practice["practice"]["chapter_id"] == practice["chapter_id"]
     assert practice["practice"]["difficulty"] == "mixed"
@@ -92,7 +93,7 @@ async def test_a_plan_from_today_to_the_exam(client: AsyncClient):
         "duration_minutes": None,
         "language": None,
     }
-    assert (test["minutes"], test["reason"]) == (45, "A practice test on the whole book.")
+    assert (test["minutes"], reason(test)) == (45, {"code": "practice_test"})
     again = await client.get(f"{API}/students/{child['id']}/study-plan", headers=parent.headers)
     assert again.json() == plan
 
@@ -136,7 +137,7 @@ async def test_each_morning_the_rest_is_planned_again_from_what_the_learner_know
     items = [item for day in plan["days"] for item in day["items"]]
     assert [item["status"] for item in items] == ["missed"] * 2 + ["pending"] * 6
     assert (plan["missed"], plan["planned_on"]) == (2, str(TODAY + timedelta(days=1)))
-    assert items[2]["reason"] == "20% right in the last 5 answers. Revise the idea."
+    assert reason(items[2]) == {"code": "revise", "accuracy": 0.2, "answers": 5}
     assert {item["difficulty"] for item in items[3:7]} == {"easy"}  # the level went down
 
     # Doing the task as planned ticks it off.

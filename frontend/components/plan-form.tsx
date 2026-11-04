@@ -2,15 +2,13 @@
 
 import { useActionState, useState } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { Choice, ErrorText } from "@/components/choice";
 import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { createPlan } from "@/lib/actions/plans";
-import { copy } from "@/lib/copy";
 import type { Chapter } from "@/lib/types";
-
-const text = copy.plans;
 
 /**
  * "Make a study plan": the exam date, minutes a day, the target and the chapters in the exam (none
@@ -28,6 +26,8 @@ export function PlanForm({
   /** The learner has a plan already. */
   replaces: boolean;
 }) {
+  const copy = useCopy();
+  const text = copy.plans;
   const [state, formAction] = useActionState(createPlan.bind(null, area), {});
   const [chosen, setChosen] = useState<string[]>([]);
   const errors = state.fieldErrors ?? {};
@@ -89,7 +89,7 @@ export function PlanForm({
         <ErrorText error={errors.chapter_ids} />
       </fieldset>
       {replaces && <p className="text-sm text-muted-foreground">{text.replaces}</p>}
-      <FormMessage message={state.message} />
+      <FormMessage error={state} />
       <SubmitButton size="lg" className="justify-self-start">
         {text.submit}
       </SubmitButton>

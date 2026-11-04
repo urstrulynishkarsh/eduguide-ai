@@ -1,9 +1,12 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { api, saveSession } from "@/lib/api";
+import { api, saveLanguage, saveSession } from "@/lib/api";
 import { callBackend } from "@/lib/backend";
+import { screenLanguage } from "@/lib/copy";
+import { currentLanguage } from "@/lib/copy/server";
 import { formError, formText, type FormState } from "@/lib/forms";
 import { homeFor } from "@/lib/routes";
 import type { AuthResponse, Me, Role } from "@/lib/types";
@@ -13,7 +16,7 @@ async function signInWith(email: string, password: string): Promise<Role> {
     method: "POST",
     body: { email, password },
   });
-  await saveSession(tokens.access_token, tokens.refresh_token);
+  await saveSession(tokens.access_token, tokens.refresh_token, user.preferred_language);
   return user.role;
 }
 
@@ -38,14 +41,25 @@ export async function register(_: FormState, formData: FormData): Promise<FormSt
   try {
     const { user, tokens } = await callBackend<AuthResponse>("/auth/register", {
       method: "POST",
-      body: { ...values, password: String(formData.get("password") ?? "") },
+      // The account keeps the language the screens were in when it was made.
+      body: {
+        ...values,
+        password: String(formData.get("password") ?? ""),
+        preferred_language: await currentLanguage(),
+      },
     });
-    await saveSession(tokens.access_token, tokens.refresh_token);
+    await saveSession(tokens.access_token, tokens.refresh_token, user.preferred_language);
     role = user.role;
   } catch (error) {
     return { ...formError(error), values };
   }
   redirect(role === "parent" ? "/onboarding/child" : "/onboarding/profile");
+}
+
+/** The language picker: the screens in another language (saved on the account when signed in). */
+export async function chooseLanguage(language: string): Promise<void> {
+  await saveLanguage(screenLanguage(language));
+  refresh();
 }
 
 /**

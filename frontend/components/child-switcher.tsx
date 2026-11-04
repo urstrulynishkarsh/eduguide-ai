@@ -2,13 +2,15 @@
 
 import { useTransition } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { chooseChild } from "@/lib/actions/books";
-import { copy } from "@/lib/copy";
+import { classLabel } from "@/lib/copy";
 import type { Student } from "@/lib/types";
 
 /** "Showing: Aarav ▾" — whose books, practice and progress the parent area shows. */
 export function ChildSwitcher({ items, chosenId }: { items: Student[]; chosenId: string }) {
   const [pending, startTransition] = useTransition();
+  const copy = useCopy();
   return (
     <label className="flex items-center gap-2 text-sm">
       <span className="text-muted-foreground">{copy.switcher.label}</span>
@@ -21,7 +23,7 @@ export function ChildSwitcher({ items, chosenId }: { items: Student[]; chosenId:
         {items.map((child) => (
           <option key={child.id} value={child.id}>
             {child.name}
-            {child.profile ? ` · ${child.profile.class_label}` : ""}
+            {child.profile ? ` · ${classLabel(copy, child.profile)}` : ""}
           </option>
         ))}
       </select>

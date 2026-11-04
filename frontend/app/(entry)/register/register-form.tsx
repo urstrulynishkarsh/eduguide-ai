@@ -2,21 +2,21 @@
 
 import { useActionState, useState } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { register } from "@/lib/actions/auth";
-import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
-
-const text = copy.register;
-const ROLES = [
-  { code: "parent", emoji: "👨‍👩‍👧", label: text.parent, hint: text.parentHint },
-  { code: "student", emoji: "🎒", label: text.student, hint: text.studentHint },
-];
 
 /** "Who are you? Parent / Student" first (spec §10); the account fields appear once that is answered. */
 export function RegisterForm() {
+  const copy = useCopy();
+  const text = copy.register;
+  const roles = [
+    { code: "parent", emoji: "👨‍👩‍👧", label: text.parent, hint: text.parentHint },
+    { code: "student", emoji: "🎒", label: text.student, hint: text.studentHint },
+  ];
   const [state, formAction] = useActionState(register, {});
   const [role, setRole] = useState(state.values?.role ?? "");
 
@@ -25,7 +25,7 @@ export function RegisterForm() {
       <fieldset className="grid gap-3">
         <legend className="mb-3 font-display text-xl font-bold">{text.whoAreYou}</legend>
         <div className="grid gap-3 sm:grid-cols-2">
-          {ROLES.map((option) => (
+          {roles.map((option) => (
             <label key={option.code} className="cursor-pointer">
               <input
                 type="radio"
@@ -83,7 +83,7 @@ export function RegisterForm() {
             maxLength={128}
             error={state.fieldErrors?.password}
           />
-          <FormMessage message={state.message} />
+          <FormMessage error={state} />
           <SubmitButton size="lg">{text.submit}</SubmitButton>
         </div>
       )}

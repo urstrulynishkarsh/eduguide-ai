@@ -2,11 +2,11 @@ import { AutoSubmitSelect } from "@/components/auto-submit-select";
 import { QuestionSettingsForm } from "@/components/question-settings-form";
 import { Label } from "@/components/ui/label";
 import { getChapter, getChapters } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import type { Copy } from "@/lib/copy";
+import { getCopy } from "@/lib/copy/server";
 import type { Book, ClassFeatures, ClassProfile, Exam, Option, TestKind } from "@/lib/types";
 import { searchParam } from "@/lib/utils";
 
-const text = copy.practiceForm;
 const selectClass =
   "h-9 rounded-md border border-input bg-card px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
@@ -40,7 +40,8 @@ interface Select {
  * form, so only the lists in use are loaded. A choice that no longer fits (a chapter of another
  * book) is ignored.
  */
-async function pickPlace(books: Book[], chosen: Chosen, depth: number) {
+async function pickPlace(copy: Copy, books: Book[], chosen: Chosen, depth: number) {
+  const text = copy.practiceForm;
   const book = books.find((item) => item.id === chosen.book);
   const chapters = book && depth > 1 ? await getChapters(book.id) : [];
   const chapter = chapters.find((item) => item.id === chosen.chapter);
@@ -117,10 +118,11 @@ interface ChooserProps {
 
 /** Create Practice: the source (book → chapter → exercise), then the settings. */
 export async function PracticeChooser({ area, studentId, books, chosen, ...settings }: ChooserProps) {
-  const { place, selects } = await pickPlace(books, chosen, 3);
+  const copy = await getCopy();
+  const { place, selects } = await pickPlace(copy, books, chosen, 3);
   return (
     <div className="grid gap-8">
-      <Picker title={text.source} selects={selects} />
+      <Picker title={copy.practiceForm.source} selects={selects} />
       <QuestionSettingsForm
         // A new place starts the settings afresh.
         key={Object.values(place).join()}
@@ -154,13 +156,14 @@ export async function TestChooser({
   goal,
   ...settings
 }: ChooserProps & { goal: string }) {
+  const copy = await getCopy();
   const kinds = (Object.keys(KIND_FEATURE) as ChosenKind[]).filter(
     (kind) => settings.classProfile.features[KIND_FEATURE[kind]],
   );
   if (kinds.length === 0) return <p className="text-muted-foreground">{copy.tests.notForClass}</p>;
   const exam = settings.classProfile.features.competitive_exam_modes && EXAMS.has(goal) ? goal : null;
   const kind = kinds.find((item) => item === chosen.kind) ?? kinds[0];
-  const { place, selects } = await pickPlace(books, chosen, kind === "full_mock" ? 1 : 2);
+  const { place, selects } = await pickPlace(copy, books, chosen, kind === "full_mock" ? 1 : 2);
   const kindSelect = {
     name: "kind",
     label: copy.tests.kind,

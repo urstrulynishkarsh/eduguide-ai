@@ -1,14 +1,12 @@
-import type { Metadata } from "next";
-
 import { PlanForm } from "@/components/plan-form";
 import { getBooksWithChapters, getPlan, requireChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.plans;
-
-export const metadata: Metadata = { title: text.newTitle };
+export const generateMetadata = titled((copy) => copy.plans.newTitle);
 
 export default async function NewPlanPage() {
+  const copy = await getCopy();
+  const text = copy.plans;
   const child = await requireChosenChild();
   const [books, plan] = await Promise.all([getBooksWithChapters(child.id), getPlan(child.id)]);
   return (

@@ -22,15 +22,17 @@ from tests.api.helpers import (
     bank,
     error_code,
     family_with_book,
+    reason,
     register,
     start_child_session,
 )
 
 
 async def _practise(client: AsyncClient, headers: dict, body: dict[str, Any], results: list[bool]) -> dict:
-    """A practice from the bank, answered right or wrong in this order."""
+    """A practice from the bank, answered right or wrong in this order; `answers` holds each result."""
     session = (await client.post(f"{API}/practice/sessions", json=body, headers=headers)).json()
     assert session["status"] == "ready", session
+    session["answers"] = []
     for item, right in zip(session["items"], results, strict=True):
         answered = await client.post(
             f"{API}/practice/sessions/{session['id']}/answers",
@@ -38,6 +40,7 @@ async def _practise(client: AsyncClient, headers: dict, body: dict[str, Any], re
             headers=headers,
         )
         assert answered.status_code == 200, answered.text
+        session["answers"].append(answered.json())
     return session
 
 
@@ -102,9 +105,7 @@ async def test_a_weak_topic_gets_easier_practice_and_a_revision_until_it_is_done
         "active",
         "2.2 Solving Equations",
     )
-    assert (
-        first["reason"] == "20% right in the last 5 answers. Revise the idea, then practise easy questions."
-    )
+    assert reason(first) == {"code": "weak", "accuracy": 0.2, "answers": 5, "difficulty": "easy"}
     assert first["practice"] | {"student_id": None} == {
         "student_id": None,
         "book_id": None,
@@ -150,7 +151,7 @@ async def test_the_youngest_get_gentle_repetition_without_levels_or_labels(
 
     (first,) = await _recommendations(client, parent.headers, child)
     assert (first["kind"], first["practice"]["difficulty"]) == ("strengthen", "easy")
-    assert first["reason"] == "Let's practise this again, with easy questions."
+    assert reason(first) == {"code": "again"}
 
 
 async def test_an_area_being_learned_continues_and_one_left_for_a_week_is_reviewed(
@@ -162,7 +163,8 @@ async def test_an_area_being_learned_continues_and_one_left_for_a_week_is_review
 
     continuing, new_chapter = await _recommendations(client, parent.headers, child)
     assert (continuing["kind"], continuing["practice"]["difficulty"]) == ("continue", "medium")
-    assert continuing["reason"] == "67% right in the last 3 answers. Next: medium questions."
+    next_level = {"code": "next_level", "accuracy": 0.67, "answers": 3, "difficulty": "medium"}
+    assert reason(continuing) == next_level
     assert continuing["revise"] is None and new_chapter["kind"] == "new_chapter"
 
     # A new list the next day, when the topic was last practised eight days ago.
@@ -173,7 +175,7 @@ async def test_an_area_being_learned_continues_and_one_left_for_a_week_is_review
 
     review, _ = await _recommendations(client, parent.headers, child)
     assert (review["kind"], review["practice"]["difficulty"]) == ("review", "medium")
-    assert review["reason"] == "Last practised 8 days ago. A short practice keeps it fresh."
+    assert reason(review) == {"code": "review", "days": 8}
 
 
 async def test_a_new_learner_is_offered_the_chapters_of_their_own_books(client: AsyncClient):

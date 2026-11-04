@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { LearnerProfileForm } from "@/components/learner-profile-form";
 import { getMe, getOptions } from "@/lib/api";
 import { saveOwnProfile } from "@/lib/actions/students";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-export const metadata: Metadata = { title: copy.onboarding.profileTitle };
+export const generateMetadata = titled((copy) => copy.onboarding.profileTitle);
 
 /** A student who signed up alone: first-time class details, and later changes to them. */
 export default async function OnboardingProfilePage() {
+  const copy = await getCopy();
   const [me, options] = await Promise.all([getMe(), getOptions()]);
   // In child mode only the parent may change the class (from the parent area).
   if (me.user.role === "parent") redirect("/learn");

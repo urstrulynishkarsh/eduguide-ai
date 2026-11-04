@@ -44,6 +44,7 @@ const result = (overrides = {}) => ({
     feedback: null,
     correct_answer: null,
     session_completed: false,
+    rewards: { xp: 10, badges: [] as string[] },
     ...overrides,
   },
 });
@@ -91,6 +92,7 @@ describe("PracticePlayer", () => {
 
     expect(answerQuestion).toHaveBeenCalledWith("s1", { question_id: "q1", option: 1 }, expect.any(Number));
     expect(await screen.findByText("Correct! Well done 🎉")).toBeInTheDocument();
+    expect(screen.getByText("+10 XP")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Next question" }));
     expect(screen.getByRole("heading", { name: "Second?" })).toBeInTheDocument();
   });
@@ -121,6 +123,23 @@ describe("PracticePlayer", () => {
     expect(answerQuestion).toHaveBeenCalledWith("s1", { question_id: "q1", option: 1 }, expect.any(Number));
     expect(await screen.findByText("Let's try again! 🌟")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "सेब" })).toBeEnabled();
+  });
+
+  it("names a badge an answer earned; the youngest get stickers and no XP", async () => {
+    vi.mocked(answerQuestion).mockResolvedValue(result({ rewards: { xp: 30, badges: ["first_practice"] } }));
+    const { unmount } = render(<PracticePlayer session={session(question({}))} uiMode="standard" />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "7" }));
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    expect(await screen.findByText("🚀 New badge: First practice")).toBeInTheDocument();
+    expect(screen.getByText("+30 XP")).toBeInTheDocument();
+    unmount();
+
+    const picture = question({ format: "visual_choice", options: ["🍎 Apple", "🐱 Cat"] });
+    render(<PracticePlayer session={session(picture)} uiMode="playful" />);
+    await user.click(screen.getByRole("button", { name: "Apple" }));
+    expect(await screen.findByText("🚀 New sticker: First practice")).toBeInTheDocument();
+    expect(screen.queryByText(/XP/)).not.toBeInTheDocument();
   });
 
   it("counts on a number pad for the youngest", async () => {

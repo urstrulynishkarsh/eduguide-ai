@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ExplainBox } from "@/components/explain-box";
@@ -7,10 +6,8 @@ import { Button } from "@/components/ui/button";
 import { createPractice } from "@/lib/actions/practice";
 import { createTest } from "@/lib/actions/tests";
 import { getChapter, getClassProfile, getExercise, requireChosenChild } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 import type { ClassFeatures, ExerciseDetail } from "@/lib/types";
-
-const text = copy.chapter;
 
 /**
  * An exercise question as printed. The book's shared instruction ("Solve the following…") is
@@ -32,12 +29,14 @@ function testKind(features: ClassFeatures): string | null {
   return features.practice_tests ? "practice" : null;
 }
 
-export const metadata: Metadata = { title: copy.practiceForm.chapter };
+export const generateMetadata = titled((copy) => copy.practiceForm.chapter);
 
 /** A chapter: Learn · Practice · Exercise Questions · Generate Questions · Take Test (spec §39). */
 export default async function ChapterPage({
   params,
 }: PageProps<"/parent/books/[bookId]/chapters/[chapterId]">) {
+  const copy = await getCopy();
+  const text = copy.chapter;
   const { bookId, chapterId } = await params;
   const [chapter, child] = await Promise.all([getChapter(chapterId), requireChosenChild()]);
   const [exercises, classProfile] = await Promise.all([

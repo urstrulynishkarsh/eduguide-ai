@@ -4,7 +4,7 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 10 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
+> **Build status: Step 11 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
 > child, uploads a book, creates practice from a chapter or exercise and hands the device over;
 > the child practises (with hints, steps and answers) in a layout made for their age, and both
 > see the progress. The app knows each child's mastery of every topic, moves the difficulty with
@@ -12,13 +12,18 @@ from Nursery to Class 12.
 > result report and study plans that follow performance (Step 8); and it has the full parent
 > dashboard, the test and plan screens, the Parent AI Assistant and the Student AI Tutor (Step 9);
 > it analyses previous-year papers, finds the mistakes a child keeps making, and gives JEE / NEET /
-> CUET aspirants tests in their exam's pattern with negative marking (Step 10).
+> CUET aspirants tests in their exam's pattern with negative marking (Step 10); every screen is in
+> English, Hindi or Hinglish, children earn streaks, XP and badges, and Progress shows how things
+> change over the weeks (Step 11).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
 
 **In the browser** (<http://localhost:3000>)
 
+- **Every screen in English, हिन्दी or Hinglish**: a language picker on the first pages, in Settings
+  and in a student's header (saved on the account); a child's screens follow the language of their
+  explanations
 - Landing page, sign-up ("Who are you? Parent / Student") and sign-in
 - **Add Child** with the class first: stream, goals and subject suggestions follow the class
 - **Who is learning today?** — the parent taps a child and hands over the device (child mode).
@@ -56,7 +61,12 @@ from Nursery to Class 12.
   pages. Its next questions check the mistake; three right answers in a row put it right
 - **JEE / NEET / CUET mode** (Class 11–12, by goal): every test in the exam's pattern — +4 / −1
   (CUET +5 / −1), JEE's numerical section, the exam's pace
-- The learner's home: **Recommended for You** and **Today's plan**
+- The learner's home: the **streak** (days in a row), **level and XP**, **today's goal**,
+  **Recommended for You** and **Today's plan**. Every answer earns XP (+10 right the first time),
+  badges come with milestones; Nursery–Class 2 see stars and stickers, no XP
+- **Progress over time** on both Progress pages: the last 12 weeks, test scores, how each subject,
+  kind of question and difficulty goes (each chart with its numbers as a table), and every badge;
+  a paper analysis shows each chapter's marks year by year
 - A child switcher at the top of the parent area; Children and Settings as before
 - The student area in **four layouts** chosen by the class: big and playful for Nursery–Class 2,
   roomy for Class 3–5, a regular app for Class 6–8, a compact academic one for Class 9–12. Works on
@@ -112,8 +122,11 @@ from Nursery to Class 12.
   stream back as they are written. The assistant answers from the child's own numbers (never sending
   the child's name to the AI) and books; the tutor walks the hint ladder — Hint 1 → Hint 2 → Concept →
   Steps → Answer, one rung per request for help, "hints only" stops at Hint 2 — from the child's books
+- **Rewards** (`GET /api/v1/students/{id}/rewards`): XP and level, the streak, today's goal, badges;
+  **Progress over time** (`GET /api/v1/students/{id}/progress/trends`); the account's screen language
+  (`PATCH /api/v1/auth/me`). Reasons and errors are sent as codes, so the screens word them in any language
 - Database migrations, demo data (including two sample books), automatic API documentation, and
-  automated tests: 343 for the API, 110 for the screens and 13 browser journeys
+  automated tests: 381 for the API, 132 for the screens and 15 browser journeys
 
 ## Run it on your computer
 
@@ -271,7 +284,7 @@ is reused; otherwise the tests build and start one).
 | `backend/app/adaptive_learning` | Mastery per topic, difficulty that follows results, daily recommendations, the study planner |
 | `backend/app/chat` | The Student AI Tutor's hint ladder and the Parent AI Assistant |
 | `frontend/app` | The screens (Next.js pages): public, onboarding, `parent/`, `learn/` |
-| `frontend/components`, `frontend/lib` | Shared pieces, the wording of every screen (`lib/copy.ts`), sessions, calls to the API |
+| `frontend/components`, `frontend/lib` | Shared pieces, the wording of every screen in each language (`lib/copy/`), sessions, calls to the API |
 
 ## Everyday commands (run inside `backend/`)
 

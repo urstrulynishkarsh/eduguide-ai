@@ -12,7 +12,7 @@ test("a parent signs up, adds a child, hands over the device and takes it back",
   await expect(page.getByRole("heading", { name: "Add Child" })).toBeVisible();
 
   await chooseClass(page, "Class 7", "Aarav");
-  await page.getByLabel("Age").fill("12");
+  await page.getByLabel("Age", { exact: true }).fill("12"); // not the language picker's "Language"
   await page.getByRole("button", { name: "Add child" }).click();
 
   // Who is learning? → child mode

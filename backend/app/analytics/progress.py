@@ -6,19 +6,20 @@ same rule. Test answers count like practice answers; the sessions listed are pra
 """
 
 import uuid
-from datetime import date, timedelta
+from collections.abc import Callable
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import ColumnElement, Date, Integer, Subquery, cast, func, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Chapter, PracticeItem, PracticeSession, Question, QuestionAttempt, Topic
-from app.models.base import utcnow
 from app.rag.ingestion.labels import chapter_label
-from app.schemas.dashboard import DayProgress
+from app.schemas.dashboard import DayProgress, Share
 from app.schemas.practice import AreaProgress, ProgressOut, SessionSummary
 
 _RECENT_SESSIONS = 5
+INDIA = timezone(timedelta(hours=5, minutes=30))  # no daylight saving, so a fixed offset is exact
 
 
 def first_answers(student_id: uuid.UUID) -> Subquery:
@@ -123,41 +124,81 @@ def _india_day(moment: ColumnElement) -> ColumnElement[date]:
     return cast(func.timezone("Asia/Kolkata", moment), Date)
 
 
-async def week(db: AsyncSession, student_id: uuid.UUID, today: date) -> list[DayProgress]:
-    """The 7 days up to `today` (India time), oldest first: first answers, how many were right,
-    and the minutes spent answering (every attempt, as in `progress`)."""
-    since = utcnow() - timedelta(days=8)  # a little more than a week, whatever the time zone
+def _india_week(moment: ColumnElement) -> ColumnElement[date]:
+    """The Monday of the week (India time)."""
+    return cast(func.date_trunc("week", func.timezone("Asia/Kolkata", moment)), Date)
+
+
+async def _periods(
+    db: AsyncSession,
+    student_id: uuid.UUID,
+    starts: list[date],
+    period: Callable[[ColumnElement], ColumnElement[date]],
+) -> list[DayProgress]:
+    """For each period (a day or a week, by its first day, oldest first): first answers, how many were
+    right, and the minutes spent answering (every attempt, as in `progress`)."""
+    since = datetime.combine(starts[0], time(), INDIA)
     first = first_answers(student_id)
-    day = _india_day(first.c.created_at).label("day")
+    key = period(first.c.created_at).label("key")
     answers = {
-        row.day: row
+        row.key: row
         for row in await db.execute(
             select(
-                day,
+                key,
                 func.count().label("answered"),
                 func.sum(cast(first.c.is_correct, Integer)).label("right"),
             )
             .where(first.c.created_at >= since)
-            .group_by(day)
+            .group_by(key)
         )
     }
-    attempt_day = _india_day(QuestionAttempt.created_at).label("day")
+    attempt_key = period(QuestionAttempt.created_at).label("key")
     time_spent = dict(
         (
             await db.execute(
-                select(attempt_day, func.sum(QuestionAttempt.time_taken_ms))
+                select(attempt_key, func.sum(QuestionAttempt.time_taken_ms))
                 .where(QuestionAttempt.student_id == student_id, QuestionAttempt.created_at >= since)
-                .group_by(attempt_day)
+                .group_by(attempt_key)
             )
         ).all()
     )
-    days = [today - timedelta(days=back) for back in range(6, -1, -1)]
     return [
         DayProgress(
-            day=day,
-            answered=answers[day].answered if day in answers else 0,
-            correct=answers[day].right if day in answers else 0,
-            minutes=round((time_spent.get(day) or 0) / 60000),
+            day=start,
+            answered=answers[start].answered if start in answers else 0,
+            correct=answers[start].right if start in answers else 0,
+            minutes=round((time_spent.get(start) or 0) / 60000),
         )
-        for day in days
+        for start in starts
     ]
+
+
+async def week(db: AsyncSession, student_id: uuid.UUID, today: date) -> list[DayProgress]:
+    """The 7 days up to `today` (India time), oldest first."""
+    days = [today - timedelta(days=back) for back in range(6, -1, -1)]
+    return await _periods(db, student_id, days, _india_day)
+
+
+async def weeks(db: AsyncSession, student_id: uuid.UUID, today: date, count: int) -> list[DayProgress]:
+    """The `count` weeks up to this one (Monday to Sunday, India time), oldest first; each by its Monday."""
+    monday = today - timedelta(days=today.weekday())
+    return await _periods(
+        db, student_id, [monday - timedelta(weeks=back) for back in range(count - 1, -1, -1)], _india_week
+    )
+
+
+async def shares(db: AsyncSession, student_id: uuid.UUID) -> tuple[list[Share], list[Share], list[Share]]:
+    """How well each subject, kind of question and difficulty goes (first answers), most answered first."""
+    first = first_answers(student_id)
+
+    async def by(column: ColumnElement[str]) -> list[Share]:
+        rows = await db.execute(
+            select(column, func.count(), func.avg(cast(first.c.is_correct, Integer)))
+            .select_from(first)
+            .join(Question, Question.id == first.c.question_id)
+            .group_by(column)
+            .order_by(func.count().desc(), column)
+        )
+        return [Share(code=code, answered=n, accuracy=round(float(avg), 3)) for code, n, avg in rows]
+
+    return await by(Question.subject), await by(Question.format), await by(first.c.difficulty)

@@ -3,16 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { useCopy } from "@/components/copy-provider";
 import { FormMessage } from "@/components/form-message";
 import { SourceLine } from "@/components/source-line";
 import { Button } from "@/components/ui/button";
 import { createChat } from "@/lib/actions/chat";
-import { copy } from "@/lib/copy";
+import type { Refusal } from "@/lib/forms";
 import { readEvents } from "@/lib/sse";
 import type { Chat, ChatKind, ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const text = copy.chat;
 
 /** What the reply stream says (docs/03 §3.8). */
 type ReplyEvent =
@@ -21,6 +20,8 @@ type ReplyEvent =
   | { event: "error"; data: { code: string; message: string } };
 
 function Bubble({ message }: { message: Pick<ChatMessage, "role" | "content"> & Partial<ChatMessage> }) {
+  const copy = useCopy();
+  const text = copy.chat;
   const mine = message.role === "user";
   return (
     <li
@@ -58,12 +59,14 @@ export function ChatBox({
   chat: Chat | null;
   basePath: string;
 }) {
+  const copy = useCopy();
+  const text = copy.chat;
   const router = useRouter();
   const [messages, setMessages] = useState(chat?.messages ?? []);
   const [draft, setDraft] = useState("");
   const [asking, setAsking] = useState<string | null>(null);
   const [reply, setReply] = useState("");
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<Refusal>();
   const [, startTransition] = useTransition();
   const chatId = useRef(chat?.id);
   const end = useRef<HTMLDivElement>(null);
@@ -82,8 +85,8 @@ export function ChatBox({
     setReply("");
     setError(undefined);
     setDraft("");
-    const fail = (message: string) => {
-      setError(message);
+    const fail = (refusal: Refusal) => {
+      setError(refusal);
       setAsking(null);
       setDraft(question);
     };
@@ -102,12 +105,14 @@ export function ChatBox({
       if (!response.ok || !response.body) {
         const refused = (await response.json().catch(() => null))?.error;
         return fail(
-          refused?.code === "ai_not_configured" ? words.aiOff : (refused?.message ?? copy.errors.unexpected),
+          refused?.code === "ai_not_configured"
+            ? { message: words.aiOff }
+            : { code: "internal_error", ...refused },
         );
       }
       for await (const { event, data } of readEvents(response.body) as AsyncGenerator<ReplyEvent>) {
         if (event === "delta") setReply((current) => current + data.text);
-        else if (event === "error") return fail(data.message);
+        else if (event === "error") return fail(data);
         else {
           if (chat) {
             setMessages((current) => [...current, data.question, data.answer]);
@@ -125,9 +130,9 @@ export function ChatBox({
           return;
         }
       }
-      fail(copy.errors.unexpected); // the stream ended before the reply was complete
+      fail({ code: "internal_error" }); // the stream ended before the reply was complete
     } catch {
-      fail(copy.errors.unreachable);
+      fail({ code: "unreachable" });
     }
   }
 
@@ -153,7 +158,7 @@ export function ChatBox({
           </>
         )}
       </ol>
-      <FormMessage message={error} />
+      <FormMessage error={error} />
       <form
         onSubmit={(event) => {
           event.preventDefault();

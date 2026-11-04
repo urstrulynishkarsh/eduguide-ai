@@ -1,14 +1,25 @@
+import type { Reason } from "@/lib/types";
+
 /**
- * Every word shown on screen, in one place. English only for now; Step 11 adds Hindi and
- * Hinglish with the same shape. Parent screens use parent words (docs/04 §4.5).
+ * Every word shown on screen in English. hi.ts and hinglish.ts have the same shape (the `Copy` type
+ * makes sure none is missing); lib/copy/index.ts lists the languages. Parent screens use parent words
+ * (docs/04 §4.5).
  */
 /** "1 chapter", "3 chapters". */
 function counted(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
-export const copy = {
-  appName: "EduGuide AI",
+const percent = (share: number | null) => `${Math.round((share ?? 0) * 100)}%`;
+const level: Record<string, string> = { easy: "easy", medium: "medium", hard: "hard" };
+const rightLately = (reason: Reason) =>
+  `${percent(reason.accuracy)} right in the last ${reason.answers} answers`;
+
+export const en = {
+  /** The language itself: its code, its name in the picker, `lang` of the page, how dates are written. */
+  language: { code: "en", name: "English", htmlLang: "en", locale: "en-IN" },
+  /** The language picker's label (for screen readers; the picker shows each language's own name). */
+  languagePicker: "Language",
   signOut: "Sign out",
   cancel: "Cancel",
   start: "Start",
@@ -557,6 +568,58 @@ export const copy = {
     keepGoing: "Every right answer gives you a star. Keep going!",
   },
 
+  /** Streaks, XP and badges (the youngest see the streak, today's goal and stickers, no XP). */
+  rewards: {
+    title: "Streak and badges",
+    streak: (days: number) => (days ? `🔥 ${counted(days, "day")} in a row` : "🔥 No streak yet"),
+    streakHint: "Answer a question every day to keep the streak going.",
+    level: (level: number) => `Level ${level}`,
+    xp: (inside: number, size: number) => `${inside} / ${size} XP`,
+    today: (answered: number, goal: number) => `Today: ${answered} of ${goal} questions`,
+    goalDone: "Today's goal done! 🎉",
+    gained: (xp: number) => `+${xp} XP`,
+    newBadge: (name: string) => `New badge: ${name}`,
+    newSticker: (name: string) => `New sticker: ${name}`,
+    badgesTitle: "Badges",
+    stickersTitle: "My stickers",
+    earnedOn: (date: string) => `Earned ${date}`,
+    badges: {
+      first_practice: { name: "First practice", how: "Finish a practice." },
+      perfect_practice: {
+        name: "Perfect practice",
+        how: "Get every question of a practice right the first time.",
+      },
+      right_10: { name: "10 right answers", how: "Get 10 questions right the first time." },
+      right_100: { name: "100 right answers", how: "Get 100 questions right the first time." },
+      streak_3: { name: "3 days in a row", how: "Practise 3 days in a row." },
+      streak_7: { name: "A week in a row", how: "Practise 7 days in a row." },
+      streak_30: { name: "A month in a row", how: "Practise 30 days in a row." },
+      first_test: { name: "First test", how: "Submit a test." },
+      topic_mastered: { name: "Topic mastered", how: "Make a topic strong." },
+      mistake_fixed: { name: "Mistake put right", how: "Put right a mistake you kept making." },
+      level_5: { name: "Level 5", how: "Reach level 5." },
+    } as Record<string, { name: string; how: string }>,
+  },
+
+  /** Progress over time: the charts of Progress ("Track Progress", never "analytics": docs/04 §4.5). */
+  trends: {
+    title: "Progress over time",
+    weeks: "The last 12 weeks",
+    weekOf: (date: string) => `Week of ${date}`,
+    tests: "Test scores",
+    subjects: "By subject",
+    formats: "By kind of question",
+    difficulties: "By difficulty",
+    table: "Show the numbers",
+    week: "Week",
+    test: "Test",
+    date: "Date",
+    score: "Score",
+    answered: "Answered",
+    minutes: "Minutes",
+    byYear: (years: string) => `Marks by year: ${years}`,
+  },
+
   chat: {
     assistant: {
       title: "AI Assistant",
@@ -617,15 +680,52 @@ export const copy = {
     back: "Go to the home page",
   },
 
-  // Other errors show the backend's message, which is written to be safe for parents.
+  /**
+   * Labels the backend sends in English (classes, boards, goals…), by code. English shows the
+   * backend's own label, so these are empty here; another language fills in what it says differently.
+   */
+  options: {
+    classes: {} as Record<string, string>,
+    boards: {} as Record<string, string>,
+    streams: {} as Record<string, string>,
+    goals: {} as Record<string, string>,
+    material_types: {} as Record<string, string>,
+  },
+
+  /** Why a recommendation or a plan task was chosen (the backend sends a code and its numbers). */
+  reasons: {
+    weak: (r) => `${rightLately(r)}. Revise the idea, then practise ${level[r.difficulty ?? ""]} questions.`,
+    again: () => "Let's practise this again, with easy questions.",
+    next_level: (r) => `${rightLately(r)}. Next: ${level[r.difficulty ?? ""]} questions.`,
+    keep_going: (r) => `${rightLately(r)}. A little more practice makes it strong.`,
+    review: (r) => `Last practised ${r.days} days ago. A short practice keeps it fresh.`,
+    new_chapter: () => "Not practised yet. Start with a short practice.",
+    revise: (r) => `${rightLately(r)}. Revise the idea.`,
+    strengthen: (r) => `Then strengthen it with ${level[r.difficulty ?? ""]} questions.`,
+    final_review: (r) => `${percent(r.mastery)} mastered. A quick review before the exam.`,
+    learn_first: () => "Not practised yet. Learn the idea first.",
+    first_practice: () => "A first practice of this chapter.",
+    towards_aim: (r) => `${percent(r.mastery)} mastered; the aim is ${percent(r.aim)}.`,
+    more_practice: (r) => `More practice: the aim is ${percent(r.aim)}.`,
+    full_mock_test: () => "A full mock test, timed like the exam.",
+    practice_test: () => "A practice test on the whole book.",
+    planned: () => "Planned for you.",
+  } as Record<string, (reason: Reason) => string>,
+
+  /**
+   * Error messages by code. English shows the backend's own message for the rest (written to be safe
+   * for parents); another language translates every code it can.
+   */
   errors: {
     unreachable: "We can't reach EduGuide right now. Please try again in a minute.",
-    unexpected: "Something went wrong on our side. Please try again.",
-    // Said more helpfully than the API can: what the parent can do about it.
-    ai_not_configured:
+    internal_error: "Something went wrong on our side. Please try again.",
+    // Said more helpfully than the API can, by where it happened: what the parent can do about it.
+    questions_ai_not_configured:
       "There are not enough saved questions for this choice, and writing new ones needs the AI, which is not switched on yet. Try another chapter, fewer questions or a different type.",
     explain_ai_not_configured: "Explanations need the AI, which is not switched on yet.",
     marking_ai_not_configured: "Written answers are marked by the AI, which is not switched on yet.",
     analysis_ai_not_configured: "Analysing papers needs the AI, which is not switched on yet.",
-  },
+  } as Record<string, string>,
 };
+
+export type Copy = typeof en;

@@ -618,7 +618,8 @@ the task `done`; learn tasks are ticked off with `PATCH`.
   "tests": [ { "attempt_id": "…", "mock_test_id": "…", "kind": "chapter", "place": "Chapter 4 …",
                "score": 6.5, "total_marks": 12, "percentage": 54.2, "submitted_at": "…" } ],
   "plan": { "plan_id": "…", "exam_date": "2026-12-10", "days_left": 36, "done": 3, "total": 24,
-            "today": [ "PlanItemOut …" ] }
+            "today": [ "PlanItemOut …" ] },
+  "rewards": "RewardsOut (Step 11, §3.10)"
 }
 ```
 
@@ -762,10 +763,50 @@ Class 3–12 (`misconception_detection`); nothing happens with the AI off. Activ
 question writer for that place (questions and hints that check them) and to the Parent AI Assistant;
 the dashboard shows up to 3.
 
-## 3.10 Planned endpoints
+## 3.10 Endpoints added in Step 11 — languages, rewards, progress over time
 
-No endpoints are planned yet for Steps 11–12; they are decided in those steps. Rules that hold for
-all endpoints:
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| PATCH | `/api/v1/auth/me` | the account holder (not child mode: `403 parent_required`) | `{"preferred_language": "en" \| "hi" \| "hinglish"}`, the language of the screens |
+| GET | `/api/v1/students/{id}/rewards` | owner | Streak, XP, level, today's goal, every badge |
+| GET | `/api/v1/students/{id}/progress/trends` | owner | The last 12 weeks, shares by subject / format / difficulty, the last 20 tests |
+
+### Words the screens put together
+
+The backend writes no sentence a screen shows besides its error messages (English, for developers
+and as the fallback). Recommendation and plan-task `reason`s are a code with its numbers, e.g.
+`{"code": "weak", "accuracy": 0.2, "answers": 5, "difficulty": "easy", "days": null, "mastery": null,
+"aim": null}` (codes in `schemas/adaptive.Reason`); the frontend words them in the screen language
+(`frontend/lib/copy`). Error messages and option labels are translated there by their `code`.
+
+### Rewards
+
+```json
+{
+  "student_id": "…", "xp": 110, "level": 2, "level_xp": 10, "level_size": 150,
+  "streak": 3, "longest_streak": 5, "today": { "answered": 4, "goal": 10 },
+  "badges": [ { "code": "first_practice", "earned_at": "…" }, { "code": "right_10", "earned_at": null } ]
+}
+```
+
+XP: the first answer to a question in a practice or a test sitting +2, right the first time +8 more;
+a finished practice or a submitted test +20; the day's goal (the class's usual practice length)
++10. Trying again and hints earn and cost nothing. Level *n* → *n*+1 takes 100, 150, 200, … XP. The
+streak counts days in a row (India time) with an answer and is kept until the end of the next day.
+Badges: `first_practice`, `perfect_practice`, `right_10`, `right_100`, `streak_3`, `streak_7`,
+`streak_30`, `first_test`, `topic_mastered`, `mistake_fixed`, `level_5` (earned first, newest first,
+then the rest). An answer (`POST /practice/sessions/{id}/answers`) also returns what it earned:
+`"rewards": {"xp": 30, "badges": ["first_practice"]}`.
+
+### Progress over time
+
+`weeks` has the dashboard's `week` shape, one entry a week (`day` is its Monday); `subjects`,
+`formats` and `difficulties` are `[{"code", "answered", "accuracy"}]`, most answered first (first
+answers, as everywhere); `tests` are the dashboard's test results, oldest first.
+
+## 3.11 Rules for every endpoint
+
+No endpoints are planned for Step 12 (production hardening). Rules that hold for all endpoints:
 
 - Lists that can grow use cursor pagination: `?limit=20&cursor=...` → `{ "items": [...], "next_cursor": "..." }`.
 - Anything produced with the help of the child's books returns a `source` object (book, chapter,

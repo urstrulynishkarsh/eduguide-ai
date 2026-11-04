@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -17,15 +16,16 @@ import {
   getPaperAnalysis,
 } from "@/lib/api";
 import { deleteBook, removeDocument, retryDocument } from "@/lib/actions/books";
-import { copy } from "@/lib/copy";
+import { classLabel } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 import type { Book } from "@/lib/types";
 
-const text = copy.library;
-
-export const metadata: Metadata = { title: text.title };
+export const generateMetadata = titled((copy) => copy.library.title);
 
 /** A book: its chapters and files; for previous-year papers (Class 9–12), their analysis too. */
 export default async function BookPage({ params }: PageProps<"/parent/books/[bookId]">) {
+  const copy = await getCopy();
+  const text = copy.library;
   const { bookId } = await params;
   const [book, chapters, options] = await Promise.all([getBook(bookId), getChapters(bookId), getOptions()]);
   const reading = book.documents.some(
@@ -40,7 +40,7 @@ export default async function BookPage({ params }: PageProps<"/parent/books/[boo
       <AutoRefresh active={reading} />
       <div className="grid gap-1">
         <h1 className="text-3xl font-extrabold">📘 {book.title}</h1>
-        <p className="text-muted-foreground">{[book.subject, book.class_label].join(" · ")}</p>
+        <p className="text-muted-foreground">{[book.subject, classLabel(copy, book)].join(" · ")}</p>
       </div>
 
       <section className="grid gap-3">
@@ -69,10 +69,11 @@ export default async function BookPage({ params }: PageProps<"/parent/books/[boo
 
       {papers && (
         <PaperAnalysisView
+          copy={copy}
           bookId={book.id}
           analysis={papers.analysis}
           studentId={papers.studentId}
-          classLabel={book.class_label}
+          classLabel={classLabel(copy, book)}
         />
       )}
 
@@ -82,7 +83,7 @@ export default async function BookPage({ params }: PageProps<"/parent/books/[boo
           {book.documents.map((document) => (
             <li key={document.id} className="grid gap-3 rounded-xl border bg-card p-4 shadow-sm">
               <p className="font-medium break-all">{document.original_filename}</p>
-              <DocumentChecklist document={document} />
+              <DocumentChecklist copy={copy} document={document} />
               {document.status === "ready" && (
                 <p className="text-sm text-success">
                   {text.found(
@@ -92,7 +93,7 @@ export default async function BookPage({ params }: PageProps<"/parent/books/[boo
                   )}
                 </p>
               )}
-              <FormMessage message={document.error?.message} />
+              <FormMessage error={document.error} />
               <div className="flex flex-wrap gap-2">
                 {document.status === "failed" && (
                   <form action={retryDocument.bind(null, document.id)}>

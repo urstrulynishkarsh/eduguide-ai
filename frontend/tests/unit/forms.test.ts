@@ -31,6 +31,7 @@ describe("formError", () => {
       ],
     });
     expect(formError(error)).toEqual({
+      code: "invalid_learning_profile",
       message: "Class 11 and 12 need a stream.",
       fieldErrors: { stream: "Choose a stream.", goal: "JEE needs the Science stream." },
     });

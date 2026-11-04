@@ -1,14 +1,16 @@
-"""Mastery, recommendations and misconceptions of one learner, for whoever may see that learner (404
-otherwise)."""
+"""Mastery, recommendations, misconceptions and rewards of one learner, for whoever may see that
+learner (404 otherwise)."""
 
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adaptive_learning import mastery, misconceptions, recommendations
+from app.analytics import rewards
 from app.auth.principal import Principal
 from app.models import Student
 from app.schemas.adaptive import MasteryOut, MisconceptionsOut, RecommendationsOut
+from app.schemas.rewards import RewardsOut
 from app.services import library_service, student_service
 
 LISTED = 50  # misconceptions listed, active first
@@ -34,3 +36,7 @@ async def misconceptions_of(
     db: AsyncSession, principal: Principal, student_id: uuid.UUID
 ) -> MisconceptionsOut:
     return await misconceptions.of_learner(db, await _learner(db, principal, student_id), limit=LISTED)
+
+
+async def rewards_of(db: AsyncSession, principal: Principal, student_id: uuid.UUID) -> RewardsOut:
+    return await rewards.summary(db, await _learner(db, principal, student_id))

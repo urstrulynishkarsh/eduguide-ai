@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Recommendations, RecentTests, WeekChart } from "@/components/dashboard";
 import { PlanSummary, TaskActions, TaskLine } from "@/components/plan-view";
 import type { Dashboard, PlanItem, StudyPlan } from "@/lib/types";
+import { en } from "@/lib/copy/en";
 
 vi.mock("@/lib/actions/plans", () => ({ setTaskStatus: vi.fn() }));
 vi.mock("@/lib/actions/practice", () => ({ createPractice: vi.fn() }));
@@ -15,7 +16,15 @@ function task(overrides: Partial<PlanItem> = {}): PlanItem {
     kind: "practice",
     status: "pending",
     minutes: 20,
-    reason: "45% mastery, below the target. Practise it.",
+    reason: {
+      code: "towards_aim",
+      accuracy: null,
+      answers: null,
+      difficulty: null,
+      days: null,
+      mastery: 0.45,
+      aim: 0.8,
+    },
     book_title: "Class 7 Maths",
     chapter: "Chapter 4 Simple Equations",
     topic: null,
@@ -47,8 +56,8 @@ function plan(overrides: Partial<StudyPlan> = {}): StudyPlan {
 function renderTask(item: PlanItem) {
   return render(
     <ul>
-      <TaskLine item={item}>
-        <TaskActions item={item} />
+      <TaskLine copy={en} item={item}>
+        <TaskActions copy={en} item={item} />
       </TaskLine>
     </ul>,
   );
@@ -56,7 +65,7 @@ function renderTask(item: PlanItem) {
 
 describe("study plan", () => {
   it("sums the plan up, and says what to change when not everything fits", () => {
-    render(<PlanSummary plan={plan({ unscheduled: 4 })} />);
+    render(<PlanSummary copy={en} plan={plan({ unscheduled: 4 })} />);
     expect(
       screen.getByText(
         "Exam on 10 December 2026 · 36 days to the exam · 3 of 24 tasks done · 1 missed · 45 min a day",
@@ -70,7 +79,7 @@ describe("study plan", () => {
   it("starts a practice task as it was planned, and can tick it off", () => {
     const { container } = renderTask(task());
     expect(screen.getByText(/Practice: Chapter 4 Simple Equations/)).toBeInTheDocument();
-    expect(screen.getByText(/45% mastery, below the target/)).toBeInTheDocument();
+    expect(screen.getByText(/45% mastered; the aim is 80%/)).toBeInTheDocument(); // the reason, in words
     expect(screen.getByRole("button", { name: "Start: Chapter 4 Simple Equations" })).toBeInTheDocument();
     expect(container.querySelector('input[name="chapter_id"]')).toHaveValue("c1");
     expect(container.querySelector('input[name="difficulty"]')).toHaveValue("medium");
@@ -119,7 +128,15 @@ function recommendation(id: string, overrides: Partial<Dashboard["recommendation
   return {
     id,
     status: "active" as const,
-    reason: "40% right in the last 5 answers.",
+    reason: {
+      code: "weak",
+      accuracy: 0.4,
+      answers: 5,
+      difficulty: "easy",
+      days: null,
+      mastery: null,
+      aim: null,
+    },
     chapter_id: "c1",
     chapter: "Chapter 4 Simple Equations",
     topic: `4.${id} Topic ${id}`,
@@ -131,7 +148,7 @@ function recommendation(id: string, overrides: Partial<Dashboard["recommendation
 
 describe("dashboard", () => {
   it("tells screen readers the numbers of each day of the week", () => {
-    render(<WeekChart week={week} />);
+    render(<WeekChart copy={en} week={week} />);
     expect(
       screen.getByRole("img", { name: "Thursday, 29 October: 5 answered, 3 right the first time" }),
     ).toBeInTheDocument();
@@ -142,6 +159,7 @@ describe("dashboard", () => {
   it("puts Start Recommended Practice on the parent's first recommendation", () => {
     const { container } = render(
       <Recommendations
+        copy={en}
         items={[recommendation("1"), recommendation("2"), recommendation("3", { status: "done" })]}
         area="parent"
       />,
@@ -156,7 +174,7 @@ describe("dashboard", () => {
   });
 
   it("lets a learner revise a weak topic's idea first", () => {
-    render(<Recommendations items={[recommendation("1")]} area="learn" />);
+    render(<Recommendations copy={en} items={[recommendation("1")]} area="learn" />);
     expect(screen.getByRole("link", { name: "Revise the idea first" })).toHaveAttribute(
       "href",
       "/learn/concepts/c1?q=4.1%20Topic%201",
@@ -166,6 +184,7 @@ describe("dashboard", () => {
   it("opens the report of a recent test", () => {
     render(
       <RecentTests
+        copy={en}
         tests={[
           {
             attempt_id: "a1",

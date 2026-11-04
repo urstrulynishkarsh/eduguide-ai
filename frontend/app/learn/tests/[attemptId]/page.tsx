@@ -1,21 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { TestPlayer } from "@/components/test-player";
 import { placeOf, TestReportView, testTitle } from "@/components/test-report";
 import { getAttempt, getReport, getTest } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.tests;
-
-export const metadata: Metadata = { title: text.myTitle };
+export const generateMetadata = titled((copy) => copy.tests.myTitle);
 
 /** A sitting: the test while it is being taken (after a reload too), then its report. */
 export default async function TestAttemptPage({ params }: PageProps<"/learn/tests/[attemptId]">) {
+  const copy = await getCopy();
+  const text = copy.tests;
   const { attemptId } = await params;
   const attempt = await getAttempt(attemptId);
   const test = await getTest(attempt.mock_test_id);
-  const title = testTitle(test.kind, placeOf(test));
+  const title = testTitle(copy, test.kind, placeOf(test));
   if (attempt.status === "in_progress")
     return <TestPlayer key={attempt.id} attempt={attempt} title={title} />;
 
@@ -30,7 +29,7 @@ export default async function TestAttemptPage({ params }: PageProps<"/learn/test
           {text.reportTitle}: {title}
         </h1>
       </div>
-      <TestReportView report={report} />
+      <TestReportView copy={copy} report={report} />
     </div>
   );
 }

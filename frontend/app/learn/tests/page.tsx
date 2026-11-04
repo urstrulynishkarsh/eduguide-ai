@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -8,14 +7,14 @@ import { TestHeading } from "@/components/test-report";
 import { Button } from "@/components/ui/button";
 import { startTest } from "@/lib/actions/tests";
 import { getBooks, getLearner, getOptions, getTests } from "@/lib/api";
-import { copy } from "@/lib/copy";
+import { getCopy, titled } from "@/lib/copy/server";
 
-const text = copy.tests;
-
-export const metadata: Metadata = { title: text.myTitle };
+export const generateMetadata = titled((copy) => copy.tests.myTitle);
 
 /** The learner's tests: start one, carry on, see the result or take it again; and Create Test. */
 export default async function LearnTestsPage({ searchParams }: PageProps<"/learn/tests">) {
+  const copy = await getCopy();
+  const text = copy.tests;
   const [{ student, profile, classProfile }, query, options, books] = await Promise.all([
     getLearner(),
     searchParams,
@@ -39,7 +38,7 @@ export default async function LearnTestsPage({ searchParams }: PageProps<"/learn
                 key={test.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4"
               >
-                <TestHeading test={test} />
+                <TestHeading copy={copy} test={test} />
                 {test.status === "preparing" && (
                   <p role="status" className="text-sm text-muted-foreground">
                     ⏳ {text.preparingTitle}

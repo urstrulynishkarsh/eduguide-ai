@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Mistakes } from "@/components/dashboard";
 import { PaperAnalysisView } from "@/components/paper-analysis";
 import { testSummary } from "@/components/test-report";
-import { copy } from "@/lib/copy";
+import { en } from "@/lib/copy/en";
 import type { Misconception, MockTest, PaperAnalysis } from "@/lib/types";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -59,6 +59,11 @@ const ANALYSIS: PaperAnalysis = {
       share: 0.11,
       papers: 2,
       trend: "rising",
+      by_year: [
+        { year: 2022, marks: 6 },
+        { year: 2023, marks: 8 },
+        { year: 2024, marks: 10 },
+      ],
       practice: { student_id: null, chapter_id: "c2", topic_id: null, difficulty: "mixed" },
     },
   ],
@@ -74,7 +79,7 @@ const ANALYSIS: PaperAnalysis = {
 
 describe("Understand Mistakes", () => {
   it("says what the child keeps doing and what to remember, with a practice of that topic", () => {
-    const { container } = render(<Mistakes items={[mistake()]} area="parent" />);
+    const { container } = render(<Mistakes copy={en} items={[mistake()]} area="parent" />);
     expect(screen.getByText(/Moves a number across the = sign/)).toBeInTheDocument();
     expect(screen.getByText("4.2 Solving Equations · Seen in 2 answers")).toBeInTheDocument();
     expect(screen.getByText(/When a number moves across =/)).toHaveTextContent("Remember:");
@@ -84,7 +89,9 @@ describe("Understand Mistakes", () => {
   });
 
   it("lets the learner learn the idea again, and marks one put right", () => {
-    render(<Mistakes items={[mistake(), mistake({ id: "m2", status: "resolved" })]} area="learn" />);
+    render(
+      <Mistakes copy={en} items={[mistake(), mistake({ id: "m2", status: "resolved" })]} area="learn" />,
+    );
     expect(screen.getByRole("link", { name: "Revise the idea first" })).toHaveAttribute(
       "href",
       "/learn/concepts/c1?q=Why%20does%20the%20sign%20change%3F",
@@ -97,7 +104,7 @@ describe("Understand Mistakes", () => {
 describe("previous-year papers", () => {
   it("shows where the marks go, with a practice and a test like the papers for the child", () => {
     const { container } = render(
-      <PaperAnalysisView bookId="b1" analysis={ANALYSIS} studentId="s1" classLabel="Class 10" />,
+      <PaperAnalysisView copy={en} bookId="b1" analysis={ANALYSIS} studentId="s1" classLabel="Class 10" />,
     );
     expect(screen.getByText("2023 · 38 questions · 80 marks")).toBeInTheDocument();
     expect(screen.getByText("Not analysed yet")).toBeInTheDocument();
@@ -117,6 +124,7 @@ describe("previous-year papers", () => {
   it("offers nothing to practise for a child of another class, and starts with Analyse", () => {
     render(
       <PaperAnalysisView
+        copy={en}
         bookId="b1"
         analysis={{ ...ANALYSIS, status: "none", papers: [{ ...ANALYSIS.papers[1] }] }}
         studentId={null}
@@ -124,20 +132,22 @@ describe("previous-year papers", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Analyse the papers" })).toBeInTheDocument();
-    expect(screen.queryByText(copy.papers.whereMarks)).not.toBeInTheDocument();
+    expect(screen.queryByText(en.papers.whereMarks)).not.toBeInTheDocument();
 
-    render(<PaperAnalysisView bookId="b1" analysis={ANALYSIS} studentId={null} classLabel="Class 10" />);
-    expect(screen.getByText(copy.papers.otherClass("Class 10"))).toBeInTheDocument();
+    render(
+      <PaperAnalysisView copy={en} bookId="b1" analysis={ANALYSIS} studentId={null} classLabel="Class 10" />,
+    );
+    expect(screen.getByText(en.papers.otherClass("Class 10"))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Practise|Make a test/ })).not.toBeInTheDocument();
   });
 
   it("names the exam pattern of a test, and the marks lost for a wrong answer", () => {
     const test = { question_count: 25, total_marks: 100, duration_minutes: 60, exam: "jee" } as MockTest;
-    expect(testSummary(test)).toBe("25 questions · 100 marks · 60 min · JEE Main pattern");
-    expect(copy.tests.sectionTitle("A", "Objective questions", 4, 1)).toBe(
+    expect(testSummary(en, test)).toBe("25 questions · 100 marks · 60 min · JEE Main pattern");
+    expect(en.tests.sectionTitle("A", "Objective questions", 4, 1)).toBe(
       "Section A · Objective questions · 4 marks each, −1 for a wrong answer",
     );
-    expect(copy.tests.sectionTitle("C", "Short answer questions", 2, 0)).toBe(
+    expect(en.tests.sectionTitle("C", "Short answer questions", 2, 0)).toBe(
       "Section C · Short answer questions · 2 marks each",
     );
   });

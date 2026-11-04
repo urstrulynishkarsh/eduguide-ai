@@ -1,13 +1,15 @@
-import { copy } from "@/lib/copy";
 import type { ApiErrorBody } from "@/lib/types";
 
 /** The FastAPI backend. Only the Next.js server talks to it; the browser never does. */
 export const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8000/api/v1";
 
-/** The error when the backend can't be reached (also sent by the routes that pass calls through). */
+/**
+ * The error when the backend can't be reached (also sent by the routes that pass calls through). The
+ * screens say it by its code (lib/copy `errors`); the message is for logs.
+ */
 export const UNREACHABLE: ApiErrorBody = {
   code: "unreachable",
-  message: copy.errors.unreachable,
+  message: "The backend can't be reached.",
   details: null,
 };
 
@@ -53,7 +55,7 @@ export async function callBackend<T>(
   if (!response.ok) {
     throw new ApiError(
       response.status,
-      data?.error ?? { code: "internal_error", message: copy.errors.unexpected, details: null },
+      data?.error ?? { code: "internal_error", message: "The backend's answer was not JSON.", details: null },
     );
   }
   return data as T;
