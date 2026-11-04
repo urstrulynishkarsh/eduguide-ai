@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { api, saveSession } from "@/lib/api";
 import { childFromForm, formError, profileFromForm, type FormState } from "@/lib/forms";
-import type { ChildSession, Me } from "@/lib/types";
+import type { ChildSession, Me, TestAttempt } from "@/lib/types";
 
 const path = (studentId: string) => `/students/${encodeURIComponent(studentId)}`;
 
@@ -56,11 +56,19 @@ export async function saveOwnProfile(_: FormState, formData: FormData): Promise<
 }
 
 /**
- * The parent hands the device to a child, optionally straight into a practice made for them.
- * The parent's refresh token is dropped (see lib/session.ts).
+ * The parent hands the device to a child, optionally straight into a practice or a test made for
+ * them. A test's clock starts now (a sitting in progress is carried on), before the hand-over, so
+ * nothing has changed if it can't. The parent's refresh token is dropped (see lib/session.ts).
  */
-export async function startChildMode(studentId: string, practiceId: string | null): Promise<void> {
+export async function startChildMode(
+  studentId: string,
+  start: { practice?: string; test?: string },
+): Promise<void> {
+  const id = encodeURIComponent;
+  const sitting =
+    start.test && (await api<TestAttempt>(`/mock-tests/${id(start.test)}/attempts`, { method: "POST" }));
   const session = await api<ChildSession>(`${path(studentId)}/session`, { method: "POST" });
   await saveSession(session.access_token, null);
-  redirect(practiceId ? `/learn/practice/${encodeURIComponent(practiceId)}` : "/learn");
+  if (sitting) redirect(`/learn/tests/${id(sitting.id)}`);
+  redirect(start.practice ? `/learn/practice/${id(start.practice)}` : "/learn");
 }

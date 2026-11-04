@@ -22,6 +22,7 @@
   --color-card-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-light: var(--primary-light);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
@@ -49,6 +50,8 @@
   --card: oklch(1 0 0);
   --primary: oklch(0.5 0.16 262);
   --primary-foreground: oklch(0.99 0 0);
+  /* The lighter step of primary for charts (checked: one hue, 2.5:1 on the card). Parent area only. */
+  --primary-light: oklch(0.72 0.1 262);
   --secondary: oklch(0.95 0.025 262);
   --secondary-foreground: oklch(0.32 0.1 262);
   --accent: oklch(0.88 0.13 88);

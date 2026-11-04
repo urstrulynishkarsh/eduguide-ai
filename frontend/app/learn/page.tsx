@@ -1,16 +1,18 @@
 import Link from "next/link";
 
-import { getLearner, getProgress } from "@/lib/api";
+import { Recommendations } from "@/components/dashboard";
+import { TaskActions, TaskLine } from "@/components/plan-view";
+import { getDashboard, getLearner, getProgress } from "@/lib/api";
 import { copy } from "@/lib/copy";
 import { studentNav } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 const text = copy.learn;
 
-/** Home: the way in to everything in the learner's menu, and practice to continue. */
+/** Home: the way in to everything in the learner's menu, Recommended for You, today's plan, practice to continue. */
 export default async function LearnHomePage() {
   const { student, profile, classProfile } = await getLearner();
-  const progress = await getProgress(student.id);
+  const [progress, board] = await Promise.all([getProgress(student.id), getDashboard(student.id)]);
   const tiles = studentNav(classProfile.ui_mode, classProfile.features).filter(
     (item) => item.href !== "/learn",
   );
@@ -38,9 +40,17 @@ export default async function LearnHomePage() {
           "dense:grid-cols-2 dense:gap-3 sm:dense:grid-cols-3 lg:dense:grid-cols-6",
         )}
       >
-        {tiles.map((tile) => {
-          const content = (
-            <>
+        {tiles.map((tile) => (
+          <li key={tile.label}>
+            <Link
+              href={tile.href}
+              className={cn(
+                "flex h-full items-center gap-4 rounded-xl border bg-card p-5 shadow-sm transition hover:border-primary hover:shadow-md",
+                "playful:min-h-40 playful:flex-col playful:justify-center playful:rounded-3xl playful:border-4 playful:p-8",
+                "friendly:min-h-32 friendly:flex-col friendly:justify-center friendly:border-2",
+                "dense:flex-col dense:items-start dense:gap-2 dense:p-4",
+              )}
+            >
               {young && tile.emoji ? (
                 <span aria-hidden className="text-4xl playful:text-7xl">
                   {tile.emoji}
@@ -51,37 +61,35 @@ export default async function LearnHomePage() {
               <span className="font-display text-lg font-bold playful:text-3xl friendly:text-2xl dense:text-base">
                 {copy.nav[tile.label]}
               </span>
-              {tile.soon && (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground uppercase">
-                  {copy.soon}
-                </span>
-              )}
-            </>
-          );
-          const tileClass = cn(
-            "flex h-full items-center gap-4 rounded-xl border bg-card p-5 shadow-sm",
-            "playful:min-h-40 playful:flex-col playful:justify-center playful:rounded-3xl playful:border-4 playful:p-8",
-            "friendly:min-h-32 friendly:flex-col friendly:justify-center friendly:border-2",
-            "dense:flex-col dense:items-start dense:gap-2 dense:p-4",
-          );
-          return (
-            <li key={tile.label}>
-              {tile.soon ? (
-                <div aria-disabled className={cn(tileClass, "text-muted-foreground")}>
-                  {content}
-                </div>
-              ) : (
-                <Link
-                  href={tile.href}
-                  className={cn(tileClass, "transition hover:border-primary hover:shadow-md")}
-                >
-                  {content}
-                </Link>
-              )}
-            </li>
-          );
-        })}
+            </Link>
+          </li>
+        ))}
       </ul>
+
+      {board.recommendations.length > 0 && (
+        <section className="grid gap-3">
+          <h2 className="text-lg font-bold playful:text-2xl">{text.recommended}</h2>
+          <Recommendations items={board.recommendations} area="learn" />
+        </section>
+      )}
+
+      {board.plan && board.plan.today.length > 0 && (
+        <section className="grid gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-bold playful:text-2xl">{text.todaysPlan}</h2>
+            <Link href="/learn/plan" className="text-sm font-semibold text-primary hover:underline">
+              {text.openPlan} →
+            </Link>
+          </div>
+          <ul className="grid gap-2">
+            {board.plan.today.map((item) => (
+              <TaskLine key={item.id} item={item}>
+                <TaskActions item={item} />
+              </TaskLine>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {unfinished.length > 0 && (
         <section className="grid gap-3">

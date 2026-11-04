@@ -47,7 +47,7 @@ backend/
   tests/                 # unit/ (nothing running), api/ (needs the database), live/ (real Claude, opt-in)
 frontend/
   app/                   # screens: (entry)/ sign-in, sign-up, onboarding, who-is-learning; parent/; learn/;
-                         # api/ holds the one route handler (book upload, streamed to the backend)
+                         # api/ holds the two route handlers: book upload, chat replies (streamed)
   proxy.ts               # before every page: renews tokens, sends each session to its area
   lib/                   # session cookies, backend calls (server only), Server Actions, copy.ts (all wording), navigation
   components/            # shared pieces; ui/ holds the shadcn components in use
@@ -108,7 +108,11 @@ alembic upgrade head
 - Step 8: mock tests and study planner (backend): sectioned papers from the question bank (practice,
   chapter, full mock; timed from Class 9), saved answers, marking with part marks, the result report;
   one study plan per learner, planned again each morning from mastery
-- Next: step 9, parent dashboard, test and plan screens, Parent AI Assistant and Student AI Tutor
+- Step 9: the full parent dashboard (week chart, strong / needs attention, Start Recommended Practice,
+  today's plan, recent tests); Mock Tests and the test screen (grid, timer, answers saved as given,
+  report); Study Plans (today's tasks with Start and ✓ Done); the Parent AI Assistant and the Student
+  AI Tutor (hint ladder), replies streamed as Server-Sent Events; Recommended for You on the learner home
+- Next: step 10, previous-year paper analysis, misconception detection, JEE / NEET / CUET modes
 
 See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff section.
 

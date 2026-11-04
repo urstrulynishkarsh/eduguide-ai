@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
-import { PracticeChooser } from "@/components/practice-chooser";
-import { QuickPractice } from "@/components/quick-practice";
+import { chosenFrom, PracticeChooser } from "@/components/question-chooser";
+import { StartButton } from "@/components/start-button";
+import { createPractice } from "@/lib/actions/practice";
 import { getBooks, getChapters, getLearner, getOptions } from "@/lib/api";
 import { copy } from "@/lib/copy";
 
@@ -30,17 +31,22 @@ export default async function LearnPracticePage({ searchParams }: PageProps<"/le
       <div className="grid gap-6">
         <h1 className="text-4xl font-extrabold">{text.playfulTitle}</h1>
         <div className="grid gap-6 sm:grid-cols-2">
-          <QuickPractice area="learn" label={text.playfulAll} className={tile}>
+          <StartButton
+            action={createPractice.bind(null, "learn")}
+            fields={{}}
+            label={text.playfulAll}
+            className={tile}
+          >
             <span aria-hidden className="text-6xl">
               🎈
             </span>
             {text.playfulAll}
-          </QuickPractice>
+          </StartButton>
           {chapters.map((chapter) => (
-            <QuickPractice
+            <StartButton
               key={chapter.id}
-              area="learn"
-              chapterId={chapter.id}
+              action={createPractice.bind(null, "learn")}
+              fields={{ chapter_id: chapter.id }}
               label={chapter.label}
               className={tile}
             >
@@ -48,21 +54,20 @@ export default async function LearnPracticePage({ searchParams }: PageProps<"/le
                 ⭐
               </span>
               <span className="text-center whitespace-normal">{chapter.label}</span>
-            </QuickPractice>
+            </StartButton>
           ))}
         </div>
       </div>
     );
   }
 
-  const pick = (name: string) => (typeof query[name] === "string" ? (query[name] as string) : undefined);
   return (
     <div className="grid max-w-3xl gap-6">
       <h1 className="text-3xl font-extrabold dense:text-2xl">{text.title}</h1>
       <PracticeChooser
         area="learn"
         books={books}
-        chosen={{ book: pick("book"), chapter: pick("chapter"), exercise: pick("exercise") }}
+        chosen={chosenFrom(query)}
         classProfile={classProfile}
         languages={options.languages}
         defaultLanguage={profile.primary_language}

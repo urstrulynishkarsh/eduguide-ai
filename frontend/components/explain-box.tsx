@@ -6,6 +6,7 @@ import { FormMessage } from "@/components/form-message";
 import { SourceLine } from "@/components/source-line";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { setTaskStatus } from "@/lib/actions/plans";
 import { explainConcept } from "@/lib/actions/practice";
 import { copy } from "@/lib/copy";
 import type { Explanation } from "@/lib/types";
@@ -13,9 +14,22 @@ import { cn } from "@/lib/utils";
 
 const text = copy.concepts;
 
-/** "Explain this": a question about one chapter, answered from the learner's own books with sources. */
-export function ExplainBox({ chapterId, studentId }: { chapterId: string; studentId?: string }) {
-  const [question, setQuestion] = useState("");
+/**
+ * "Explain this": a question about one chapter, answered from the learner's own books with sources.
+ * A learn task of the study plan brings its question, and is ticked off once it is explained.
+ */
+export function ExplainBox({
+  chapterId,
+  studentId,
+  initialQuestion = "",
+  taskId,
+}: {
+  chapterId: string;
+  studentId?: string;
+  initialQuestion?: string;
+  taskId?: string;
+}) {
+  const [question, setQuestion] = useState(initialQuestion);
   const [style, setStyle] = useState("normal");
   const [result, setResult] = useState<Explanation | null>(null);
   const [error, setError] = useState<string>();
@@ -27,6 +41,7 @@ export function ExplainBox({ chapterId, studentId }: { chapterId: string; studen
       const answer = await explainConcept({ chapterId, studentId }, question, style);
       setResult("data" in answer ? answer.data : null);
       setError("error" in answer ? answer.error : undefined);
+      if (taskId && "data" in answer) await setTaskStatus(taskId, "done");
     });
   }
 

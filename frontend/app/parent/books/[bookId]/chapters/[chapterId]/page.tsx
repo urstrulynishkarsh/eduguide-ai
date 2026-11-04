@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ExplainBox } from "@/components/explain-box";
-import { QuickPractice } from "@/components/quick-practice";
+import { StartButton } from "@/components/start-button";
 import { Button } from "@/components/ui/button";
-import { getChapter, getExercise, requireChosenChild } from "@/lib/api";
+import { createPractice } from "@/lib/actions/practice";
+import { createTest } from "@/lib/actions/tests";
+import { getChapter, getClassProfile, getExercise, requireChosenChild } from "@/lib/api";
 import { copy } from "@/lib/copy";
-import type { ExerciseDetail } from "@/lib/types";
+import type { ClassFeatures, ExerciseDetail } from "@/lib/types";
 
 const text = copy.chapter;
 
@@ -24,6 +26,12 @@ function printedQuestion(question: ExerciseDetail["questions"][number]): string 
   return number && !rest.startsWith(number) ? `${number}. ${rest}` : rest;
 }
 
+/** Take Test: a chapter test from Class 6, a practice test of the chapter in Class 3 – 5, none below. */
+function testKind(features: ClassFeatures): string | null {
+  if (features.chapter_tests) return "chapter";
+  return features.practice_tests ? "practice" : null;
+}
+
 export const metadata: Metadata = { title: copy.practiceForm.chapter };
 
 /** A chapter: Learn · Practice · Exercise Questions · Generate Questions · Take Test (spec §39). */
@@ -32,7 +40,12 @@ export default async function ChapterPage({
 }: PageProps<"/parent/books/[bookId]/chapters/[chapterId]">) {
   const { bookId, chapterId } = await params;
   const [chapter, child] = await Promise.all([getChapter(chapterId), requireChosenChild()]);
-  const exercises = await Promise.all(chapter.exercises.map((exercise) => getExercise(exercise.id)));
+  const [exercises, classProfile] = await Promise.all([
+    Promise.all(chapter.exercises.map((exercise) => getExercise(exercise.id))),
+    getClassProfile(child.profile!.class_level),
+  ]);
+  const kind = testKind(classProfile.features);
+  const practice = createPractice.bind(null, "parent");
 
   return (
     <div className="grid max-w-4xl gap-8">
@@ -47,10 +60,9 @@ export default async function ChapterPage({
         <Button asChild variant="outline">
           <a href="#learn">💡 {text.learn}</a>
         </Button>
-        <QuickPractice
-          area="parent"
-          studentId={child.id}
-          chapterId={chapter.id}
+        <StartButton
+          action={practice}
+          fields={{ student_id: child.id, chapter_id: chapter.id }}
           label={`✏️ ${text.practice}`}
         />
         <Button asChild variant="outline">
@@ -59,15 +71,14 @@ export default async function ChapterPage({
         <Button asChild variant="outline">
           <Link href={`/parent/practice?book=${bookId}&chapter=${chapter.id}`}>✨ {text.generate}</Link>
         </Button>
-        <span
-          aria-disabled
-          className="inline-flex h-9 items-center gap-2 rounded-md border px-4 text-sm text-muted-foreground"
-        >
-          📝 {text.takeTest}
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase">
-            {copy.soon}
-          </span>
-        </span>
+        {kind && (
+          <StartButton
+            action={createTest.bind(null, "parent")}
+            fields={{ student_id: child.id, kind, chapter_id: chapter.id }}
+            label={`📝 ${text.takeTest}`}
+            variant="outline"
+          />
+        )}
       </div>
 
       {chapter.topics.length > 0 && (
@@ -95,14 +106,13 @@ export default async function ChapterPage({
           <article key={exercise.id} className="grid gap-3 rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold">{exercise.title}</h3>
-              <QuickPractice
-                area="parent"
-                studentId={child.id}
-                exerciseId={exercise.id}
+              <StartButton
+                action={practice}
+                fields={{ student_id: child.id, exercise_id: exercise.id }}
                 label={`${text.practice}: ${exercise.title}`}
               >
                 ✏️ {text.practice}
-              </QuickPractice>
+              </StartButton>
             </div>
             <p className="text-xs text-muted-foreground">📘 {text.fromBook}</p>
             {exercise.questions[0]?.instructions && (

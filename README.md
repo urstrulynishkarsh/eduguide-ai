@@ -4,13 +4,13 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 8 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
+> **Build status: Step 9 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
 > child, uploads a book, creates practice from a chapter or exercise and hands the device over;
 > the child practises (with hints, steps and answers) in a layout made for their age, and both
-> see the progress. The API also knows each child's mastery of every topic, moves the difficulty
-> with their results and recommends what to do next (Step 7), and runs sectioned, timed mock tests
-> with a result report and study plans that follow performance (Step 8). Their screens, the parent
-> dashboard and the two AI assistants come next (Step 9).
+> see the progress. The app knows each child's mastery of every topic, moves the difficulty with
+> their results and recommends what to do next (Step 7); it runs sectioned, timed mock tests with a
+> result report and study plans that follow performance (Step 8); and it has the full parent
+> dashboard, the test and plan screens, the Parent AI Assistant and the Student AI Tutor (Step 9).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -24,13 +24,27 @@ from Nursery to Class 12.
 - **My Books**: upload a PDF, Word or text file with a progress bar, then watch it being read
   (✓ Reading your book … ✓ Getting practice ready). Chapters, topics, and exercise questions exactly
   as printed, with page numbers
-- **Chapter page**: Learn · Practice · Exercise Questions · Generate Questions (Take Test: Step 9)
+- **Chapter page**: Learn · Practice · Exercise Questions · Generate Questions · Take Test (a chapter
+  test from Class 6, a practice test of the chapter in Class 3–5)
 - **Create Practice**: from all books, a book, a chapter or an exercise; number, difficulty,
   question type and language, limited by the child's class. Then **Start now with Aarav**
 - **Practice screen**: one question at a time, every answer format, **Hint → Show Steps → Show
   Answer**, "Explain simply / like I'm 10 / in Hindi / in Hinglish", and where each generated
   question comes from. Nursery–Class 2: big picture cards, a number pad, "try again", stars and no marks
-- **Learn a Concept** and **Progress** (My Stars for the youngest); a basic parent **Dashboard**
+- **Learn a Concept** and **Progress** (My Stars for the youngest; recent tests for the parent)
+- **Dashboard**: this week day by day, strong areas and those that need attention, **Start
+  Recommended Practice**, today's study plan and the last tests
+- **Mock Tests**: Create Test (practice, chapter or full mock test, a time limit from Class 9), then
+  **Start now with Aarav**. The test screen has its sections, a question grid, the timer, answers
+  saved as they are given (a reload loses nothing) and submit — or the time runs out — then the result
+  report: score, sections, the weakest topics, every question with its solution
+- **Study Plans**: the exam date, minutes a day, the target and the chapters; the plan day by day.
+  The child sees today's tasks with **Start** and **✓ Done** (a learn task opens Learn a Concept with
+  its question filled in); a student who signed up alone makes their own
+- **AI Assistant** for the parent ("How is my child doing this week?") and **AI Tutor** for Class
+  6–12 (a hint first, more help when asked, the answer last); replies appear as they are written,
+  with the books they used. Both need the AI switched on
+- The learner's home: **Recommended for You** and **Today's plan**
 - A child switcher at the top of the parent area; Children and Settings as before
 - The student area in **four layouts** chosen by the class: big and playful for Nursery–Class 2,
   roomy for Class 3–5, a regular app for Class 6–8, a compact academic one for Class 9–12. Works on
@@ -80,7 +94,14 @@ from Nursery to Class 12.
   weak topics first, new chapters (learn, then practise), more practice below the target score,
   reviews and a test of each book at the end. Planned again every morning from the latest mastery;
   finishing a practice or a test ticks its task off
-- Database migrations, demo data (including a sample book), automatic API documentation, 324 automated tests
+- **Dashboard** (`GET /api/v1/students/{id}/dashboard`): the week, strong areas and those that need
+  attention, today's recommendations, recent tests and today's plan in one call
+- **Parent AI Assistant and Student AI Tutor** (`/api/v1/chat/sessions…`): conversations whose replies
+  stream back as they are written. The assistant answers from the child's own numbers (never sending
+  the child's name to the AI) and books; the tutor walks the hint ladder — Hint 1 → Hint 2 → Concept →
+  Steps → Answer, one rung per request for help, "hints only" stops at Hint 2 — from the child's books
+- Database migrations, demo data (including two sample books), automatic API documentation, and
+  automated tests: 343 for the API, 110 for the screens and 13 browser journeys
 
 ## Run it on your computer
 
@@ -137,8 +158,8 @@ Follow it with `GET /api/v1/documents/{id}`, then open `GET /api/v1/books/{book_
 
 ### Switching on the AI (Groq or Claude)
 
-Everything except **Explain this**, writing new practice questions and marking written answers
-works without it (saved questions can still be practised). Choose one provider, add its two lines
+Everything except **Explain this**, writing new questions, marking written answers, the AI
+Assistant and the AI Tutor works without it (saved questions can still be practised and tested). Choose one provider, add its two lines
 to `backend/.env` and restart the API:
 
 | Provider | Cost | Key from | Lines for `backend/.env` |
@@ -181,10 +202,11 @@ book…"* instead of empty results.
 
 These passwords are public; the seed script refuses to run when `ENVIRONMENT=production`.
 
-**Practice without an AI key.** The seed also puts hand-written demo questions in the question
-bank: 12 for Aarav's Maths chapter (Hinglish) and 10 picture, counting and matching questions for
-Anaya's book (Hindi). A child is never given the same question twice, so they last for one or two
-practices each; after that, new questions need the AI. Already seeded before Step 6? Run
+**Practice and tests without an AI key.** The seed also puts hand-written demo questions in the
+question bank: 19 for Aarav's Maths chapter (Hinglish: 12 objective, 4 short and 3 long answers) and
+10 picture, counting and matching questions for Anaya's book (Hindi). A child is never given the
+same question twice, so they last for a practice or two, or one chapter test; after that, new
+questions need the AI. Written answers in a test are marked by the AI too. Seeded before? Run
 `python -m scripts.seed` again: it adds only what is missing.
 
 ## Run the tests
@@ -211,8 +233,12 @@ npm run lint && npm run typecheck && npm run format:check
 ```
 
 The browser tests sign up new accounts (`…@example.com`) in your development database each run.
-The practice journeys use the demo family (run `python -m scripts.seed` once): each adds a
-temporary child, practises with the demo questions, and removes the child again.
+The practice and chapter-test journeys use the demo family (run `python -m scripts.seed` once): each
+adds a temporary child, uses the demo questions, and removes the child again. The study-plan journey
+signs up a new family and uploads the sample book for its child. The assistant and the tutor are
+checked whether the AI is on or off. To spend none of your AI allowance, start the API for the
+browser tests with `LLM_PROVIDER=none uvicorn app.main:app` (a frontend already running on port 3000
+is reused; otherwise the tests build and start one).
 
 ## Where things are
 
@@ -230,7 +256,8 @@ temporary child, practises with the demo questions, and removes the child again.
 | `backend/app/api` | HTTP routes |
 | `backend/alembic` | Database migrations |
 | `backend/tests` | Automated tests |
-| `backend/app/adaptive_learning` | Mastery per topic, difficulty that follows results, daily recommendations |
+| `backend/app/adaptive_learning` | Mastery per topic, difficulty that follows results, daily recommendations, the study planner |
+| `backend/app/chat` | The Student AI Tutor's hint ladder and the Parent AI Assistant |
 | `frontend/app` | The screens (Next.js pages): public, onboarding, `parent/`, `learn/` |
 | `frontend/components`, `frontend/lib` | Shared pieces, the wording of every screen (`lib/copy.ts`), sessions, calls to the API |
 
@@ -264,7 +291,8 @@ temporary child, practises with the demo questions, and removes the child again.
 | Upload answers `413` | The file is over `MAX_UPLOAD_MB` (50 MB). Split the book, e.g. one PDF per chapter — they can all go into the same book |
 | `database "eduguide_test" does not exist` when running tests | The database volume was created before this project's init script existed. Run `docker compose down -v` and `docker compose up -d`. |
 | The website says *"We can't reach EduGuide right now"* | The API is not running: start it with `uvicorn app.main:app --reload` in `backend/` |
-| `npm install` or `npm run dev` fails on an old Node.js | Install Node.js 22 or 24 LTS from nodejs.org (`node --version` to check) |
+| `npm install`, `npm run dev` or `npm test` fails on an old Node.js | Install Node.js 22.12+ or 24 LTS from nodejs.org (`node --version` to check) |
+| The AI Assistant or AI Tutor says the AI is not switched on | Switch on the AI (see above) and restart the API |
 | PowerShell refuses to run `Activate.ps1` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or use `cmd` with `activate.bat`. |
 
 Not using Docker? A PostgreSQL you install yourself also works (this step was tested on

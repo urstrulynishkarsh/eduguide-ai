@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 const text = copy.progress;
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
-function Bars({ title, areas }: { title: string; areas: Progress["by_chapter"] }) {
+/** How often each area (a chapter, a topic) was right, weakest in the accent colour. */
+export function Bars({ title, areas }: { title: string; areas: Progress["by_chapter"] }) {
   if (areas.length === 0) return null;
   return (
     <section className="grid gap-3 rounded-xl border bg-card p-5 shadow-sm">

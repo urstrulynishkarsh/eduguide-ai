@@ -3,42 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { AnswerInput, answerFor, CHOICE, NUMBER, type Draft } from "@/components/answer-input";
 import { FormMessage } from "@/components/form-message";
 import { SourceLine } from "@/components/source-line";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { answerQuestion, explainQuestion, getHelp, type Result } from "@/lib/actions/practice";
+import { answerQuestion, explainQuestion, getHelp } from "@/lib/actions/practice";
 import { copy } from "@/lib/copy";
-import type { AnswerResult, Explanation, Help, PracticeSession, Question, UIMode } from "@/lib/types";
+import type { Result } from "@/lib/forms";
+import type { AnswerResult, Explanation, Help, PracticeSession, UIMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const text = copy.practice;
-const CHOICE = ["mcq", "true_false", "assertion_reason", "case_based", "visual_choice"];
-const NUMBER = ["numerical", "counting"];
-
-type Draft = { option?: number; value?: string; text?: string; pairs?: (number | undefined)[] };
-
-/** "🍎 सेब" → a big picture and its word, for picture questions. */
-export function pictureAndWord(option: string): { picture?: string; word: string } {
-  const [first, ...rest] = [...new Intl.Segmenter().segment(option)].map((part) => part.segment);
-  return /\p{Extended_Pictographic}/u.test(first ?? "")
-    ? { picture: first, word: rest.join("").trim() }
-    : { word: option };
-}
-
-/** The answer the API expects for this format (docs/03 §3.5), or null while it is incomplete. */
-export function answerFor(question: Question, draft: Draft) {
-  if (CHOICE.includes(question.format)) return draft.option === undefined ? null : { option: draft.option };
-  if (NUMBER.includes(question.format)) {
-    const value = Number(draft.value);
-    return draft.value?.trim() && Number.isFinite(value) ? { value } : null;
-  }
-  if (question.format === "matching") {
-    const pairs = draft.pairs ?? [];
-    return question.match_left.every((_, i) => pairs[i] !== undefined) ? { pairs: pairs as number[] } : null;
-  }
-  return draft.text?.trim() ? { text: draft.text.trim() } : null;
-}
 
 /**
  * One question at a time: answer, then Hint → Show Steps → Show Answer, and "explain this".
@@ -65,6 +40,8 @@ export function PracticePlayer({ session, uiMode }: { session: PracticeSession; 
   const item = session.items[index];
   const question = item.question;
   const final = result !== null && (result.correct || !result.try_again);
+  // The youngest answer a choice or a count with one tap, without "Check".
+  const oneTap = playful && [...CHOICE, ...NUMBER].includes(question.format);
   const last = index === session.items.length - 1;
 
   useEffect(() => {
@@ -124,14 +101,6 @@ export function PracticePlayer({ session, uiMode }: { session: PracticeSession; 
     setError(undefined);
   }
 
-  const optionClass = (chosen: boolean) =>
-    cn(
-      "rounded-lg border-2 bg-card px-4 py-3 text-left font-medium transition-colors hover:border-primary/60 disabled:cursor-default",
-      "playful:grid playful:min-h-28 playful:place-items-center playful:rounded-3xl playful:text-center playful:text-2xl playful:font-bold",
-      "friendly:rounded-2xl friendly:text-lg",
-      chosen && "border-primary bg-secondary",
-    );
-
   return (
     <div className="mx-auto grid max-w-3xl gap-6 playful:gap-8">
       <div className="grid gap-2">
@@ -163,116 +132,13 @@ export function PracticePlayer({ session, uiMode }: { session: PracticeSession; 
           {question.text}
         </h1>
 
-        {CHOICE.includes(question.format) && (
-          <div
-            className={cn(
-              "grid gap-3",
-              question.format === "visual_choice" || playful
-                ? "grid-cols-1 sm:grid-cols-3"
-                : "sm:grid-cols-2",
-            )}
-          >
-            {question.options.map((option, i) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={draft.option === i}
-                disabled={final || pending}
-                onClick={() => (playful ? submit({ option: i }) : setDraft({ option: i }))}
-                className={optionClass(draft.option === i)}
-              >
-                {question.format === "visual_choice" ? <Picture option={option} /> : option}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {NUMBER.includes(question.format) &&
-          (playful ? (
-            <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
-              {Array.from({ length: 11 }, (_, n) => (
-                <button
-                  key={n}
-                  type="button"
-                  disabled={final || pending}
-                  onClick={() => submit({ value: n })}
-                  className={optionClass(false)}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Input
-                aria-label={text.yourAnswer}
-                type="number"
-                step="any"
-                inputMode="decimal"
-                placeholder={text.numberPlaceholder}
-                value={draft.value ?? ""}
-                disabled={final}
-                onChange={(event) => setDraft({ value: event.target.value })}
-                className="max-w-48"
-              />
-              {question.unit && <span className="text-muted-foreground">{question.unit}</span>}
-            </div>
-          ))}
-
-        {["fill_blank", "short_answer", "long_answer"].includes(question.format) &&
-          (question.format === "fill_blank" ? (
-            <Input
-              aria-label={text.yourAnswer}
-              placeholder={text.textPlaceholder}
-              value={draft.text ?? ""}
-              disabled={final}
-              onChange={(event) => setDraft({ text: event.target.value })}
-            />
-          ) : (
-            <textarea
-              aria-label={text.yourAnswer}
-              placeholder={text.textPlaceholder}
-              rows={question.format === "long_answer" ? 7 : 3}
-              value={draft.text ?? ""}
-              disabled={final}
-              onChange={(event) => setDraft({ text: event.target.value })}
-              className="rounded-md border border-input bg-card px-3 py-2 shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            />
-          ))}
-
-        {question.format === "matching" && (
-          <div className="grid gap-4">
-            {question.match_left.map((left, i) => (
-              <div key={left} role="group" aria-label={text.matchPrompt(left)} className="grid gap-2">
-                <p className="font-semibold playful:text-2xl">{text.matchPrompt(left)}</p>
-                <div className="flex flex-wrap gap-2">
-                  {question.match_right.map((right, j) => {
-                    const chosen = draft.pairs?.[i] === j;
-                    return (
-                      <button
-                        key={right}
-                        type="button"
-                        aria-pressed={chosen}
-                        disabled={final || pending}
-                        onClick={() => {
-                          const pairs = [...(draft.pairs ?? [])];
-                          pairs[i] = j;
-                          setDraft({ pairs });
-                        }}
-                        className={cn(
-                          "rounded-full border-2 bg-card px-4 py-2 font-medium playful:px-6 playful:py-3 playful:text-xl",
-                          chosen && "border-primary bg-secondary",
-                        )}
-                      >
-                        {right}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <AnswerInput
+          question={question}
+          draft={draft}
+          disabled={final || pending}
+          playful={playful}
+          onChange={(next) => (oneTap ? submit(answerFor(question, next)) : setDraft(next))}
+        />
 
         {result && (
           <div
@@ -305,7 +171,7 @@ export function PracticePlayer({ session, uiMode }: { session: PracticeSession; 
               {result?.session_completed || last ? text.finish : text.next}
             </Button>
           ) : (
-            !(playful && (CHOICE.includes(question.format) || NUMBER.includes(question.format))) && (
+            !oneTap && (
               <Button
                 size="lg"
                 disabled={!answerFor(question, draft) || pending}
@@ -403,19 +269,5 @@ export function PracticePlayer({ session, uiMode }: { session: PracticeSession; 
 
       <SourceLine label={text.generatedFrom} sources={[question.source]} />
     </div>
-  );
-}
-
-function Picture({ option }: { option: string }) {
-  const { picture, word } = pictureAndWord(option);
-  return (
-    <span className="grid justify-items-center gap-1">
-      {picture && (
-        <span aria-hidden className="text-5xl leading-none playful:text-7xl">
-          {picture}
-        </span>
-      )}
-      <span>{word}</span>
-    </span>
   );
 }

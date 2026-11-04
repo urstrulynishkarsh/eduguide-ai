@@ -1,10 +1,6 @@
-import path from "node:path";
-
 import { expect, test } from "@playwright/test";
 
-import { chooseClass, signUp, uniqueEmail } from "./helpers";
-
-const SAMPLE_BOOK = path.resolve(__dirname, "../../../backend/scripts/sample_data/class7-maths-sample.txt");
+import { chooseClass, signUp, uniqueEmail, uploadSampleBook } from "./helpers";
 
 test("a parent uploads a book, watches it being read, and opens a chapter", async ({ page }) => {
   test.setTimeout(120_000); // the first book of a run also loads the reading model
@@ -15,19 +11,7 @@ test("a parent uploads a book, watches it being read, and opens a chapter", asyn
 
   await page.goto("/parent/books");
   await expect(page.getByText(/No books yet/)).toBeVisible();
-  await page
-    .getByRole("link", { name: /Upload Book/ })
-    .first()
-    .click();
-  await page.getByLabel("Book name").fill("Class 7 Mathematics");
-  await page.getByLabel("Subject").fill("Mathematics");
-  await page.getByLabel("File").setInputFiles(SAMPLE_BOOK);
-  await page.getByRole("button", { name: "Upload" }).click();
-
-  // The checklist is in parent words, and the page follows it until the book is read.
-  await expect(page).toHaveURL(/\/parent\/books\/[^/]+$/);
-  await expect(page.getByText("Reading your book")).toBeVisible();
-  await expect(page.getByText(/Found 1 chapter, 2 exercises/)).toBeVisible({ timeout: 90_000 });
+  await uploadSampleBook(page);
   await expect(page.locator("main").filter({ visible: true })).not.toContainText(/chunk|embedding/i);
 
   await page.getByRole("link", { name: /Chapter 4 Simple Equations/ }).click();

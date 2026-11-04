@@ -4,6 +4,13 @@ import type { ApiErrorBody } from "@/lib/types";
 /** The FastAPI backend. Only the Next.js server talks to it; the browser never does. */
 export const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8000/api/v1";
 
+/** The error when the backend can't be reached (also sent by the routes that pass calls through). */
+export const UNREACHABLE: ApiErrorBody = {
+  code: "unreachable",
+  message: copy.errors.unreachable,
+  details: null,
+};
+
 /** An error answer from the backend: `{"error": {"code", "message", "details"}}`. */
 export class ApiError extends Error {
   constructor(
@@ -38,7 +45,7 @@ export async function callBackend<T>(
       cache: "no-store",
     });
   } catch {
-    throw new ApiError(0, { code: "unreachable", message: copy.errors.unreachable, details: null });
+    throw new ApiError(0, UNREACHABLE);
   }
 
   if (response.status === 204) return undefined as T;

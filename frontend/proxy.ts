@@ -59,7 +59,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Pages and Server Actions only: not static files, not /signout (it clears the cookies itself),
-  // and not the upload route under /api (the proxy would buffer a whole book in memory).
-  matcher: ["/((?!_next/|api/|signout|favicon\\.ico|.*\\.[a-z0-9]+$).*)"],
+  // Pages, Server Actions and the chat route (a reply needs a fresh token too). Not static files, not
+  // /signout (it clears the cookies itself), and not the upload route (the proxy would buffer a whole
+  // book in memory).
+  matcher: ["/((?!_next/|api/books/|signout|favicon\\.ico|.*\\.[a-z0-9]+$).*)"],
 };

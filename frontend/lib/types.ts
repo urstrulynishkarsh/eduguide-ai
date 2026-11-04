@@ -251,6 +251,182 @@ export interface Progress {
   }[];
 }
 
+/**
+ * A request the backend has already filled in (a recommendation, a task of the study plan): sent back
+ * as it is to POST /practice/sessions or /mock-tests.
+ */
+export type RequestBody = Record<string, string | number | null>;
+
+/** The "Explain this" request of a learn task or a recommendation (POST /learn/explain). */
+export interface ReviseRequest {
+  question: string;
+  chapter_id: string | null;
+}
+
+// ---- Mock tests (docs/03 §3.7)
+
+export type TestKind = "practice" | "chapter" | "full_mock";
+
+/** An answer as the API takes and gives it back: the field that fits the question. */
+export interface Answer {
+  option?: number | null;
+  value?: number | null;
+  text?: string | null;
+  pairs?: number[] | null;
+}
+
+export interface PaperSection {
+  code: string;
+  title: string;
+  marks: number;
+  questions: Question[];
+}
+
+export interface MockTest {
+  id: string;
+  student_id: string;
+  kind: TestKind;
+  status: "preparing" | "ready" | "failed";
+  book_title: string | null;
+  chapter: string | null;
+  topic: string | null;
+  exercise: string | null;
+  question_count: number;
+  total_marks: number;
+  duration_minutes: number | null;
+  difficulty: string;
+  attempts: { id: string; started_at: string; submitted_at: string | null; score: number | null }[];
+}
+
+export interface MockTestDetail extends MockTest {
+  error: { code: string; message: string } | null;
+  sections: PaperSection[];
+}
+
+export interface TestAttempt {
+  id: string;
+  mock_test_id: string;
+  status: "in_progress" | "submitted";
+  seconds_left: number | null;
+  sections: PaperSection[];
+  responses: Record<string, Answer>;
+}
+
+export interface TestReport {
+  score: number;
+  total_marks: number;
+  percentage: number;
+  time_taken_ms: number;
+  correct: number;
+  wrong: number;
+  unanswered: number;
+  sections: { code: string; title: string; score: number; total_marks: number }[];
+  areas: (Area & { questions: number; accuracy: number })[];
+  questions: {
+    question: Question;
+    marks: number;
+    marks_awarded: number | null;
+    correct: boolean | null;
+    response: Answer | null;
+    feedback: string | null;
+    solution: { concept: string; steps: string[]; final_answer: string };
+  }[];
+}
+
+// ---- Study plans (docs/03 §3.7)
+
+export interface PlanItem {
+  id: string;
+  kind: "learn" | "practice" | "test";
+  status: "pending" | "done" | "skipped" | "missed";
+  minutes: number;
+  reason: string;
+  book_title: string;
+  chapter: string | null;
+  topic: string | null;
+  practice: RequestBody | null;
+  revise: ReviseRequest | null;
+  test: RequestBody | null;
+}
+
+export interface StudyPlan {
+  id: string;
+  exam_date: string;
+  daily_minutes: number;
+  status: "active" | "finished";
+  days_left: number;
+  /** Today (India time): the plan is planned again on the first visit of each day. */
+  planned_on: string;
+  unscheduled: number;
+  done: number;
+  missed: number;
+  total: number;
+  days: { day: string; minutes: number; items: PlanItem[] }[];
+}
+
+// ---- Adaptive learning and the dashboard (docs/03 §3.6, §3.8)
+
+/** A topic of a chapter, or the chapter itself. */
+export interface Area {
+  chapter_id: string;
+  chapter: string;
+  topic: string | null;
+}
+
+export interface AreaMastery extends Area {
+  mastery: number;
+  attempts: number;
+}
+
+export interface Recommendation extends Area {
+  id: string;
+  status: "active" | "done";
+  reason: string;
+  practice: RequestBody;
+  revise: ReviseRequest | null;
+}
+
+export interface Dashboard {
+  week: { day: string; answered: number; correct: number; minutes: number }[];
+  strong: AreaMastery[];
+  needs_attention: AreaMastery[];
+  recommendations: Recommendation[];
+  tests: {
+    attempt_id: string;
+    mock_test_id: string;
+    kind: TestKind;
+    place: string | null;
+    score: number;
+    total_marks: number;
+    percentage: number;
+    submitted_at: string;
+  }[];
+  plan: { days_left: number; done: number; total: number; today: PlanItem[] } | null;
+}
+
+// ---- The Parent AI Assistant and the Student AI Tutor (docs/03 §3.8)
+
+export type ChatKind = "assistant" | "tutor";
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  sources: Source[];
+  /** Tutor replies: how much help this was, on the hint ladder. */
+  rung: "hint_1" | "hint_2" | "concept" | "steps" | "answer" | null;
+}
+
+export interface ChatSummary {
+  id: string;
+  student_id: string;
+  title: string;
+}
+
+export interface Chat extends ChatSummary {
+  messages: ChatMessage[];
+}
+
 export interface ApiErrorBody {
   code: string;
   message: string;

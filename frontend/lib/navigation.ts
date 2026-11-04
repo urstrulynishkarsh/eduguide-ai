@@ -24,8 +24,6 @@ export interface NavItem {
   emoji?: string;
   /** Hidden unless the learner's class has this feature. */
   feature?: keyof ClassFeatures;
-  /** Built in a later roadmap step: shown, but not a link yet. */
-  soon?: boolean;
 }
 
 const home: NavItem = { label: "home", href: "/learn", icon: Home, emoji: "🏠" };
@@ -54,11 +52,10 @@ const fullMenu: NavItem[] = [
     icon: ClipboardCheck,
     emoji: "📝",
     feature: "practice_tests",
-    soon: true,
   },
   progress,
-  { label: "studyPlan", href: "/learn/plan", icon: CalendarCheck, emoji: "🗓️", soon: true },
-  { label: "tutor", href: "/learn/tutor", icon: Bot, emoji: "🤖", soon: true },
+  { label: "studyPlan", href: "/learn/plan", icon: CalendarCheck, emoji: "🗓️" },
+  { label: "tutor", href: "/learn/tutor", icon: Bot, emoji: "🤖" },
 ];
 
 /** Smaller menus for the younger classes (docs/04 §4.4): no tests, few words. */
@@ -78,10 +75,10 @@ export const PARENT_NAV: NavItem[] = [
   { label: "children", href: "/parent/children", icon: Users },
   { label: "books", href: "/parent/books", icon: BookOpen },
   { label: "practice", href: "/parent/practice", icon: PencilLine },
-  { label: "tests", href: "/parent/tests", icon: ClipboardCheck, soon: true },
-  { label: "plans", href: "/parent/plans", icon: CalendarCheck, soon: true },
+  { label: "tests", href: "/parent/tests", icon: ClipboardCheck },
+  { label: "plans", href: "/parent/plans", icon: CalendarCheck },
   { label: "progress", href: "/parent/progress", icon: BarChart3 },
-  { label: "assistant", href: "/parent/assistant", icon: Bot, soon: true },
+  { label: "assistant", href: "/parent/assistant", icon: Bot },
   { label: "settings", href: "/parent/settings", icon: Settings },
 ];
 

@@ -22,13 +22,13 @@ Status: ✅ done · ⏭ next · ⬜ later
 |---|---|---|---|---|
 | **7** | ✅ | **Adaptive learning.** Mastery per topic, difficulty that follows performance, weak-topic detection, daily recommendations. | `backend/app/adaptive_learning` · `backend/app/analytics` | 1 Adaptive difficulty · 3 Weak-topic detection · 4 Study recommendations |
 | **8** | ✅ | **Mock tests and study planner** (backend). Sectioned, timed tests with a result report; study plans that update with performance. | `backend/app/services` · `backend/app/api/v1` | 5 Mock tests · 6 Study planner |
-| **9** | ⏭ | **Parent dashboard, test and plan screens, the two assistants.** Parent AI Assistant and Student AI Tutor (hint first, answer last). | `frontend/` · `backend/app/api/v1` | 2 Parent dashboard |
+| **9** | ✅ | **Parent dashboard, test and plan screens, the two assistants.** Parent AI Assistant and Student AI Tutor (hint first, answer last). | `frontend/` · `backend/app/api/v1` | 2 Parent dashboard |
 
 ## Phase 3
 
 | Step | Status | What you get | Folders it fills | Spec items (§46) |
 |---|---|---|---|---|
-| **10** | ⬜ | **Previous-year paper analysis, misconception detection, JEE / NEET / CUET modes.** | `backend/app/analytics` · `backend/app/adaptive_learning` · `backend/app/question_generation` | 1 Previous-year analysis · 2 Misconception detection · 3 Competitive exam modes |
+| **10** | ⏭ | **Previous-year paper analysis, misconception detection, JEE / NEET / CUET modes.** | `backend/app/analytics` · `backend/app/adaptive_learning` · `backend/app/question_generation` | 1 Previous-year analysis · 2 Misconception detection · 3 Competitive exam modes |
 | **11** | ⬜ | **Languages, gamification, advanced analytics.** Hindi / Hinglish screens, structure for more Indian languages, streaks / XP / badges, richer charts. | `frontend/` · `backend/app/analytics` | 4 Multi-language support · 5 Gamification · 6 Advanced analytics |
 | **12** | ⬜ | **Production hardening.** Rate limiting, background workers on Redis, Docker images, CI, monitoring, a security review. | `infra/` · whole project | — |
 
@@ -270,180 +270,142 @@ backend/
 To update a Step 7 setup: `alembic upgrade head` (migration 0006 - already applied to this
 machine's database at the end of the step), `pytest`. No new libraries and no frontend changes.
 
-## Notes for next step
-
-*Rewritten at the end of every step. Last updated: end of Step 8, plus the Step 9 progress note below.*
-
-### Step 9 in progress: Part A (backend) done — say "continue step 9" for Part B (frontend)
-
-Step 9 was split in two (agreed plan). **Part A is done and tested**: 343 backend tests pass
-(`pytest`), `ruff` clean. Commit it before Part B. To update a Step 8 setup: `alembic upgrade head`
-(migration 0007), `python -m scripts.seed` (adds the 7 new demo questions; nothing else changes).
-This machine's database is already upgraded and seeded.
-
-What Part A added:
+## What Step 9 added
 
 ```
-backend/
+backend/                                  Part A
 ├── alembic/versions/0007_chat.py         chat_sessions, chat_messages
 ├── app/llm/base.py · anthropic_provider.py · groq_provider.py
-│                                         stream_text(): chat replies piece by piece (same fallback,
-│                                         effort and caching settings as the structured calls)
+│                                         stream_text(): replies piece by piece (same fallback, effort
+│                                         and caching settings as the structured calls)
 ├── app/analytics/progress.py             week(): the last 7 days (India time)
 ├── app/schemas/dashboard.py · services/dashboard_service.py · api/v1/dashboard.py
 │                                         GET /students/{id}/dashboard (snapshot() is shared)
-├── app/chat/tutor.py                     the hint ladder (next_step: code decides the rung) + prompts
-├── app/chat/assistant.py                 the parent assistant's prompts and <child_data> facts
+├── app/chat/tutor.py · assistant.py      the hint ladder (code decides the rung) · the assistant's facts
 ├── app/models/chat.py · schemas/chat.py · services/chat_service.py · api/v1/chat.py
 │                                         conversations; POST …/messages streams Server-Sent Events
-├── app/services/learn_service.py         learner_books(), book_languages(), find_passages() shared
-├── app/services/mock_test_service.py     recent_results()
-├── app/services/study_plan_service.py    current_plan() (the plan, re-planned if a new day)
-├── scripts/demo_questions.py · seed.py   4 short + 3 long Class 7 questions; the seed adds only
-│                                         the demo questions not there yet
-└── tests/                                test_dashboard, test_chat, test_tutor, test_citations;
-                                          streaming in test_llm / test_groq / tests/live
+├── scripts/demo_questions.py · seed.py   + 4 short and 3 long Class 7 questions
+└── tests/                                test_dashboard, test_chat, test_tutor, test_citations
+frontend/                                 Part B
+├── app/parent/dashboard                  the full dashboard
+├── app/parent/tests/… · learn/tests/…    Mock Tests, Create Test, a test with its sittings and report;
+│                                         the learner's tests and the test screen
+├── app/parent/plans/… · learn/plan/…     Study Plans and Make a plan; today's tasks
+├── app/parent/assistant/… · learn/tutor/…   the Parent AI Assistant and the Student AI Tutor
+├── app/api/chat/[chatId]/messages        passes a streamed reply through (behind proxy.ts)
+├── lib/actions/tests.ts · plans.ts · chat.ts · lib/sse.ts (reads Server-Sent Events)
+├── components/                           answer-input, question-chooser + question-settings-form,
+│                                         start-button, test-player, test-report, plan-view, plan-form,
+│                                         dashboard, chat-box, chat-screen
+└── tests/unit (110) · tests/e2e (13 journeys × desktop + phone)
 ```
 
-Endpoints: docs/03 §3.8. Tables: docs/02 §2.7. How the tutor and the assistant work: docs/06 §6.5.
-SSE events: `delta {"text"}`, then `done {"question", "answer"}` (both saved, the answer with
-`sources` and the tutor's `rung`) or `error {"code", "message"}` (nothing saved). Errors before the
-reply starts are JSON (503 `ai_not_configured`, 422 `insufficient_context`, 404 `chat_not_found`,
-403 `parent_required` for a learner opening an assistant conversation).
+To update a Step 8 setup: `alembic upgrade head` (migration 0007), `python -m scripts.seed` (adds the
+7 new demo questions; nothing else changes), then restart the API and rebuild or restart the frontend.
+No new libraries. `npm test` needs Node.js 22.12 or newer.
 
-Checked on the real server with Groq: the dashboard, an assistant answer (first text after 1.7 s),
-tutor Hint 1 then — for "just tell me the answer" — Hint 2. After that run the rung instructions
-were made stricter ("Not allowed: …", two to four sentences) and citations like "(see [S1])" are
-now removed whole; **neither change has been tried on a real model yet**, because Groq's free daily
-allowance for `gpt-oss-120b` (200,000 tokens) ran out during the check. It resets over 24 hours.
+## Notes for next step
 
-**Part B — the frontend (the agreed plan):**
-- **First, Node 24** (Vitest needs ≥ 22; this Mac has 21.5). Still to be answered: may Claude run
-  `brew install node@24` (keg-only: `node` stays 21 and 24 is used only for this project's
-  commands), or will you install Node 24 LTS from nodejs.org?
-- Menus: Mock Tests, Study Plans, AI Assistant (parent) and Tests, Study Plan, AI Tutor (learner)
-  lose "Soon". The tutor stays in the Class 6–12 menus only (docs/04 §4.4).
-- Parent: the full dashboard (`GET …/dashboard`: week bars, strong / needs attention, Recommended
-  with **Start Recommended Practice** → the practice page with "Start now with …", recent tests,
-  today's plan); Mock Tests (list, Create Test, a test with **Start now with {child}** — child mode,
-  then `POST /mock-tests/{id}/attempts` as the child — its sittings and reports); Study Plans (the
-  plan by day, Make a plan); AI Assistant (conversations, streamed answers with sources, suggested
-  questions); the chapter page's **Take Test** (chapter test from Class 6, practice test of the
-  chapter in Class 3–5, hidden below); Progress + topics and recent tests.
-- Learner: home **Recommended for You** and **Today's plan**; Tests (list, the test screen: timer
-  from `deadline` / `seconds_left` for Class 9+, sections, a question grid, `PUT` each answer as
-  chosen, auto-submit at 0, `GET /test-attempts/{id}` after a reload, then the report); Study Plan
-  (today's tasks with Start and ✓ Done; learn tasks open Learn a Concept with the question filled
-  in; a solo student can make a plan); AI Tutor (streamed replies, the rung as a label).
-- Streaming: a route handler `app/api/chat/[chatId]/messages/route.ts` passes the backend's stream
-  through, like the upload route; include `/api/chat` in the proxy's matcher so tokens are renewed
-  (it excludes all of `/api/` today because the upload must not be buffered).
-- Tests: unit (the stream reader, the test timer and answers, the report, the plan view, the
-  dashboard) and browser journeys (a parent makes a chapter test and the child takes it — answer only
-  objective questions, written ones need the AI — then the report; a plan and today's tasks; Start
-  Recommended Practice; assistant and tutor say the AI is off). Every new page gets `loading.tsx`;
-  all wording in `lib/copy.ts`.
-- At the end: docs/04 routes, README, CLAUDE.md "What exists so far", this file (Step 9 ✅).
+*Rewritten at the end of every step. Last updated: end of Step 9.*
 
 ### Where things stand
 
-- Steps 1–8 are done. Backend: 325 tests pass (live tests skipped), `ruff` clean. The frontend did
-  not change in Steps 7 and 8 (its 80 unit tests and 10 browser journeys passed at the end of Step 6).
-- Checked on the real server with the demo data (Aarav): a test made from saved questions, an answer
-  saved, the test submitted and its report; a two-week plan made and read back. What that run added
-  to the demo data was removed again.
+- Steps 1–9 are done. Backend: 343 tests pass (live tests skipped), `ruff` clean. Frontend: 110 unit
+  tests and 13 browser journeys (desktop + phone, twice in a row) pass; `lint`, `typecheck`,
+  `format:check` and `build` are clean.
+- Checked in a real browser (the production build, the API with the AI off): a chapter test from the
+  chapter page, **Start now with …**, answers, submit, the report for the child and the parent; a
+  study plan for a new family, today's tasks, **Start Recommended Practice**, the assistant and the
+  tutor without the AI. The screens were also looked at on a desktop and a phone (dashboard, test
+  screen, report, plans, Create Test, assistant, tutor).
+- **Not tried on a real model in Part B**: the assistant and tutor screens with the AI on (Groq's
+  free daily allowance had run out in Part A). Part A's stricter rung instructions and the removal of
+  "(see [S1])" citations are still untried on a real model too. Worth one check with `LLM_PROVIDER=groq`.
+- **Node.js on this Mac**: the default `node` is still 21.5. Node 24.22.2 (the official prebuilt,
+  checksum-checked) is in `~/.local/node-v24`; run frontend commands as
+  `PATH="$HOME/.local/node-v24/bin:$PATH" npm …`. Homebrew here runs under Rosetta on macOS 27 and
+  compiles Node from source, so it was not used.
 
-### What Step 8 built
+### What Step 9 built (frontend)
 
-- **Mock tests** (docs/03 §3.7). Kinds: `practice` (Class 3+, any one place or all books), `chapter`
-  (Class 6+, one chapter), `full_mock` (Class 9+, a book or all books, always timed: about 2 minutes a
-  mark). A time limit needs Class 9+. Otherwise `422 test_not_for_class` (`details` says `kind` or
-  `duration_minutes`). Default size: practice = the class's usual number, chapter 15, full mock 30;
-  capped by the class's maximum.
-- **The paper** (`paper.py`): sections A objective (MCQ, true/false, fill blank, assertion-reason,
-  case-based; 1 mark), B numerical (2), C short answer (2), D long answer (5), each only where the
-  class uses one of its formats; every section gets at least one question, the rest by share. Stored
-  in `mock_tests.sections`; each question's section, position and marks in `mock_test_questions`.
-- **Questions** come exactly as for practice: `question_bank.from_bank` (never a question the learner
-  was given in a practice **or a test** - practice now skips test questions too), then the AI writes
-  each section's shortfall in the background (`prepare_test`, resumed at start-up), committing after
-  each section so written questions stay in the bank even if a later section fails.
-- **A sitting** (`test_attempts`): `POST /mock-tests/{id}/attempts` starts it (or returns the one in
-  progress; after a submitted one it is a retake). Answers are saved one by one into `responses`
-  (`PUT …/answers/{question_id}`, one atomic `||` update) and can be changed until submitted; refused
-  after the deadline + 1 minute (`test_time_over`). No hints/steps in a test.
-- **Marking on submit**: exact formats as in practice; written answers by the AI, whose `Grade` now
-  also gives `key_points_covered` → that share of the marks, to the nearest half mark. All AI calls
-  happen before anything is stored, so a failure leaves the sitting as it was and submit can be sent
-  again. Each answer becomes a `question_attempts` row with `test_attempt_id` and `marks`
-  (`practice_session_id` is now optional; a check constraint wants exactly one). Mastery is worked out
-  again for every area answered, so **tests count for progress, mastery and recommendations**.
-  Unanswered questions earn 0 and are not counted. Submitting twice returns the same report.
-- **The report**: score / total / percentage, time taken, answered / correct / wrong / unanswered,
-  by section, by chapter and topic (weakest first), and every question with the response, marks,
-  feedback and the worked solution.
-- **Study plans** (one per learner, `study_plans.student_id` unique; a new plan replaces the old one;
-  not in child mode, but a child can tick tasks off). Built by rules (`planner.py`), not the AI:
-  weak areas first (learn + practise at the lowered level), then each chapter in book order - new:
-  learn + practise; below the target: practise, **as many times as it needs** (one per 25 points of
-  mastery it lacks, the later ones in rounds through the chapters, so they are spread out); at the
-  target: one review at the end. The last day: one test per book - full mock (Class 9+), practice
-  test (Class 3–8), none below. Learn 15 minutes, practice 20, a test its length. Final tasks are
-  placed backwards from the last day, the rest spread evenly before within `daily_minutes`; what does
-  not fit is counted in `unscheduled`.
-- **It follows performance**: on the first `GET /students/{id}/study-plan` of a day (India time), past
-  pending tasks become `missed`, pending tasks from today on are replaced by a new plan from the
-  latest mastery; done / skipped tasks stay and their minutes count. Finishing a practice of a task's
-  place, or submitting a whole-book test of its book, marks it `done` (`practice_done`,
-  `book_test_done`); learn tasks are ticked with `PATCH /study-plan-items/{id}`.
-- Shared now: `QuestionView.of()`, `QuestionRequest` (base of `PracticeCreate` and `MockTestCreate`),
-  `Response` (base of `AnswerIn`), `student_service.class_profile()`, `mastery.practice_level()` /
-  `right_lately()`, `recommendations.practice_body()` / `revise_body()`, `checking.AnswerShapeError` is
-  itself the `422 answer_does_not_fit`.
+- **Shared pieces.** `answer-input.tsx`: every answer format, `answerFor()` and `draftOf()` (a saved
+  answer back as a draft) — practice and tests use it. `start-button.tsx` (was QuickPractice): any
+  Server Action plus ready-made fields as hidden inputs (empty ones are left out) — a chapter's
+  Practice and Take Test, a recommendation, a plan task. `lib/forms.ts` now holds `Result`,
+  `attempt()`, `questionRequestFromForm()` and `questionsError()` shared by practice and tests.
+  "Soon" is gone (every menu item works).
+- **Create Test** (`question-chooser.tsx`, with Create Practice): the kinds the class has
+  (`KIND_FEATURE`), chosen in the same GET form as the place; a full mock test picks only a book, a
+  chapter test needs a chapter (the button waits for one). An empty number of questions gets the
+  usual length; the time limit field exists only with `timed_tests`.
+- **The test screen** (`test-player.tsx`): one question at a time, a grid, the section and its marks;
+  a choice is saved at once, typing after a 1-second pause, all saves in order; submit sends what is
+  still waiting first. The countdown starts from `seconds_left` (the device's clock, not the
+  deadline) and submits at 0 — also at once for a sitting reopened after its time ran out. After
+  submitting the page shows the report (`test-report.tsx`). A save or a submit that does not get
+  through says so and the screen carries on (a dropped save never blocks submitting).
+- **Tests and child mode**: `startChildMode(studentId, { practice } | { test })`; for a test the
+  sitting is started as the parent first, so a failure changes nothing. A learner's own new test goes
+  to `/learn/tests`, where it starts once ready.
+- **Plans**: the parent sees every day and can remove the plan; the learner sees today's tasks
+  (Start, ✓ Done / Undo) and the days to come. A learn task opens `/learn/concepts/{chapter}?q=&task=`
+  and is ticked off once explained. A student who signed up alone makes their own plan
+  (`/learn/plan/new`); in child mode the parent does.
+- **Dashboard** (`dashboard.tsx`): the week as columns in plain CSS (no chart library); the lighter
+  step `--primary-light` was checked with the dataviz validator (one hue, 2.48:1 on the card).
+  Strong / needs attention reuse the progress bars. Recommended is also on the learner's home, where a
+  weak topic can be revised first. The parent's Progress page adds the recent tests.
+- **The assistant and the tutor** (`chat-screen.tsx`, `chat-box.tsx`): a conversation is made with
+  its first message; the reply streams through `app/api/chat/[chatId]/messages` and `lib/sse.ts`;
+  when a new conversation's first reply is kept, the box resets and opens the conversation's address
+  (pages stay mounted with their state). On an error the question goes back into the box. Suggested
+  questions never contain the child's name. A conversation of another child (after switching) is not
+  shown.
+- **proxy.ts** now runs before `/api/chat/…` too (token renewal); only the upload route is left out —
+  a unit test checks the matcher (`unstable_doesMiddlewareMatch`).
 
 ### Known issues
 
-- **The demo data has only objective questions.** Without an AI key a demo test can only be a
-  1-question one (any second question falls in the short-answer section). Step 9's browser tests
-  will need a few short- and long-answer demo questions in `scripts/demo_questions.py`.
-- **The server does not submit a test when time runs out**; the screen must call `submit` when the
-  timer reaches 0. A sitting left in a closed tab stays `in_progress` with `seconds_left: 0`, and
-  starting the test again returns it: the screen should then submit it and show the report.
-- **Marking runs inside the submit request**, one AI call per written answer, one after another. On
-  the Groq free plan a paper with many written answers is slow and can hit the per-minute limit
-  (`503 ai_unavailable`; the answers are kept, submit again).
-- The plan is made again only once a day: practice finished today shows in tomorrow's plan, and a
-  task already planned for later stays until then. Plans work per chapter (per topic only for weak
-  topics); the minutes per task are fixed estimates. A replaced plan is gone, with its history.
-- There is no endpoint to delete a test (they stay in the list).
-- No negative marking or JEE / NEET paper patterns yet (Step 10).
-- Unchanged from Step 7: recommendations are fixed for the day; answers given before Step 7 enter
-  mastery only when the learner answers again in that area; reasons are English sentences built from
-  fixed wording; **Node.js on this machine is still v21.5.0** (Vitest needs ≥ 22); the upload route
-  does not renew tokens; `E2E…` children can be left behind by an interrupted browser run (the dev
-  database has many); `npm audit` (17 moderate); no rate limiting, token revocation or security
-  headers yet (Step 12). Groq free plan: about 4 minutes for a 5-question hard practice.
+- **Written answers in a test need the AI to be marked.** With it off, a sitting with a written
+  answer cannot be submitted, and a saved answer cannot be emptied (the API refuses an empty answer).
+  The browser journey answers only objective questions.
+- The server still does not submit a test whose time ran out; the screen does (when it reaches 0,
+  or when the sitting is opened again).
+- Lists show the first 50 tests and the first 50 conversations (no "older" pages yet). There is no
+  endpoint to delete a test.
+- A first message that fails leaves an empty conversation in the database (hidden in the list).
+- The learner's home reads the whole dashboard for Recommended and today's plan (it also works out
+  the week and mastery, which the home does not show).
+- Replies are shown as plain text (no Markdown formatting). The youngest home shows recommendations
+  without their reasons; the tutor and tests are not in the Nursery–Class 5 menus (docs/04 §4.4).
+- Recommendations and plans use only the family's shared books and the learner's own: a temporary
+  browser-test child has none, so the plan journey signs up a new family and uploads the sample book.
+- **Reading a book can hold the API up for a few seconds** when several are read at once (its
+  pure-Python steps run in threads but share the interpreter with the requests). The browser tests
+  therefore wait up to 10 seconds per check (`playwright.config.ts`). Step 12's workers move reading
+  out of the API process.
+- **Running the browser tests next to your own servers:** `npm run test:e2e` reuses a frontend already
+  on port 3000 and the API on 8000. With the AI on, the recommended-practice, assistant and tutor steps
+  then call it. To keep the allowance, start the API with `LLM_PROVIDER=none` for the tests.
+- Unchanged: the plan is made again only once a day; recommendations are fixed for the day; reasons are
+  English sentences; answers given before Step 7 enter mastery only when the learner answers again in
+  that area; the upload route does not renew tokens; `npm audit` (17 moderate); no rate limiting,
+  token revocation or security headers yet (Step 12); Groq's free plan is slow (about 4 minutes for a
+  5-question hard practice). No negative marking or JEE / NEET paper patterns yet (Step 10).
 
-### What Step 9 needs to know
+### What Step 10 needs to know
 
-- Step 9 is **frontend + two assistants**: the parent dashboard (`GET /students/{id}/dashboard`,
-  planned), the test and plan screens, the Parent AI Assistant and the Student AI Tutor (hint first,
-  answer last; `chat_sessions`, `chat_messages`, docs/02 §2.8).
-- **Test screens** (docs/04): `/parent/tests` (`GET /students/{id}/mock-tests`, cursor pages, each with
-  its sittings), `/parent/tests/new` (kinds and the timer shown by the profile's `practice_tests`,
-  `chapter_tests`, `full_mock_tests`, `timed_tests`), `/parent/tests/[testId]` (poll while `preparing`,
-  then the sittings and their reports); `/learn/tests` and `/learn/tests/[attemptId]`: start with
-  `POST /mock-tests/{id}/attempts`, show the countdown from `deadline` / `seconds_left`, `PUT` each
-  answer as it is chosen, `GET /test-attempts/{id}` after a reload, submit at 0 or on the button, then
-  show `TestReport`. The chapter page's **Take Test**: `kind: "chapter"` from Class 6, a `practice` test
-  with `chapter_id` in Class 3–5; hidden for Nursery–Class 2.
-- **Plan screens**: `/parent/plans` (`GET /students/{id}/study-plan`; `404 study_plan_not_found` = no
-  plan yet) and `/parent/plans/new` (exam date, minutes a day, target, chapters); `/learn/plan` shows
-  today's day of the plan: each task's `practice` / `revise` / `test` body goes as-is to
-  `POST /practice/sessions` / `POST /learn/explain` / `POST /mock-tests`; a learn task is ticked off
-  with `PATCH` after the explanation. Show `unscheduled` as "Not everything fits: add minutes a day or
-  choose fewer chapters".
-- Frontend hooks still waiting from Step 7: "Recommended for You" on the learner home, strong areas /
-  needs attention and **Start Recommended Practice** on the parent dashboard.
-- Every new page that loads data needs its own `loading.tsx`; all wording in `frontend/lib/copy.ts`
-  (parent words: docs/04 §4.5).
+- Step 10 is **previous-year paper analysis, misconception detection and JEE / NEET / CUET modes**
+  (docs/03 §3.9 plans `POST /books/{id}/paper-analysis`). Class profiles already carry
+  `previous_year_questions` and `competitive_exam_modes`, and learner profiles the goal (`jee`,
+  `neet`, `cuet`).
+- **Papers**: question papers can already be uploaded as books (`material_type`); reading finds each
+  exercise question. Test papers are built in `question_generation/paper.py` (sections, marks, time);
+  exam patterns with negative marking would go there and in the marking of `mock_test_service`.
+- **Screens**: Create Test's kinds come from `KIND_FEATURE` in `components/question-chooser.tsx` and
+  `copy.testKinds`; papers and reports are drawn from the API's sections and marks, so new sections
+  need no screen change. A negative mark would show as it is in the report.
+- **Misconceptions**: every answer is a `question_attempts` row (with the response, help used and,
+  for written answers, the AI's feedback); mastery lives in `adaptive_learning/mastery.py`; the tutor
+  already checks a learner's attempt (`chat/tutor.py`).
+- Every new page that loads data needs its own `loading.tsx`; all wording in `frontend/lib/copy.ts`.

@@ -9,9 +9,9 @@ function counted(count: number, word: string): string {
 
 export const copy = {
   appName: "EduGuide AI",
-  soon: "Soon",
   signOut: "Sign out",
   cancel: "Cancel",
+  start: "Start",
   loading: "Loading…",
 
   landing: {
@@ -173,6 +173,10 @@ export const copy = {
     switchLearner: "Grown-ups",
     recent: "Your recent practice",
     continue: "Continue",
+    recommended: "Recommended for You",
+    todaysPlan: "Today's plan",
+    openPlan: "Open my plan",
+    revise: "Revise the idea first",
   },
 
   switcher: {
@@ -184,6 +188,25 @@ export const copy = {
     uploadBook: "Upload Book",
     createPractice: "Create Practice",
     books: (count: number) => counted(count, "book"),
+    week: "This week",
+    weekTotal: (answered: number, minutes: number) =>
+      `${counted(answered, "question")} answered · ${minutes} min`,
+    dayLine: (day: string, answered: number, correct: number) =>
+      `${day}: ${answered} answered, ${correct} right the first time`,
+    right: "Right the first time",
+    notRight: "Not right the first time",
+    strong: "Strong areas",
+    needsAttention: "Needs attention",
+    noAreas: "This fills in after a few practices.",
+    recommended: "Recommended",
+    startRecommended: "Start Recommended Practice",
+    recommendationDone: "Done today ✓",
+    recentTests: "Recent tests",
+    allTests: "All tests",
+    plan: "Today's plan",
+    planLine: (daysLeft: number, done: number, total: number) =>
+      `${counted(daysLeft, "day")} to the exam · ${done} of ${total} tasks done`,
+    seePlan: "See the plan",
   },
 
   library: {
@@ -277,6 +300,113 @@ export const copy = {
   },
 
   difficulties: { easy: "Easy", medium: "Medium", hard: "Hard", mixed: "Mixed" } as Record<string, string>,
+
+  testKinds: {
+    practice: "Practice test",
+    chapter: "Chapter test",
+    full_mock: "Full mock test",
+  } as Record<string, string>,
+
+  tests: {
+    title: "Mock Tests",
+    myTitle: "Tests",
+    subtitle: (name: string) => `Tests made for ${name}'s class, from your books, marked like an exam.`,
+    create: "Create Test",
+    none: "No tests yet.",
+    notForClass: "Tests start from Class 3.",
+    kind: "Kind of test",
+    chooseChapter: "Choose a chapter for a chapter test.",
+    countHint: (max: number) => `Up to ${max}. Leave empty for the usual length.`,
+    timeLimit: "Time limit in minutes",
+    noTimeLimitHint: "Leave empty for no time limit.",
+    fullMockTimeHint: "Leave empty for about 2 minutes a mark.",
+    allBooks: "All books",
+    summary: (questions: number, marks: number, minutes: number | null) =>
+      [
+        counted(questions, "question"),
+        counted(marks, "mark"),
+        minutes ? `${minutes} min` : "No time limit",
+      ].join(" · "),
+    preparingTitle: "Getting the test ready…",
+    failedTitle: "This test could not be made",
+    start: "Start test",
+    continue: "Continue",
+    retake: "Take again",
+    result: "See result",
+    inProgress: "In progress",
+    sittings: "Sittings",
+    seeQuestions: "See the questions",
+    sectionTitle: (code: string, title: string, marks: number) =>
+      `Section ${code} · ${title} · ${counted(marks, "mark")} each`,
+    previous: "Previous",
+    next: "Next",
+    answered: (count: number, total: number) => `${count} of ${total} answered`,
+    grid: "Go to a question",
+    timeLeft: "Time left",
+    submit: "Submit test",
+    submitCheck: (left: number) =>
+      left ? `${counted(left, "question")} not answered yet. Submit anyway?` : "Submit the test now?",
+    submitYes: "Yes, submit",
+    marking: "Marking your answers…",
+    // The report
+    reportTitle: "Result",
+    score: "Score",
+    timeTaken: "Time taken",
+    correct: "Correct",
+    wrong: "Wrong",
+    notAnswered: "Not answered",
+    bySection: "By section",
+    byArea: "By chapter and topic",
+    questions: "Every question",
+    marks: (awarded: number | null, marks: number) => `${awarded ?? 0} / ${marks}`,
+    yourAnswer: "Your answer:",
+    solution: "Solution",
+    allTests: "All tests",
+  },
+
+  plans: {
+    title: "Study Plans",
+    myTitle: "Study Plan",
+    none: (name: string) =>
+      `${name} has no study plan yet. A plan spreads the chapters over the days until the exam.`,
+    noneInChildMode: "No study plan yet. A grown-up can make one in the parent area.",
+    noneSolo:
+      "No study plan yet. Tell us when your exam is, and the chapters are spread over the days until then.",
+    make: "Make a plan",
+    makeNew: "Make a new plan",
+    remove: "Remove this plan",
+    removeConfirm: "Yes, remove",
+    newTitle: "Make a study plan",
+    newSubtitle: "The tasks come from what the learner already knows, and change as they practise.",
+    replaces: "This replaces the current plan.",
+    examDate: "Exam date",
+    dailyMinutes: "Minutes a day",
+    dailyMinutesHint: "Between 10 and 300",
+    target: "Target score (%)",
+    targetHint: "Chapters below it get more practice.",
+    chapters: "Chapters in the exam",
+    chaptersHint: "Choose none to include every chapter.",
+    submit: "Make plan",
+    daysLeft: (days: number) => `${counted(days, "day")} to the exam`,
+    examOn: (date: string) => `Exam on ${date}`,
+    progress: (done: number, total: number) => `${done} of ${total} tasks done`,
+    missed: (count: number) => `${count} missed`,
+    perDay: (minutes: number) => `${minutes} min a day`,
+    unscheduled: "Not everything fits: add minutes a day or choose fewer chapters.",
+    finished: "The exam day has come. Make a new plan for the next exam.",
+    today: "Today",
+    comingUp: "Coming up",
+    nothingToday: "Nothing planned for today. 🎉",
+    minutes: (minutes: number) => `${minutes} min`,
+    kinds: { learn: "Learn", practice: "Practice", test: "Test" } as Record<string, string>,
+    status: { pending: "To do", done: "Done", skipped: "Skipped", missed: "Missed" } as Record<
+      string,
+      string
+    >,
+    wholeBook: (title: string) => `${title} (whole book)`,
+    markDone: "✓ Done",
+    undo: "Undo",
+  },
 
   formats: {
     mixed: "Mixed",
@@ -377,6 +507,34 @@ export const copy = {
     keepGoing: "Every right answer gives you a star. Keep going!",
   },
 
+  chat: {
+    assistant: {
+      title: "AI Assistant",
+      intro: "Ask about your child's learning: progress, weak topics, what to practise next.",
+      placeholder: "Ask a question…",
+      // Without the child's name: it is never sent to the AI.
+      suggestions: [
+        "How is my child doing this week?",
+        "Which topics need attention?",
+        "What should we practise next?",
+        "How did the last test go?",
+      ],
+      aiOff: "The assistant needs the AI, which is not switched on yet.",
+    },
+    tutor: {
+      title: "AI Tutor",
+      intro: "Stuck on a problem? You get a hint first, and more help when you ask for it.",
+      placeholder: "Type your question or problem…",
+      suggestions: [] as string[],
+      aiOff: "The tutor needs the AI, which is not switched on yet.",
+    },
+    send: "Send",
+    thinking: "Thinking…",
+    conversations: "Conversations",
+    newConversation: "New conversation",
+    rungs: { hint_1: "Hint 1", hint_2: "Hint 2", concept: "Concept", steps: "Steps", answer: "Answer" },
+  },
+
   exitChildMode: {
     title: "For grown-ups",
     text: "Enter the parent's password to leave this learner's screen.",
@@ -417,5 +575,6 @@ export const copy = {
     ai_not_configured:
       "There are not enough saved questions for this choice, and writing new ones needs the AI, which is not switched on yet. Try another chapter, fewer questions or a different type.",
     explain_ai_not_configured: "Explanations need the AI, which is not switched on yet.",
+    marking_ai_not_configured: "Written answers are marked by the AI, which is not switched on yet.",
   },
 };

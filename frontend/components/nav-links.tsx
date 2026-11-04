@@ -24,7 +24,7 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || (href !== "/learn" && pathname.startsWith(`${href}/`));
 }
 
-/** The menu of the parent area or of the learner's layout. Items of later steps say "Soon". */
+/** The menu of the parent area or of the learner's layout. */
 export function NavLinks(props: NavLinksProps) {
   const pathname = usePathname();
   const items: NavItem[] = props.area === "parent" ? PARENT_NAV : studentNav(props.area, props.features);
@@ -39,9 +39,16 @@ export function NavLinks(props: NavLinksProps) {
           : "justify-around max-sm:gap-0 sm:justify-start",
       )}
     >
-      {items.map((item) => {
-        const content = (
-          <>
+      {items.map((item) => (
+        <li key={item.label}>
+          <Link
+            href={item.href}
+            aria-current={isActive(pathname, item.href) ? "page" : undefined}
+            className={cn(
+              itemClass,
+              "hover:bg-secondary aria-[current=page]:bg-secondary aria-[current=page]:text-secondary-foreground",
+            )}
+          >
             {showEmoji && item.emoji ? (
               <span aria-hidden className="text-xl playful:text-3xl">
                 {item.emoji}
@@ -50,34 +57,9 @@ export function NavLinks(props: NavLinksProps) {
               <item.icon aria-hidden className="size-4" />
             )}
             <span>{copy.nav[item.label]}</span>
-            {item.soon && (
-              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.625rem] leading-none font-semibold tracking-wide text-muted-foreground uppercase max-sm:standard:hidden max-sm:dense:hidden">
-                {copy.soon}
-              </span>
-            )}
-          </>
-        );
-        return (
-          <li key={item.label}>
-            {item.soon ? (
-              <span aria-disabled className={cn(itemClass, "cursor-default text-muted-foreground")}>
-                {content}
-              </span>
-            ) : (
-              <Link
-                href={item.href}
-                aria-current={isActive(pathname, item.href) ? "page" : undefined}
-                className={cn(
-                  itemClass,
-                  "hover:bg-secondary aria-[current=page]:bg-secondary aria-[current=page]:text-secondary-foreground",
-                )}
-              >
-                {content}
-              </Link>
-            )}
-          </li>
-        );
-      })}
+          </Link>
+        </li>
+      ))}
     </ul>
   );
 }

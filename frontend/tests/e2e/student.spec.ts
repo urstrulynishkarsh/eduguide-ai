@@ -61,3 +61,29 @@ test("the landing page tells visitors what EduGuide does", async ({ page }) => {
   await page.getByRole("link", { name: "See How It Works" }).click();
   await expect(page.getByRole("heading", { name: "How it works" })).toBeInViewport();
 });
+
+test("a student who signed up alone makes their own study plan and finds their tests", async ({ page }) => {
+  await signUp(page, "Student", "Tara Sen", uniqueEmail("student"));
+  await chooseClass(page, "Class 7");
+  await page.getByRole("button", { name: "Save and start" }).click();
+  await expect(page).toHaveURL(/\/learn$/);
+
+  await page.getByRole("link", { name: "Study Plan" }).filter({ visible: true }).first().click();
+  await expect(page.getByText(/No study plan yet. Tell us when your exam is/)).toBeVisible();
+  await page.getByRole("link", { name: "Make a plan" }).click();
+  await page.getByLabel("Exam date").fill(new Date(Date.now() - 86_400_000).toISOString().slice(0, 10));
+  await page.getByRole("button", { name: "Make plan" }).click();
+  await expect(formMessage(page)).toBeVisible(); // the exam must be after today
+  await page.getByLabel("Exam date").fill(new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10));
+  await page.getByRole("button", { name: "Make plan" }).click();
+  await expect(page).toHaveURL(/\/learn\/plan$/);
+  await expect(page.getByText(/days to the exam/)).toBeVisible();
+  await expect(page.getByText("Nothing planned for today. 🎉")).toBeVisible(); // no books yet
+
+  await page.getByRole("link", { name: "Tests" }).filter({ visible: true }).first().click();
+  await expect(page.getByText("No tests yet.")).toBeVisible();
+  await expect(page.getByLabel("Kind of test").locator("option")).toHaveText([
+    "Practice test",
+    "Chapter test",
+  ]);
+});

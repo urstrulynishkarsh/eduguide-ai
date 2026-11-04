@@ -39,7 +39,7 @@ export default async function ParentPracticePage({ params }: PageProps<"/parent/
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h1 className="text-2xl font-extrabold">✅ {text.readyFor(name)}</h1>
             {session.status === "ready" && (
-              <form action={startChildMode.bind(null, session.student_id, session.id)}>
+              <form action={startChildMode.bind(null, session.student_id, { practice: session.id })}>
                 <SubmitButton size="lg">{text.startNow(name)}</SubmitButton>
               </form>
             )}

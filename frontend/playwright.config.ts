@@ -8,6 +8,8 @@ export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
+  // Journeys run side by side: one reading a book can hold the API up for a few seconds.
+  expect: { timeout: 10_000 },
   use: { baseURL: "http://localhost:3000", trace: "retain-on-failure" },
   projects: [
     { name: "desktop", use: devices["Desktop Chrome"] },

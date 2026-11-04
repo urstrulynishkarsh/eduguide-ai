@@ -1,8 +1,7 @@
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 
-import { API_BASE_URL } from "@/lib/backend";
-import { copy } from "@/lib/copy";
+import { API_BASE_URL, UNREACHABLE } from "@/lib/backend";
 import { ACCESS_COOKIE } from "@/lib/session";
 
 /**
@@ -30,9 +29,6 @@ export async function POST(request: NextRequest, { params }: RouteContext<"/api/
       headers: { "Content-Type": "application/json" },
     });
   } catch {
-    return Response.json(
-      { error: { code: "unreachable", message: copy.errors.unreachable, details: null } },
-      { status: 502 },
-    );
+    return Response.json({ error: UNREACHABLE }, { status: 502 });
   }
 }

@@ -2,9 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { answerFor, pictureAndWord, PracticePlayer } from "@/components/practice-player";
+import { answerFor, pictureAndWord } from "@/components/answer-input";
+import { PracticePlayer } from "@/components/practice-player";
 import { answerQuestion, getHelp } from "@/lib/actions/practice";
 import type { PracticeSession, Question } from "@/lib/types";
+
+import { question } from "./fixtures";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 vi.mock("@/lib/actions/practice", () => ({
@@ -12,25 +15,6 @@ vi.mock("@/lib/actions/practice", () => ({
   getHelp: vi.fn(),
   explainQuestion: vi.fn(),
 }));
-
-const source = { book_id: "b1", book_title: "Class 7 Maths", chapter: "Chapter 4", exercise: "4.1", page: 3 };
-
-function question(overrides: Partial<Question>): Question {
-  return {
-    id: "q1",
-    number: 1,
-    format: "mcq",
-    difficulty: "easy",
-    case: null,
-    text: "x + 5 = 12. x = ?",
-    options: ["5", "7", "12", "17"],
-    match_left: [],
-    match_right: [],
-    unit: null,
-    source,
-    ...overrides,
-  };
-}
 
 function session(...questions: Question[]): PracticeSession {
   return {

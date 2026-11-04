@@ -1,6 +1,9 @@
+import path from "node:path";
+
 import { expect, type Page } from "@playwright/test";
 
 export const PASSWORD = "Secret-pass-123";
+const SAMPLE_BOOK = path.resolve(__dirname, "../../../backend/scripts/sample_data/class7-maths-sample.txt");
 
 /** A new email for every test run, so runs never collide with each other or the demo accounts. */
 export function uniqueEmail(prefix: string): string {
@@ -79,14 +82,19 @@ export async function removeChild(page: Page, name: string) {
   await expect(page).toHaveURL(/\/parent\/children$/);
 }
 
-/** From the parent area: open a sample book's first chapter and start practice on it. */
-export async function practiseChapter(page: Page, bookTitle: string) {
+/** From the parent area: open a sample book's first chapter. */
+export async function openFirstChapter(page: Page, bookTitle: string) {
   await page.goto("/parent/books");
   await page
     .getByRole("link", { name: new RegExp(bookTitle) })
     .first()
     .click();
   await page.locator('a[href*="/chapters/"]').filter({ visible: true }).first().click();
+}
+
+/** From the parent area: start practice on a sample book's first chapter. */
+export async function practiseChapter(page: Page, bookTitle: string) {
+  await openFirstChapter(page, bookTitle);
   await page.getByRole("button", { name: "✏️ Practice", exact: true }).click();
   await expect(page).toHaveURL(/\/parent\/practice\/[^/?]+$/);
 }
@@ -96,4 +104,22 @@ export async function leaveChildMode(page: Page) {
   await page.getByLabel("Parent's password").fill("DemoParent123");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/\/who-is-learning$/);
+}
+
+/** Upload Book from My Books: the sample Class 7 chapter, for the chosen child, read to the end. */
+export async function uploadSampleBook(page: Page) {
+  await page.goto("/parent/books");
+  await page
+    .getByRole("link", { name: /Upload Book/ })
+    .first()
+    .click();
+  await page.getByLabel("Book name").fill("Class 7 Mathematics");
+  await page.getByLabel("Subject").fill("Mathematics");
+  await page.getByLabel("File").setInputFiles(SAMPLE_BOOK);
+  await page.getByRole("button", { name: "Upload" }).click();
+
+  // The checklist is in parent words, and the page follows it until the book is read.
+  await expect(page).toHaveURL(/\/parent\/books\/[^/]+$/);
+  await expect(page.getByText("Reading your book")).toBeVisible();
+  await expect(page.getByText(/Found 1 chapter, 2 exercises/)).toBeVisible({ timeout: 90_000 });
 }

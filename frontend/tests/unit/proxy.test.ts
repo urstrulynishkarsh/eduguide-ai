@@ -1,9 +1,10 @@
 // @vitest-environment node
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/session";
-import { proxy } from "@/proxy";
+import { config, proxy } from "@/proxy";
 
 import { fakeToken } from "./helpers";
 
@@ -23,6 +24,14 @@ function mockRefresh(response: () => Promise<Response>) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("proxy", () => {
+  it("runs before pages and chat replies, never before a book upload or a static file", () => {
+    const runs = (url: string) => unstable_doesMiddlewareMatch({ config, url });
+    expect(runs("/parent/children")).toBe(true);
+    expect(runs("/api/chat/c1/messages")).toBe(true); // a reply needs a fresh token
+    expect(runs("/api/books/b1/documents")).toBe(false); // the proxy would hold a whole book in memory
+    expect(runs("/_next/static/chunk.js")).toBe(false);
+  });
+
   it("lets a fresh session through without touching its cookies", async () => {
     const fetchMock = mockRefresh(async () => new Response());
     const response = await proxy(request("/parent/children", { [ACCESS_COOKIE]: fakeToken("parent", 600) }));

@@ -26,7 +26,7 @@ export default async function WhoIsLearningPage() {
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         {children.map((child) => (
           <li key={child.id}>
-            <form action={startChildMode.bind(null, child.id, null)}>
+            <form action={startChildMode.bind(null, child.id, {})}>
               <button
                 type="submit"
                 className="grid w-full justify-items-center gap-3 rounded-2xl border-2 bg-card p-6 transition hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"

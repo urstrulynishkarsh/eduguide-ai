@@ -1,4 +1,4 @@
-import type { OnboardingOptions } from "@/lib/types";
+import type { OnboardingOptions, Question } from "@/lib/types";
 
 /** A small part of GET /meta/options: one class from three bands. */
 export const options: OnboardingOptions = {
@@ -68,3 +68,29 @@ export const options: OnboardingOptions = {
     { code: "hi", label: "Hindi", native_label: "हिन्दी" },
   ],
 };
+
+export const source = {
+  book_id: "b1",
+  book_title: "Class 7 Maths",
+  chapter: "Chapter 4",
+  exercise: "4.1",
+  page: 3,
+};
+
+/** A generated question: an MCQ unless `overrides` say otherwise. */
+export function question(overrides: Partial<Question>): Question {
+  return {
+    id: "q1",
+    number: 1,
+    format: "mcq",
+    difficulty: "easy",
+    case: null,
+    text: "x + 5 = 12. x = ?",
+    options: ["5", "7", "12", "17"],
+    match_left: [],
+    match_right: [],
+    unit: null,
+    source,
+    ...overrides,
+  };
+}
