@@ -96,6 +96,7 @@ def test_exam_features_switch_on_at_the_classes_named_in_the_spec():
     assert get_class_profile("class_9").features.previous_year_questions
     assert not get_class_profile("class_10").features.competitive_exam_modes
     assert get_class_profile("class_11").features.competitive_exam_modes
+    assert get_class_profile("class_3").features.misconception_detection
 
 
 def test_stream_and_competitive_goals_are_only_for_class_11_and_12():

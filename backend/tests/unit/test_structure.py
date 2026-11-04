@@ -3,6 +3,7 @@
 from app.core.enums import ContentType, FileKind
 from app.rag.ingestion.cleanup import remove_page_furniture
 from app.rag.ingestion.extract import extract_document
+from app.rag.ingestion.labels import exercise_title
 from app.rag.ingestion.structure import (
     DocumentStructure,
     StructureDetector,
@@ -14,10 +15,10 @@ from tests.samples import HINDI_TEXT, NOTES_TEXT, make_docx, make_pdf
 
 
 def detect_structure(
-    pages: list[PageText], *, outline: list[OutlineEntry], filename: str
+    pages: list[PageText], *, outline: list[OutlineEntry], filename: str, question_paper: bool = False
 ) -> DocumentStructure:
     """The three detection steps in the order the pipeline runs them."""
-    detector = StructureDetector(pages, outline=outline, filename=filename)
+    detector = StructureDetector(pages, outline=outline, filename=filename, question_paper=question_paper)
     detector.detect_chapters()
     detector.detect_exercises()
     return detector.detect_topics()
@@ -268,3 +269,101 @@ def test_helpers():
     assert chapter_number_from_filename("jemh104.pdf") == 4
     assert chapter_number_from_filename("Science Chapter 7 notes.docx") == 7
     assert chapter_number_from_filename("my notes.pdf") is None
+
+
+# ------------------------------------------------------------------ question papers
+
+
+def _paper(*texts: str, filename: str = "CBSE-2023-Maths.pdf") -> DocumentStructure:
+    return detect_structure(_plain(*texts), outline=[], filename=filename, question_paper=True)
+
+
+def _questions(structure: DocumentStructure) -> list[tuple[str, str]]:
+    """(the section's label, the question's text) of every question, in order."""
+    (chapter,) = structure.chapters
+    return [
+        (chapter.exercises[s.exercise].label, " ".join(line.text for line in s.lines))
+        for s in structure.segments
+        if s.kind is ContentType.EXERCISE_QUESTION and s.exercise is not None
+    ]
+
+
+def test_a_question_paper_is_one_chapter_of_sections_and_questions():
+    structure = _paper(
+        "CBSE Class X Mathematics (Standard)",
+        "Time Allowed: 3 hours Maximum Marks: 80",
+        "General Instructions:",
+        "1. This question paper has 5 sections A-E.",
+        "2. Section A has 20 MCQs carrying 1 mark each.",
+        "SECTION A",
+        "Section A consists of 20 questions of 1 mark each.",
+        "1. If HCF (65, 117) = 65m - 117, then m is",
+        "(a) 4 (b) 2 (c) 1 (d) 3",
+        "2. The roots of x^2 - 4 = 0 are",
+        "SECTION - B",
+        "3. Find the zeroes of x^2 - 3x + 2. [2]",
+        "4. Prove that root 2 is irrational. [2]",
+        "OR",
+        "Show that 5 - root 3 is irrational.",
+        "Section C (3 marks each)",
+        "5. A train covers 360 km at a uniform speed. Find its speed.",
+    )
+    (chapter,) = structure.chapters
+    # Named after the file: every year's paper has the same heading. A year is not a chapter number.
+    assert (chapter.number, chapter.title, chapter.topics) == (None, "CBSE 2023 Maths", [])
+    assert [(e.label, e.question_count) for e in chapter.exercises] == [
+        ("Section A", 2),
+        ("Section B", 2),
+        ("Section C (3 marks each)", 1),
+    ]
+    questions = _questions(structure)
+    # The section's instruction goes with each of its questions; "OR" stays inside its question.
+    assert questions[0][1].startswith("Section A consists of 20 questions of 1 mark each. 1. If HCF")
+    assert questions[3] == (
+        "Section B",
+        "4. Prove that root 2 is irrational. [2] OR Show that 5 - root 3 is irrational.",
+    )
+    # The front page and the numbered instructions are not questions, nor teaching text.
+    assert structure.segments[0].kind is ContentType.OTHER
+    assert "Maximum Marks: 80" in " ".join(line.text for line in structure.segments[0].lines)
+
+
+def test_a_paper_in_parts_names_each_section_after_its_part():
+    structure = _paper(
+        "JEE Main 2024 Paper 1",
+        "PART A - PHYSICS",
+        "SECTION A",
+        "1. A ball is thrown up at 20 m/s. Its greatest height is (1) 10 m (2) 20 m (3) 30 m (4) 40 m",
+        "2. The unit of power is (1) J (2) W (3) N (4) Pa",
+        "SECTION B",
+        "3. The value of g in m/s^2, to the nearest integer, is ____.",
+        "PART B - CHEMISTRY",
+        "SECTION A",
+        "4. The number of moles in 18 g of water is (1) 1 (2) 2 (3) 0.5 (4) 18",
+        filename="jee-main-2024.pdf",
+    )
+    assert [(e.label, e.question_count) for e in structure.chapters[0].exercises] == [
+        ("Part A Physics · Section A", 2),
+        ("Part A Physics · Section B", 1),
+        ("Part B Chemistry · Section A", 1),
+    ]
+
+
+def test_a_paper_without_sections_starts_after_its_numbered_instructions():
+    structure = _paper(
+        "Class 9 Science Half-yearly Examination",
+        "General Instructions",
+        "1. All questions are compulsory.",
+        "2. Marks are shown against each question.",
+        "1. What is the SI unit of force? [1]",
+        "2. State Newton's first law of motion. [2]",
+        "3. Explain why a moving bus throws its passengers forward when it stops. [3]",
+    )
+    assert [(e.label, e.question_count) for e in structure.chapters[0].exercises] == [("Questions", 3)]
+    assert _questions(structure)[0] == ("Questions", "1. What is the SI unit of force? [1]")
+
+
+def test_exercise_titles():
+    assert exercise_title("2.3") == "Exercise 2.3"
+    assert exercise_title("") == "Exercises"
+    assert exercise_title("Section A") == "Section A"

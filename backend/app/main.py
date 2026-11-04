@@ -18,6 +18,7 @@ from app.core.middleware import BodySizeLimitMiddleware, RequestContextMiddlewar
 from app.core.tasks import get_task_queue
 from app.services.document_service import resume_unfinished_documents
 from app.services.mock_test_service import resume_unfinished_tests
+from app.services.paper_analysis_service import resume_unfinished_analyses
 from app.services.practice_service import resume_unfinished_sessions
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await resume_unfinished_documents(SessionLocal, queue)
         await resume_unfinished_sessions(SessionLocal, queue)
         await resume_unfinished_tests(SessionLocal, queue)
+        await resume_unfinished_analyses(SessionLocal, queue)
     except Exception:
         logger.warning("Could not resume unfinished work (is the database running?)", exc_info=True)
     yield

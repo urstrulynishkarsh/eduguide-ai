@@ -5,7 +5,8 @@ import { testTitle } from "@/components/test-report";
 import { Button } from "@/components/ui/button";
 import { createPractice } from "@/lib/actions/practice";
 import { copy } from "@/lib/copy";
-import type { Dashboard } from "@/lib/types";
+import { conceptHref } from "@/lib/navigation";
+import type { Dashboard, Misconception } from "@/lib/types";
 import { cn, formatDay } from "@/lib/utils";
 
 const text = copy.dashboard;
@@ -123,11 +124,7 @@ export function Recommendations({
               <div className="flex flex-wrap gap-2">
                 {area === "learn" && item.revise?.chapter_id && (
                   <Button asChild variant="outline">
-                    <Link
-                      href={`/learn/concepts/${item.revise.chapter_id}?q=${encodeURIComponent(item.revise.question)}`}
-                    >
-                      {copy.learn.revise}
-                    </Link>
+                    <Link href={conceptHref(item.revise)}>{copy.learn.revise}</Link>
                   </Button>
                 )}
                 <StartButton
@@ -167,6 +164,53 @@ export function RecentTests({ tests }: { tests: Dashboard["tests"] }) {
           </Link>
         </li>
       ))}
+    </ul>
+  );
+}
+
+/**
+ * Mistakes the child keeps making (Understand Mistakes), each with what to remember: a practice of its
+ * topic, whose questions check it, and for the learner the idea explained again. Put right ones say so.
+ */
+export function Mistakes({ items, area }: { items: Misconception[]; area: "parent" | "learn" }) {
+  const text = copy.mistakes;
+  return (
+    <ul className="grid gap-3">
+      {items.map((item) => {
+        const place = item.topic ?? item.chapter;
+        return (
+          <li key={item.id} className="grid gap-2 rounded-xl border bg-card p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <p className="font-semibold">{item.pattern}</p>
+              <p className="text-sm text-muted-foreground">
+                {place} · {text.seen(item.answers)}
+              </p>
+            </div>
+            <p className="text-sm">
+              <strong>{text.remember}</strong> {item.fix}
+            </p>
+            {item.status === "resolved" ? (
+              <p className="text-sm font-semibold text-success">{text.fixed}</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {area === "learn" && item.revise.chapter_id && (
+                  <Button asChild variant="outline">
+                    <Link href={conceptHref(item.revise)}>{copy.learn.revise}</Link>
+                  </Button>
+                )}
+                <StartButton
+                  action={createPractice.bind(null, area)}
+                  fields={item.practice}
+                  label={`${text.practise}: ${place}`}
+                  variant="outline"
+                >
+                  {text.practise}
+                </StartButton>
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

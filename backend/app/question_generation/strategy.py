@@ -1,5 +1,7 @@
 """What to ask for: formats, difficulty mix and the goal strategy (docs/07 §7.10, spec §9)."""
 
+from collections.abc import Sequence
+
 from app.class_profiles import ClassProfile
 from app.core.enums import Goal, QuestionFormat
 
@@ -28,7 +30,13 @@ def allowed_formats(profile: ClassProfile, question_type: str) -> list[QuestionF
     return [QuestionFormat(question_type)] if question_type in profile.question_formats else []
 
 
-def task_lines(profile: ClassProfile, goal: str, difficulty: str, formats: list[QuestionFormat]) -> list[str]:
+def task_lines(
+    profile: ClassProfile,
+    goal: str,
+    difficulty: str,
+    formats: list[QuestionFormat],
+    mistakes: Sequence[str] = (),
+) -> list[str]:
     lines = [
         _DIFFICULTY[difficulty],
         "Formats to use: " + ", ".join(formats) + ("." if len(formats) == 1 else " - use a variety."),
@@ -36,4 +44,10 @@ def task_lines(profile: ClassProfile, goal: str, difficulty: str, formats: list[
     ]
     if strategy := GOAL_STRATEGY.get(Goal(goal)):
         lines.append(strategy)
+    if mistakes:
+        lines.append(
+            "This student keeps making these mistakes here: " + " | ".join(mistakes) + " Include questions "
+            "that check them - where a format has options, one wrong option is the answer the mistake "
+            "gives - and hints that address them."
+        )
     return lines

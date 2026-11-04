@@ -106,11 +106,13 @@ async def upload(
     )
 
 
-async def family_with_book(client: AsyncClient, class_level: str = "class_7") -> tuple[Account, dict, dict]:
-    """A parent, a child of the class, and the child's book (the sample maths book; a short text for
-    UKG). Returns the last chapter, with its topics and exercises."""
+async def family_with_book(
+    client: AsyncClient, class_level: str = "class_7", **profile: Any
+) -> tuple[Account, dict, dict]:
+    """A parent, a child of the class (and `profile`), and the child's book (the sample maths book; a
+    short text for UKG). Returns the last chapter, with its topics and exercises."""
     parent = await register(client)
-    child = await add_child(client, parent, class_level=class_level)
+    child = await add_child(client, parent, class_level=class_level, **profile)
     book = await create_book(client, parent.headers, student_id=child["id"], class_level=None)
     if class_level == "ukg":
         await upload(client, parent.headers, book["id"], NOTES_TEXT.encode(), "water.txt", "text/plain")

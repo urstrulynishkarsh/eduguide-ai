@@ -192,6 +192,7 @@ goes (`ON DELETE CASCADE`), so a deleted book never leaves a recommendation poin
 | `avg_time_ms` | int, null | |
 | `last_practised_at` | timestamptz | |
 | `difficulty`, `difficulty_since` | varchar(8), timestamptz, null | the level of the next practice and when it last moved; empty where the class has no adaptive difficulty |
+| `examined_until` | timestamptz, null | Step 10: the newest wrong answer already looked at for misconceptions |
 
 Worked out again from `question_attempts` after every answer, in the same transaction.
 
@@ -218,7 +219,7 @@ Migration `0006`.
 
 | Table | Columns |
 |---|---|
-| `mock_tests` | `student_id`; `kind` `practice` / `chapter` / `full_mock`; the same question settings as a practice session (place `book_id` / `chapter_id` / `topic_id` / `exercise_id`, `question_count`, `difficulty`, `language`, `status`, `error_code` — one shared model mixin); `duration_minutes` (empty = untimed); `sections` jsonb, the paper's plan: `[{code, title, marks, count, formats}]` |
+| `mock_tests` | `student_id`; `kind` `practice` / `chapter` / `full_mock` (Step 10: `previous_year`); `exam` (Step 10: `jee` / `neet` / `cuet`, the exam whose pattern it follows; empty = a school paper); the same question settings as a practice session (place `book_id` / `chapter_id` / `topic_id` / `exercise_id`, `question_count`, `difficulty`, `language`, `status`, `error_code` — one shared model mixin); `duration_minutes` (empty = untimed); `sections` jsonb, the paper's plan: `[{code, title, marks, negative, count, formats, chapters?}]` (`negative`: marks lost for a wrong answer; `chapters`: `{chapter_id: count}` for a previous-year pattern test) |
 | `mock_test_questions` | (`mock_test_id`, `question_id`) primary key, `section` (`A`–`D`), `position` inside the section, `marks` |
 | `test_attempts` | one sitting: `mock_test_id`, `student_id`, `started_at`, `submitted_at`, `responses` jsonb (answers saved while the test is taken, `{question_id: {option / value / text / pairs, time_taken_ms}}`), `score` |
 
@@ -252,7 +253,20 @@ Changed from the plan: no `owner_user_id` — who may see a conversation follows
 parent sees their children's; a learner sees only their own tutor). A question and its reply are
 stored together, once the reply is complete.
 
-## 2.8 The whole picture
+## 2.8 Tables added in Step 10 — previous-year papers and misconceptions
+
+Migration `0008` (also `mock_tests.exam` and `student_mastery.examined_until`, above).
+
+| Table | Columns |
+|---|---|
+| `paper_analyses` | one per paper (a file of a "Previous-year papers" book): `document_id` (primary key, `ON DELETE CASCADE`), `book_id`, `status` `preparing` / `ready` / `failed`, `error_code`, what the AI read on its front page: `year`, `duration_minutes`, `negative_marks` (0 = none). Made again each time the book is analysed; removed when the file is read again |
+| `paper_questions` | one per question of an analysed paper: `chunk_id` (primary key: the exercise question it is, `ON DELETE CASCADE`), `document_id` (→ `paper_analyses`), `marks` (null: not shown), `format`, and where the family's textbooks teach it: `chapter_id`, `topic_id` (`ON DELETE SET NULL`: a removed textbook leaves the question unmatched) |
+| `student_misconceptions` | `student_id`, the area (`chapter_id`, `topic_id`, `ON DELETE CASCADE`), `pattern` (what the learner does wrong), `fix`, `explain_question` (asked of "Explain this"), `evidence` jsonb (ids of the question attempts that showed it), `status` `active` / `resolved`, `last_seen_at`, `resolved_at` |
+
+The trends of a paper analysis are not stored: they are worked out from these rows when it is read,
+so they follow the papers and textbooks there are now.
+
+## 2.9 The whole picture
 
 Every table built so far (the planned ones are in 2.9).
 
@@ -295,13 +309,19 @@ erDiagram
 
     students ||--o{ chat_sessions : "talked about in"
     chat_sessions ||--o{ chat_messages : contains
+
+    documents ||--o| paper_analyses : "analysed as"
+    paper_analyses ||--o{ paper_questions : contains
+    document_chunks ||--o| paper_questions : "is"
+    chapters ||--o{ paper_questions : "teaches"
+    students ||--o{ student_misconceptions : shows
+    chapters ||--o{ student_misconceptions : "found in"
 ```
 
-## 2.9 Planned tables
+## 2.10 Planned tables
 
 | Table | Step | Purpose | Important columns |
 |---|---|---|---|
-| `student_misconceptions` | 10 | Repeated wrong patterns | `student_id`, `topic_id`, `pattern`, `evidence` jsonb, `status` |
 | gamification tables | 11 | Streaks, XP, badges | decided in that step |
 
 `?` marks an optional column. Exact columns are fixed in the step that creates the table; this list
@@ -314,7 +334,7 @@ parent should see *one* "Class 8 Mathematics" in the library even if it arrived 
 the same query that ranks by similarity (spec §16). Copying three short columns avoids three joins
 on the hottest query in the system.
 
-## 2.10 Changing the schema
+## 2.11 Changing the schema
 
 ```bash
 # inside backend/, after editing a model in app/models/

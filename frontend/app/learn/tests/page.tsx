@@ -73,6 +73,7 @@ export default async function LearnTestsPage({ searchParams }: PageProps<"/learn
           area="learn"
           books={books}
           chosen={chosenFrom(query)}
+          goal={profile.goal}
           classProfile={classProfile}
           languages={options.languages}
           defaultLanguage={profile.primary_language}

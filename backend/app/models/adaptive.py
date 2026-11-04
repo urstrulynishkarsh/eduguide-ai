@@ -9,6 +9,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, SmallInteger, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -36,6 +37,8 @@ class StudentMastery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # adaptive difficulty. `difficulty_since` is the last change: later answers decide the next one.
     difficulty: Mapped[str | None] = mapped_column(String(8))
     difficulty_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The newest wrong answer already looked at for misconceptions; later ones are still to be.
+    examined_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -53,3 +56,21 @@ class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     difficulty: Mapped[str] = mapped_column(String(8))  # easy | medium | hard | mixed
     reason: Mapped[str] = mapped_column(String(300))
     status: Mapped[str] = mapped_column(String(8))  # active | done
+
+
+class StudentMisconception(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A wrong idea a learner keeps showing in one area, found in their wrong answers
+    (adaptive_learning/misconceptions.py). `resolved` once they answer that area right again."""
+
+    __tablename__ = "student_misconceptions"
+
+    student_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), index=True)
+    chapter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("chapters.id", ondelete="CASCADE"))
+    topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("topics.id", ondelete="CASCADE"))
+    pattern: Mapped[str] = mapped_column(String(300))  # "Adds the denominators when adding fractions."
+    fix: Mapped[str] = mapped_column(String(500))  # what to remember instead
+    explain_question: Mapped[str] = mapped_column(String(300))  # asked of "Explain this" to clear it up
+    evidence: Mapped[list[str]] = mapped_column(JSONB)  # ids of the question attempts that showed it
+    status: Mapped[str] = mapped_column(String(8))  # active | resolved
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # its newest wrong answer
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

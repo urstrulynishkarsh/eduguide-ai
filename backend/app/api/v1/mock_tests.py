@@ -20,9 +20,11 @@ async def create_test(
     data: MockTestCreate, principal: CurrentPrincipal, db: DbSession, queue: Queue
 ) -> MockTestOut:
     """A paper in sections - objective, numerical, short and long answers, as the class uses them.
-    `practice` tests from Class 3, `chapter` tests from Class 6, `full_mock` tests and time limits from
-    Class 9 (`422 test_not_for_class` otherwise). Saved questions the learner has not seen are used
-    first; the rest are written in the background - `status` is `preparing` until then."""
+    `practice` tests from Class 3, `chapter` tests from Class 6, `full_mock` and `previous_year` tests
+    and time limits from Class 9 (`422 test_not_for_class` otherwise). A learner whose goal is JEE,
+    NEET or CUET (Class 11-12) gets the exam's pattern: its sections, marks and negative marks. Saved
+    questions the learner has not seen are used first; the rest are written in the background -
+    `status` is `preparing` until then."""
     test = await mock_test_service.create_test(db, principal, data, queue=queue)
     return await mock_test_service.mock_test_out(db, test)
 
@@ -82,10 +84,13 @@ async def save_answer(
 
 
 @router.post("/test-attempts/{attempt_id}/submit", response_model=TestReport, summary="Submit the test")
-async def submit(attempt_id: uuid.UUID, principal: CurrentPrincipal, db: DbSession) -> TestReport:
-    """Marks every saved answer (written ones by the AI tutor, with part marks) and returns the report.
-    Also accepted after the time is up; submitting twice returns the same report."""
-    return await mock_test_service.submit(db, principal, attempt_id)
+async def submit(
+    attempt_id: uuid.UUID, principal: CurrentPrincipal, db: DbSession, queue: Queue
+) -> TestReport:
+    """Marks every saved answer (written ones by the AI tutor, with part marks; a wrong one loses the
+    section's negative marks) and returns the report. Also accepted after the time is up; submitting
+    twice returns the same report."""
+    return await mock_test_service.submit(db, principal, attempt_id, queue=queue)
 
 
 @router.get("/test-attempts/{attempt_id}/report", response_model=TestReport, summary="The result report")

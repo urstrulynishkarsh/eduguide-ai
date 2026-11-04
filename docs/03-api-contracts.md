@@ -668,15 +668,104 @@ questions, chat and off-topic messages have `rung: null`.
 overall progress) and, for questions about the books, from the child's books with sources. The
 child's name is not sent to the AI.
 
-## 3.9 Planned endpoints
+## 3.9 Endpoints added in Step 10 — Previous-year papers, misconceptions, exam modes
 
-Paths may still change slightly in the step that builds them; the shape of the plan will not.
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/books/{id}/paper-analysis` | parent, solo student | Analyse every paper of a "Previous-year papers" book (`202`, in the background) |
+| GET | `/api/v1/books/{id}/paper-analysis` | anyone who may see the book | The analysis: papers, where the marks go, topics, kinds, layout, a test like them |
+| GET | `/api/v1/students/{id}/misconceptions` | owner | Mistakes the learner keeps making, active first |
 
-| Step | Method and path | Purpose |
-|---|---|---|
-| 10 | `POST /books/{id}/paper-analysis` | Previous-year paper trends and a matching practice test |
+Changed: `POST /mock-tests` takes `kind: "previous_year"`; tests carry `exam` and each section
+`negative`; the dashboard adds `misconceptions`; answering in practice and submitting a test may
+start a look at the area's wrong answers.
 
-Rules that will hold for all of them:
+### Previous-year papers
+
+A book with `material_type: "previous_year_paper"` holds one paper per file. Reading such a file
+(docs/05 §5.2) makes the file one chapter named after it, its sections ("Section A", "Part A –
+Physics · Section B") its exercises and every numbered question an exercise question, so the book page
+lists each paper's questions as printed.
+
+`POST …/paper-analysis` reads every paper again with the AI, one background job per paper: each
+question's marks, format and the chapter or topic of the family's textbooks of the same class that
+teaches it (chosen from a numbered list, the paper's subject first), and the paper's year (else from
+the file name), time and negative marking. `422 not_a_paper_book`, `not_for_class` (below Class 9),
+`no_papers`; `503 ai_not_configured`; `403 parent_required` in child mode.
+
+```json
+{
+  "book_id": "…", "status": "ready",
+  "papers": [ { "document_id": "…", "title": "maths 2023", "status": "ready", "error": null, "year": 2023,
+                "duration_minutes": 180, "negative_marks": 0, "questions": 38, "total_marks": 80 } ],
+  "chapters": [ { "book_id": "…", "book_title": "Class 10 Mathematics", "chapter_id": "…",
+                  "chapter": "Chapter 5 Arithmetic Progressions", "topic_id": null, "topic": null,
+                  "questions": 9, "marks_per_paper": 8.5, "share": 0.106, "papers": 3, "trend": "rising",
+                  "by_year": [ { "year": 2021, "marks": 5 }, "…" ],
+                  "practice": { "chapter_id": "…", "student_id": null, "…": "…" } } ],
+  "unmatched": { "questions": 3, "marks": 5 },
+  "topics": [ { "chapter": "…", "topic": "5.3 nth Term of an AP", "questions": 4, "papers": 3, "…": "…" } ],
+  "formats": [ { "format": "mcq", "questions": 20, "marks": 20, "share": 0.53 } ],
+  "layout": [ { "title": "Section A", "questions": 20, "marks": 1, "formats": ["mcq", "assertion_reason"] } ],
+  "layout_year": 2023,
+  "test": { "kind": "previous_year", "book_id": "…", "student_id": null, "…": "…" }
+}
+```
+
+`status`: `none` (never analysed), `preparing`, `ready`, `failed`; a paper added since is `new`. A
+question without printed marks counts as 1 mark. `trend` compares the newer half of the dated papers
+with the older half (three or more). `practice` and `test` go to `POST /practice/sessions` and
+`POST /mock-tests` with the child's `student_id` added.
+
+**A test like the papers** (`kind: "previous_year"`, `book_id` = the paper book, Class 9+): the
+latest paper's sections in order, with their marks (a section's title is its kind of question, e.g.
+"Short answer questions"), as many questions as that paper has (at most the class's 50) or `count`;
+each section's questions spread over the chapters of the learner's own books by their marks in the
+papers; objective sections lose the paper's negative marks; always timed at the paper's pace (its
+time ÷ its marks; 2 minutes a mark when it shows no time). The learner must be in the papers' class
+(`422 paper_not_for_class`); the papers must be analysed with a question matching one of the
+learner's chapters (`422 paper_not_analysed`).
+
+### Exam modes and negative marking
+
+A Class 11–12 learner (`competitive_exam_modes`) whose goal is `jee`, `neet` or `cuet` gets every
+test in that exam's pattern (`exam` on the test). NTA's 2026 patterns, to check each year:
+
+| `exam` | Sections | Marks | Pace |
+|---|---|---|---|
+| `jee` | A objective (MCQ, assertion-reason) 80 % · B numerical 20 % | +4 / −1 | 180 min for 300 marks |
+| `neet` | A objective (MCQ, assertion-reason) | +4 / −1 | 180 min for 720 marks |
+| `cuet` | A objective (MCQ, assertion-reason, case-based) | +5 / −1 | 60 min for 250 marks |
+
+A wrong answer earns `−negative` marks (the question attempt's `marks`), a question left out 0, so a
+score can be below zero; mastery still counts right and wrong. Board papers have `negative: 0`. The
+study plan's final test is timed in the same pattern.
+
+### Misconceptions
+
+```json
+{ "student_id": "…", "items": [ {
+    "id": "…", "status": "active", "book_id": "…", "book_title": "…", "chapter_id": "…", "chapter": "…",
+    "topic_id": "…", "topic": "2.2 Solving Equations",
+    "pattern": "Moves a number across the = sign without changing its sign.",
+    "fix": "When a number moves across =, its sign changes.", "answers": 2,
+    "last_seen_at": "…", "resolved_at": null,
+    "practice": { "student_id": "…", "topic_id": "…", "difficulty": "mixed", "…": "…" },
+    "revise": { "question": "Why does the sign change …?", "chapter_id": "…", "…": "…" } } ] }
+```
+
+After an answer (practice, or a submitted test) in an area with three or more wrong first answers
+not looked at yet, a background job gives them (up to 10) to the AI, which names only wrong ideas at
+least two of them share, in the learner's language; one it already knows gets the new answers as
+evidence. Resolved by rule: the area's last 3 first answers, all after it was last seen, are right.
+Class 3–12 (`misconception_detection`); nothing happens with the AI off. Active ones are given to the
+question writer for that place (questions and hints that check them) and to the Parent AI Assistant;
+the dashboard shows up to 3.
+
+## 3.10 Planned endpoints
+
+No endpoints are planned yet for Steps 11–12; they are decided in those steps. Rules that hold for
+all endpoints:
 
 - Lists that can grow use cursor pagination: `?limit=20&cursor=...` → `{ "items": [...], "next_cursor": "..." }`.
 - Anything produced with the help of the child's books returns a `source` object (book, chapter,

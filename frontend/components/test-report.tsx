@@ -13,14 +13,21 @@ export function testTitle(kind: TestKind, place: string | null): string {
 /** The most specific place of a test: its exercise, topic, chapter or book. */
 export const placeOf = (test: MockTest) => test.exercise ?? test.topic ?? test.chapter ?? test.book_title;
 
+/** Its size and time, and the exam whose pattern it follows (JEE / NEET / CUET mode). */
+export const testSummary = (test: MockTest) =>
+  [
+    text.summary(test.question_count, test.total_marks, test.duration_minutes),
+    test.exam && copy.exams[test.exam],
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
 /** A test in a list: its name and size. */
 export function TestHeading({ test }: { test: MockTest }) {
   return (
     <div className="grid gap-1">
       <p className="font-semibold">{testTitle(test.kind, placeOf(test))}</p>
-      <p className="text-sm text-muted-foreground">
-        {text.summary(test.question_count, test.total_marks, test.duration_minutes)}
-      </p>
+      <p className="text-sm text-muted-foreground">{testSummary(test)}</p>
     </div>
   );
 }
@@ -98,6 +105,7 @@ export function TestReportView({ report }: { report: TestReport }) {
                     className={cn(
                       "shrink-0 font-semibold tabular-nums",
                       correct ? "text-success" : "text-muted-foreground",
+                      (marks_awarded ?? 0) < 0 && "text-destructive",
                     )}
                   >
                     {text.marks(marks_awarded, marks)}

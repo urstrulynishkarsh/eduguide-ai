@@ -70,3 +70,26 @@ class RecommendationsOut(BaseModel):
     student_id: uuid.UUID
     day: date = Field(description="Today in India time; a new list is made each day.")
     items: list[RecommendationOut] = Field(description="At most three, in the order to do them.")
+
+
+class MisconceptionOut(Area):
+    """A wrong idea the learner keeps showing in an area (found by the AI in their wrong answers)."""
+
+    id: uuid.UUID
+    status: Literal["active", "resolved"] = Field(
+        description="resolved: the area's last 3 answers, all given after it was last seen, are right."
+    )
+    pattern: str = Field(
+        description="What the learner does, e.g. 'Adds the denominators when adding fractions.'"
+    )
+    fix: str = Field(description="What to remember instead.")
+    answers: int = Field(description="The wrong answers that showed it.")
+    last_seen_at: datetime
+    resolved_at: datetime | None
+    practice: PracticeCreate = Field(description="Practice of the area; its questions check this mistake.")
+    revise: ExplainRequest = Field(description='"Explain this" for the right idea.')
+
+
+class MisconceptionsOut(BaseModel):
+    student_id: uuid.UUID
+    items: list[MisconceptionOut] = Field(description="Active ones first, most recently seen first.")

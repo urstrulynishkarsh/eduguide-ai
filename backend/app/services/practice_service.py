@@ -16,7 +16,7 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import llm
-from app.adaptive_learning import mastery, recommendations
+from app.adaptive_learning import mastery, misconceptions, recommendations
 from app.auth.principal import Principal
 from app.core.enums import LearningBand
 from app.core.errors import InvalidInputError, NotFoundError
@@ -162,7 +162,7 @@ async def _item(
 
 
 async def answer(
-    db: AsyncSession, principal: Principal, session_id: uuid.UUID, data: AnswerIn
+    db: AsyncSession, principal: Principal, session_id: uuid.UUID, data: AnswerIn, *, queue: TaskQueue
 ) -> AnswerResult:
     session = await get_session(db, principal, session_id)
     if session.status not in ("ready", "completed"):
@@ -197,6 +197,7 @@ async def answer(
     )
     await db.flush()
     await mastery.record_answer(db, student, question)
+    examine = await misconceptions.after_answer(db, student, question)
     unanswered = await db.scalar(
         select(func.count())
         .select_from(PracticeItem)
@@ -213,6 +214,13 @@ async def answer(
         await recommendations.mark_done(db, session)
         await study_plan_service.practice_done(db, session)
     await db.commit()
+    if examine:
+        await queue.enqueue(
+            misconceptions.examine,
+            student_id=student.id,
+            chapter_id=question.chapter_id,
+            topic_id=question.topic_id,
+        )
 
     # Nursery - Class 2: never "wrong" - an invitation to try again, answer kept back.
     try_again = not correct and profile.band is LearningBand.FOUNDATIONAL

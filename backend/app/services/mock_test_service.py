@@ -3,7 +3,9 @@
 A test is a paper in sections (question_generation/paper.py) filled like a practice: checked
 questions the learner has never been given first, the rest written by the AI in the background
 (services/question_bank.py). Which tests a class may take, and whether they may be timed, follows
-the class profile (docs/07 §7.6).
+the class profile (docs/07 §7.6). A learner in JEE / NEET / CUET mode gets the exam's pattern, with
+negative marks; a previous-year pattern test takes its sections from the analysed papers of a book
+and spreads each over the chapters that carry the most marks (services/paper_analysis_service.py).
 
 Taking it: a sitting starts the clock. Answers are saved one at a time and can be changed until the
 test is submitted; a test has no hints or steps. After the deadline (and a minute's grace for the
@@ -23,7 +25,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import llm
-from app.adaptive_learning import mastery
+from app.adaptive_learning import mastery, misconceptions
 from app.auth.principal import Principal
 from app.core.enums import QuestionFormat
 from app.core.errors import InvalidInputError, NotFoundError
@@ -60,11 +62,23 @@ from app.schemas.mock_test import (
     TestReport,
 )
 from app.schemas.practice import QuestionView, Response
-from app.services import library_service, question_bank, student_service, study_plan_service
+from app.services import (
+    library_service,
+    paper_analysis_service,
+    question_bank,
+    student_service,
+    study_plan_service,
+)
 from app.utils import pagination
 
 GRACE = timedelta(minutes=1)  # answers sent just after the deadline are still saved
-_KIND_NAMES = {"practice": "Practice tests", "chapter": "Chapter tests", "full_mock": "Full mock tests"}
+_KIND_NAMES = {
+    "practice": "Practice tests",
+    "chapter": "Chapter tests",
+    "full_mock": "Full mock tests",
+    "previous_year": "Previous-year pattern tests",
+}
+_TIMED = ("full_mock", "previous_year")  # always timed
 
 
 def _add_questions(
@@ -100,18 +114,29 @@ async def create_test(
             code="test_not_for_class",
             details=[{"field": "duration_minutes", "message": "Not for this class."}],
         )
-    count = data.count or paper.default_count(profile, data.kind)
+    exam = None
+    if data.kind == "previous_year":
+        assert data.book_id is not None
+        planned, minutes_per_mark = await paper_analysis_service.test_plan(
+            db, principal, data.book_id, student, data.count
+        )
+        count = sum(section["count"] for section in planned)
+    else:
+        exam = paper.exam_for(profile, student.profile.goal)
+        pattern = paper.EXAMS[exam] if exam else paper.BOARD
+        count = data.count or paper.default_count(profile, data.kind)
+        planned, minutes_per_mark = paper.sections(profile, count, pattern), pattern.minutes_per_mark
     question_bank.check_count(profile, count)
-    planned = paper.sections(profile, count)
 
     test = MockTest(
         student_id=student.id,
         kind=data.kind,
+        exam=exam,
         question_count=count,
         difficulty=data.difficulty,
         language=data.language or student.profile.primary_language,
         duration_minutes=data.duration_minutes
-        or (paper.minutes(planned) if data.kind == "full_mock" else None),
+        or (paper.minutes(planned, minutes_per_mark) if data.kind in _TIMED else None),
         sections=planned,
         status="preparing",
     )
@@ -122,9 +147,12 @@ async def create_test(
     owner = await student_service.account_of(db, student)
     complete = True
     for section in planned:
-        reused = await question_bank.from_bank(db, owner, test, student, section["formats"], section["count"])
-        _add_questions(db, test, section, reused, 0)
-        complete = complete and len(reused) == section["count"]
+        start = 0
+        for place, wanted in _slots(test, section):
+            reused = await question_bank.from_bank(db, owner, place, student, section["formats"], wanted)
+            _add_questions(db, test, section, reused, start)
+            start += len(reused)
+            complete = complete and len(reused) == wanted
     if complete:
         test.status = "ready"
     else:
@@ -135,26 +163,46 @@ async def create_test(
     return test
 
 
+def _slots(test: MockTest, section: dict) -> list[tuple[question_bank.Place, int]]:
+    """Where a section's questions come from, and how many: the test's place - or, in a previous-year
+    pattern test, each chapter its share."""
+    chapters = section.get("chapters")
+    if not chapters:
+        return [(test, section["count"])]
+    return [
+        (question_bank.ChapterPlace(uuid.UUID(chapter_id), test.difficulty, test.language), wanted)
+        for chapter_id, wanted in chapters.items()
+    ]
+
+
+async def _have(db: AsyncSession, test: MockTest, section: dict, place: question_bank.Place) -> int:
+    """The questions the section has already, from this place when the section is spread over chapters."""
+    query = select(func.count()).where(
+        MockTestQuestion.mock_test_id == test.id, MockTestQuestion.section == section["code"]
+    )
+    if isinstance(place, question_bank.ChapterPlace):
+        query = query.join(Question, Question.id == MockTestQuestion.question_id).where(
+            Question.chapter_id == place.chapter_id
+        )
+    return await db.scalar(query) or 0
+
+
 async def _write_the_rest(db: AsyncSession, test: MockTest, student: Student, owner: uuid.UUID) -> int:
     total = 0
     for section in test.sections:
-        have = (
-            await db.scalar(
-                select(func.count()).where(
-                    MockTestQuestion.mock_test_id == test.id, MockTestQuestion.section == section["code"]
+        formats = [QuestionFormat(f) for f in section["formats"]]
+        in_section = await _have(db, test, section, test)
+        for place, wanted in _slots(test, section):
+            have = await _have(db, test, section, place)
+            written: list[Question] = []
+            if have < wanted:
+                written = await question_bank.write(
+                    db, owner, place, student, formats=formats, count=wanted - have
                 )
-            )
-            or 0
-        )
-        written: list[Question] = []
-        if have < section["count"]:
-            formats = [QuestionFormat(f) for f in section["formats"]]
-            written = await question_bank.write(
-                db, owner, test, student, formats=formats, count=section["count"] - have
-            )
-            _add_questions(db, test, section, written, have)
-            await db.commit()  # kept in the bank even if a later section fails
-        total += have + len(written)
+                _add_questions(db, test, section, written, in_section)
+                in_section += len(written)
+                await db.commit()  # kept in the bank even if a later section fails
+            total += have + len(written)
     return total
 
 
@@ -211,7 +259,13 @@ def _sections(
     test: MockTest, questions: list[tuple[MockTestQuestion, Question, QuestionView]]
 ) -> list[PaperSection]:
     sections = [
-        PaperSection(code=section["code"], title=section["title"], marks=section["marks"], questions=[])
+        PaperSection(
+            code=section["code"],
+            title=section["title"],
+            marks=section["marks"],
+            negative=section.get("negative", 0),
+            questions=[],
+        )
         for section in test.sections
     ]
     by_code = {section.code: section for section in sections}
@@ -265,6 +319,7 @@ async def _summaries(db: AsyncSession, tests: list[MockTest]) -> list[MockTestSu
                 id=test.id,
                 student_id=test.student_id,
                 kind=test.kind,
+                exam=test.exam,
                 status=test.status,
                 book_id=test.book_id,
                 book_title=book_title,
@@ -439,15 +494,24 @@ async def save_answer(
     await db.commit()
 
 
-async def submit(db: AsyncSession, principal: Principal, attempt_id: uuid.UUID) -> TestReport:
+async def submit(
+    db: AsyncSession, principal: Principal, attempt_id: uuid.UUID, *, queue: TaskQueue
+) -> TestReport:
     """Marks the sitting (once; submitting again returns the same report)."""
     attempt, test = await _sitting(db, principal, attempt_id)
     if attempt.submitted_at is None:
-        await _mark(db, attempt, test)
+        for question in await _mark(db, attempt, test):
+            await queue.enqueue(
+                misconceptions.examine,
+                student_id=test.student_id,
+                chapter_id=question.chapter_id,
+                topic_id=question.topic_id,
+            )
     return await _report(db, attempt, test)
 
 
-async def _mark(db: AsyncSession, attempt: MockTestAttempt, test: MockTest) -> None:
+async def _mark(db: AsyncSession, attempt: MockTestAttempt, test: MockTest) -> list[Question]:
+    """Marks and stores every answer; returns a question of each area due a look for misconceptions."""
     student = await db.get(Student, test.student_id)
     assert student is not None and student.profile is not None
     profile = student_service.class_profile(student)
@@ -459,6 +523,7 @@ async def _mark(db: AsyncSession, attempt: MockTestAttempt, test: MockTest) -> N
             .order_by(MockTestQuestion.section, MockTestQuestion.position)
         )
     ).all()
+    negative = {section["code"]: section.get("negative", 0) for section in test.sections}
     # Every answer is marked before anything is stored: if the AI fails, the sitting stays as it was.
     marked = []
     for link, question in rows:
@@ -474,7 +539,7 @@ async def _mark(db: AsyncSession, attempt: MockTestAttempt, test: MockTest) -> N
             correct, feedback = grade.is_correct, grade.feedback
             marks = checking.written_marks(question, grade, link.marks)
         else:
-            marks = link.marks if correct else 0
+            marks = link.marks if correct else -negative[link.section]
         marked.append(
             QuestionAttempt(
                 student_id=student.id,
@@ -494,12 +559,16 @@ async def _mark(db: AsyncSession, attempt: MockTestAttempt, test: MockTest) -> N
     await db.flush()
     questions = {question.id: question for _, question in rows}
     areas = {(q.chapter_id, q.topic_id): q for q in (questions[a.question_id] for a in marked)}
+    due = []
     for question in areas.values():
         await mastery.record_answer(db, student, question)
+        if await misconceptions.after_answer(db, student, question):
+            due.append(question)
     attempt.submitted_at = utcnow()
     attempt.score = sum(a.marks or 0 for a in marked)
     await study_plan_service.book_test_done(db, test)
     await db.commit()
+    return due
 
 
 # ---------------------------------------------------------------------------- the report

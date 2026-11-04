@@ -71,6 +71,13 @@ _NOT_A_TOPIC = re.compile(
     r"table|example|illustration|exercise|q\.|question|गतिविधि|क्रियाकलाप|हल|उत्तर|चित्र|सारणी)\b",
     re.IGNORECASE,
 )
+# A question paper's sections: "SECTION A", "Section - B (2 marks each)", "PART A – PHYSICS", "खण्ड अ".
+_SECTION = re.compile(
+    r"^(?P<word>section|part|खण्ड|खंड|भाग)\s*[-–—:]?\s*(?P<num>[a-e]|[ivx]{1,4}|\d{1,2}|[अ-ह])(?!\w)"
+    r"\s*[-–—:.)]?\s*(?P<rest>.*)$",
+    re.IGNORECASE,
+)
+_INSTRUCTIONS = re.compile(r"^(?:general\s+)?instructions?\b|^(?:सामान्य\s+)?निर्देश", re.IGNORECASE)
 _ROMAN = re.compile(r"^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$")
 _ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
 _NCERT_FILE = re.compile(r"^[a-z]{4}\d(?P<num>\d{2})$", re.IGNORECASE)  # e.g. hemh102 = chapter 2
@@ -226,17 +233,31 @@ class _Span:
 
 @dataclass(slots=True)
 class _Marker:
-    kind: Literal["exercise", "example", "summary", "answers"]
-    number: str | None = None
+    # "questions": a paper without sections - its questions start on this line, which is question 1.
+    kind: Literal["exercise", "questions", "example", "summary", "answers"]
+    number: str | None = None  # an exercise's number, or a paper section's label ("Section A")
+    part: bool = False  # a paper's "Part A - Physics": the sections under it carry its name
 
 
 # ------------------------------------------------------------------ detector
 
 
 class StructureDetector:
-    def __init__(self, pages: list[PageText], *, outline: list[OutlineEntry], filename: str) -> None:
+    """`question_paper`: the file is one question paper (a book of previous-year papers). It is one
+    chapter named after the file; its sections are its exercises ("Section A"), every numbered question
+    an exercise question; the front page and instructions are kept apart (ContentType.OTHER)."""
+
+    def __init__(
+        self,
+        pages: list[PageText],
+        *,
+        outline: list[OutlineEntry],
+        filename: str,
+        question_paper: bool = False,
+    ) -> None:
         self.filename = filename
         self.outline = outline
+        self.question_paper = question_paper
         self.lines: list[Line] = []
         for page in pages:
             for line in page.lines:
@@ -301,9 +322,17 @@ class StructureDetector:
     # ---- step 1: chapters
 
     def detect_chapters(self) -> list[DetectedChapter]:
-        spans = self._spans_from_outline() or self._spans_from_headings() or self._spans_from_heading_styles()
-        if not spans:
-            spans = [self._whole_file_span()]
+        if self.question_paper:
+            # Every year's paper has the same heading, so the file name tells them apart.
+            title = _title_from_filename(self.filename)[:300]
+            spans = [_Span(start=0, chapter=DetectedChapter(None, title, "file"))]
+        else:
+            spans = (
+                self._spans_from_outline()
+                or self._spans_from_headings()
+                or self._spans_from_heading_styles()
+                or [self._whole_file_span()]
+            )
         self.spans = spans
         self._set_chapter_pages()
         return self.chapters
@@ -523,6 +552,37 @@ class StructureDetector:
             return _Marker("answers")
         return None
 
+    def _paper_marker(self, line: Line) -> _Marker | None:
+        """In a question paper: a section heading starts a block of questions; an answer key ends them."""
+        match = _SECTION.match(line.ascii)
+        if match:
+            rest = match.group("rest").strip(" -–—:.")
+            short = len(rest.split()) <= 3
+            if _looks_like_prose(rest) or not (short or self._is_prominent(line) or line.text.isupper()):
+                return None  # "Section A consists of 20 questions of 1 mark each."
+            word = match.group("word")
+            word = word.capitalize() if word.isascii() else word
+            label = " ".join(
+                filter(None, [word, match.group("num").upper(), rest.title() if rest.isupper() else rest])
+            )
+            return _Marker("exercise", label[:32], part=word == "Part")
+        if _ANSWERS.match(line.text) and (self._is_prominent(line) or not self.has_layout):
+            return _Marker("answers")
+        return None
+
+    def _first_question(self, start: int, end: int) -> int | None:
+        """A paper without sections: the line of question 1 - the second "1." when numbered general
+        instructions come first."""
+        lines = self.lines[start:end]
+        ones = [line.index for line in lines if self._question_number(line) == 1]
+        instructions = next((line.index for line in lines if _INSTRUCTIONS.match(line.text)), None)
+        if instructions is not None:
+            after = [index for index in ones if index > instructions]
+            if len(after) >= 2:
+                return after[1]
+            ones = after or ones
+        return ones[0] if ones else None
+
     def detect_exercises(self) -> None:
         self.markers = {}
         for span, start, end in self._span_ranges():
@@ -531,9 +591,13 @@ class StructureDetector:
             for line in self.lines[start:end]:
                 if line.index in span.heading_lines or line.on_contents_page:
                     continue
-                marker = self._marker_kind(line)
+                marker = self._paper_marker(line) if self.question_paper else self._marker_kind(line)
                 if marker is not None:
                     self.markers[line.index] = marker
+            if self.question_paper and not any(m.kind == "exercise" for m in self.markers.values()):
+                first = self._first_question(start, end)
+                if first is not None:
+                    self.markers[first] = _Marker("questions", "Questions")
 
     # ---- step 3: topics, then assemble everything into segments
 
@@ -588,7 +652,10 @@ class StructureDetector:
         chapter = span.chapter
         assert chapter is not None
         segments: list[Segment] = []
-        mode: Literal["concept", "example", "exercise", "summary", "other"] = "concept"
+        # A paper's front page and instructions are not teaching text.
+        mode: Literal["concept", "example", "exercise", "summary", "other"] = (
+            "other" if self.question_paper else "concept"
+        )
         topic: int | None = None
         exercise: int | None = None
         current: Segment | None = None
@@ -596,6 +663,7 @@ class StructureDetector:
         preamble: list[Line] = []
         solution_seen = False
         example_tail = 0
+        part = ""  # the paper's part the sections are in ("Part A Physics")
 
         def open_segment(kind: ContentType, **meta: str) -> Segment:
             nonlocal current
@@ -625,8 +693,8 @@ class StructureDetector:
             is_heading_line = line.index in span.heading_lines
             marker = None if is_heading_line else self.markers.get(line.index)
 
-            # ---- headings that start something new
-            if not is_heading_line and marker is None:
+            # ---- headings that start something new (a question paper has no topics)
+            if not is_heading_line and marker is None and not self.question_paper:
                 numbered = self._numbered_topic(line, chapter)
                 # Unnumbered headings only count where they cannot be part of an example or a
                 # question: bold words inside a worked example are not a new topic.
@@ -645,23 +713,40 @@ class StructureDetector:
                     continue
 
             if marker is not None:
+                # "Part A - Physics" straight above "Section A" has no questions of its own.
+                bare_part = (
+                    exercise is not None
+                    and chapter.exercises[exercise].label == part != ""
+                    and chapter.exercises[exercise].question_count == 0
+                    and not preamble
+                )
                 close_exercise()
-                if marker.kind == "exercise":
-                    chapter.exercises.append(DetectedExercise(marker.number or "", line.page, line.page))
+                if marker.kind in ("exercise", "questions"):
+                    label = marker.number or ""
+                    if marker.part:
+                        part = label
+                    elif part:
+                        if bare_part:
+                            chapter.exercises.pop()
+                        label = f"{part} · {label}"[:32]
+                    chapter.exercises.append(DetectedExercise(label, line.page, line.page))
                     exercise = len(chapter.exercises) - 1
                     mode, current, last_question, preamble = "exercise", None, 0, []
-                    continue  # the "EXERCISE 2.3" line itself is a label, not content
-                if marker.kind == "example":
+                    if marker.kind == "exercise":
+                        continue  # the "EXERCISE 2.3" line itself is a label, not content
+                    # "questions": this line is question 1, read below like any question.
+                elif marker.kind == "example":
                     mode, solution_seen, example_tail = "example", False, 0
                     open_segment(ContentType.EXAMPLE, example_number=marker.number or "").lines.append(line)
                     continue
-                if marker.kind == "summary":
+                elif marker.kind == "summary":
                     mode, topic = "summary", None
                     open_segment(ContentType.SUMMARY).lines.append(line)
                     continue
-                mode = "other"  # answers
-                open_segment(ContentType.OTHER).lines.append(line)
-                continue
+                else:
+                    mode = "other"  # answers
+                    open_segment(ContentType.OTHER).lines.append(line)
+                    continue
 
             # ---- ordinary lines
             if mode == "exercise":

@@ -107,7 +107,9 @@ _GROUPS: tuple[dict[str, Any], ...] = (
         "default_goal": Goal.SCHOOL_EXAM,
         "suggested_subjects": ("English", "Hindi", "Mathematics", "EVS", "Computer"),
         "ui_mode": UIMode.FRIENDLY,
-        "features": ClassFeatures(exam_style_practice=True, practice_tests=True),
+        "features": ClassFeatures(
+            exam_style_practice=True, practice_tests=True, misconception_detection=True
+        ),
         "ai_guidelines": (
             "Explain with simple examples from daily life: money, sweets, cricket, school, family.",
             "Break every explanation into small numbered steps.",
@@ -149,6 +151,7 @@ _GROUPS: tuple[dict[str, Any], ...] = (
         "features": ClassFeatures(
             exam_style_practice=True,
             practice_tests=True,
+            misconception_detection=True,
             chapter_tests=True,
             adaptive_difficulty=True,
             weak_topic_detection=True,
@@ -207,6 +210,7 @@ _GROUPS: tuple[dict[str, Any], ...] = (
         "features": ClassFeatures(
             exam_style_practice=True,
             practice_tests=True,
+            misconception_detection=True,
             chapter_tests=True,
             adaptive_difficulty=True,
             weak_topic_detection=True,
@@ -287,6 +291,7 @@ _GROUPS: tuple[dict[str, Any], ...] = (
         "features": ClassFeatures(
             exam_style_practice=True,
             practice_tests=True,
+            misconception_detection=True,
             chapter_tests=True,
             adaptive_difficulty=True,
             weak_topic_detection=True,

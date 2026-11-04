@@ -94,11 +94,11 @@ async def get_session(session_id: uuid.UUID, principal: CurrentPrincipal, db: Db
     "/practice/sessions/{session_id}/answers", response_model=AnswerResult, summary="Answer a question"
 )
 async def answer(
-    session_id: uuid.UUID, data: AnswerIn, principal: CurrentPrincipal, db: DbSession
+    session_id: uuid.UUID, data: AnswerIn, principal: CurrentPrincipal, db: DbSession, queue: Queue
 ) -> AnswerResult:
     """Every answer is saved, with the hints and steps opened before it. Written answers are
-    marked by the AI tutor."""
-    return await practice_service.answer(db, principal, session_id, data)
+    marked by the AI tutor. Wrong answers are looked at for misconceptions in the background."""
+    return await practice_service.answer(db, principal, session_id, data, queue=queue)
 
 
 @router.post(

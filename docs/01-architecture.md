@@ -63,9 +63,9 @@ modules talk to each other through small interfaces, not through each other's ta
 | `rag` | Reading documents, structure detection, chunking, OCR interface, embeddings, retrieval ([doc 5](05-rag-pipeline.md)) | Steps 2–3 |
 | `storage` | The `FileStorage` interface and the local-folder adapter for uploaded files | Step 2 |
 | `llm` | One interface to language models; the Claude adapter behind it ([doc 6](06-llm-interfaces.md)) | Step 3 |
-| `question_generation` | Generate → validate → review → regenerate; solutions, hints, marking answers (part marks in tests); the sections of a test paper | Steps 4, 8 |
+| `question_generation` | Generate → validate → review → regenerate; solutions, hints, marking answers (part marks in tests); the sections of a test paper; the JEE / NEET / CUET patterns with negative marks | Steps 4, 8, 10 |
 | `adaptive_learning` | Mastery, adaptive difficulty, weak topics, recommendations, the study planner's rules, misconceptions | Steps 7, 8, 10 |
-| `analytics` | Progress numbers for students and parents | Steps 4, 9, 11 |
+| `analytics` | Progress numbers for students and parents; previous-year paper analysis (the AI's reading of a paper, the trends) | Steps 4, 9, 10, 11 |
 | `chat` | The Student AI Tutor (the hint ladder, decided in code) and the Parent AI Assistant: what each may say | Step 9 |
 | `utils` | Small helpers without business rules | as needed |
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Recommendations, RecentTests, WeekChart } from "@/components/dashboard";
+import { Mistakes, Recommendations, RecentTests, WeekChart } from "@/components/dashboard";
 import { TaskLine } from "@/components/plan-view";
 import { Bars } from "@/components/progress-view";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,8 @@ const card = "grid content-start gap-3 rounded-xl border bg-card p-5 shadow-sm";
 
 /**
  * The chosen child at a glance: this week day by day, strong areas and those that need attention,
- * what to practise next (Start Recommended Practice), today's plan and the last tests.
+ * the mistakes they keep making, what to practise next (Start Recommended Practice), today's plan and
+ * the last tests.
  */
 export default async function DashboardPage() {
   const child = await requireChosenChild();
@@ -76,6 +77,13 @@ export default async function DashboardPage() {
         </div>
       ) : (
         <p className="text-muted-foreground">{text.noAreas}</p>
+      )}
+
+      {board.misconceptions.length > 0 && (
+        <section className="grid gap-3">
+          <h2 className="text-lg font-bold">{copy.mistakes.title}</h2>
+          <Mistakes items={board.misconceptions} area="parent" />
+        </section>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">

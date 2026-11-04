@@ -28,6 +28,7 @@ export default async function NewTestPage({ searchParams }: PageProps<"/parent/t
         studentId={child.id}
         books={books}
         chosen={chosenFrom(query)}
+        goal={profile.goal}
         classProfile={classProfile}
         languages={options.languages}
         defaultLanguage={profile.primary_language}

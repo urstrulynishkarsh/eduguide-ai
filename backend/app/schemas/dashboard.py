@@ -1,5 +1,6 @@
-"""The parent dashboard in one call (docs/04 §4.3): the week, what the child knows, what to do next,
-recent tests and today's plan. The Parent AI Assistant reads the same snapshot."""
+"""The parent dashboard in one call (docs/04 §4.3): the week, what the child knows, the mistakes they
+keep making, what to do next, recent tests and today's plan. The Parent AI Assistant reads the same
+snapshot."""
 
 import uuid
 from datetime import date, datetime
@@ -7,7 +8,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 from app.question_generation.paper import TestKind
-from app.schemas.adaptive import AreaMastery, RecommendationOut
+from app.schemas.adaptive import AreaMastery, MisconceptionOut, RecommendationOut
 from app.schemas.study_plan import PlanItemOut
 
 
@@ -47,6 +48,9 @@ class DashboardOut(BaseModel):
     )
     recommendations: list[RecommendationOut] = Field(
         description="Today's Recommended for You; the first is the one to start with."
+    )
+    misconceptions: list[MisconceptionOut] = Field(
+        description="Up to 3 active misconceptions, most recently seen first."
     )
     tests: list[TestResult] = Field(description="The last 3 tests submitted, newest first.")
     plan: PlanToday | None = Field(description="Today in the study plan; null without a plan.")

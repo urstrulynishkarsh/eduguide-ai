@@ -7,9 +7,9 @@ import { SubmitButton } from "@/components/submit-button";
 import type { FormState } from "@/lib/forms";
 
 /**
- * One button that makes a practice or a test with ready-made settings: a place with the class's
- * usual settings, a recommendation, or a task of the study plan (`fields`, sent as the form).
- * Shows why if it can't be made.
+ * One button that runs a Server Action with ready-made fields (sent as the form): mostly a practice or
+ * a test - a place with the class's usual settings, a recommendation, a task of the study plan - or
+ * the analysis of a book's papers. Shows why if it can't be done.
  */
 export function StartButton({
   action,

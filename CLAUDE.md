@@ -12,7 +12,7 @@ User roles: parent and student. A student is either a child profile under a pare
 
 - Backend: Python 3.12 (3.11+ works) + FastAPI, fully async
 - Database: PostgreSQL 16 with pgvector, run in Docker (`pgvector/pgvector:pg16`)
-- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0007` so far)
+- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0008` so far)
 - Auth: JWT access tokens (30 min) + refresh tokens (14 days) with PyJWT; passwords hashed with Argon2. Child mode is a parent token limited to one child.
 - Frontend: Next.js 16 (App Router, Cache Components on) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui (radix), Node.js 22/24 LTS. Versions are pinned exactly in `frontend/package.json`. Next.js 16 differs from older versions: read `frontend/node_modules/next/dist/docs/` before using an API you are unsure of (`middleware` is now `proxy.ts`)
 - Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API), ESLint, Prettier (print width 110), `tsc`
@@ -38,8 +38,9 @@ backend/
     rag/                 # reading books (ingestion/), OCR, embeddings, search, explanations
     llm/                 # AI provider interface + Claude adapter
     question_generation/ # write -> check -> independent review of questions; marking answers; test papers
-    analytics/           # progress numbers
-    adaptive_learning/   # mastery per topic, difficulty that follows it, daily recommendations, study planner
+    analytics/           # progress numbers; previous-year paper analysis
+    adaptive_learning/   # mastery per topic, difficulty that follows it, daily recommendations, study planner,
+                         # misconceptions
     chat/                # the Student AI Tutor (hint ladder) and the Parent AI Assistant
     utils/
   alembic/versions/      # migrations
@@ -112,7 +113,12 @@ alembic upgrade head
   today's plan, recent tests); Mock Tests and the test screen (grid, timer, answers saved as given,
   report); Study Plans (today's tasks with Start and ✓ Done); the Parent AI Assistant and the Student
   AI Tutor (hint ladder), replies streamed as Server-Sent Events; Recommended for You on the learner home
-- Next: step 10, previous-year paper analysis, misconception detection, JEE / NEET / CUET modes
+- Step 10: previous-year papers (read into sections and questions; the AI matches every question to a
+  textbook chapter; where the marks go, trends, the latest layout; a test like the papers);
+  misconception detection (the AI names repeated wrong ideas, a rule resolves them; shown to parent
+  and learner, given to the question writer and the assistant); JEE / NEET / CUET modes (exam
+  patterns with negative marking, by the learner's goal)
+- Next: step 11, Hindi / Hinglish screens, gamification (streaks, XP, badges), advanced analytics
 
 See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff section.
 

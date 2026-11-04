@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
-import { placeOf, TestReportView, testTitle } from "@/components/test-report";
+import { placeOf, TestReportView, testSummary, testTitle } from "@/components/test-report";
 import { startChildMode } from "@/lib/actions/students";
 import { getReport, getStudents, getTest } from "@/lib/api";
 import { copy } from "@/lib/copy";
@@ -35,8 +35,7 @@ export default async function ParentTestPage({ params, searchParams }: PageProps
         </Link>
         <h1 className="text-3xl font-extrabold">{testTitle(test.kind, placeOf(test))}</h1>
         <p className="text-muted-foreground">
-          {text.summary(test.question_count, test.total_marks, test.duration_minutes)} ·{" "}
-          {copy.difficulties[test.difficulty]}
+          {testSummary(test)} · {copy.difficulties[test.difficulty]}
         </p>
       </div>
 
@@ -103,7 +102,9 @@ export default async function ParentTestPage({ params, searchParams }: PageProps
           <summary className="cursor-pointer font-semibold text-primary">{text.seeQuestions}</summary>
           {test.sections.map((section) => (
             <section key={section.code} className="mt-3 grid gap-2">
-              <h3 className="font-bold">{text.sectionTitle(section.code, section.title, section.marks)}</h3>
+              <h3 className="font-bold">
+                {text.sectionTitle(section.code, section.title, section.marks, section.negative)}
+              </h3>
               <ol className="grid gap-2">
                 {section.questions.map((question) => (
                   <li key={question.id} className="rounded-xl border bg-card p-4">

@@ -128,9 +128,11 @@ have, or a time limit below Class 9, is refused with `422 test_not_for_class`.
 | `previous_year_questions` | – | – | – | – | ✓ | ✓ |
 | `board_exam_preparation` | – | – | – | – | ✓ | ✓ |
 | `competitive_exam_modes` | – | – | – | – | – | ✓ |
+| `misconception_detection` | – | – | ✓ | ✓ | ✓ | ✓ |
 
 Each switch follows the class where the spec first introduces the feature (§6 practice tests,
-§7 adaptive difficulty and weak topics, §8 timed and mock tests, §9 competitive goals). If you
+§7 adaptive difficulty and weak topics, §8 timed and mock tests, §9 competitive goals;
+misconceptions from Class 3, where wrong ideas in arithmetic first show). If you
 would rather give adaptive difficulty to Class 3–5 as well, it is one word in `registry.py`.
 
 ## 7.7 Rules for the child form
@@ -260,6 +262,7 @@ values like those in 7.4, to tune after watching real children.
 | 5–6 Frontend | `ui_mode` picks the layout; `features` hides screens; goals and stream come from `/meta/options` |
 | 7 Adaptive learning | Levels only where `adaptive_difficulty` is on, the "needs attention" label only where `weak_topic_detection` is on; younger classes get gentle repetition instead (7.9). Built: `adaptive_learning/` |
 | 8 Tests and plans | Practice tests from Class 3, chapter tests from Class 6, full mock tests and time limits from Class 9 (`practice_tests`, `chapter_tests`, `full_mock_tests`, `timed_tests`); a paper's sections are the formats the class uses (Class 3–5: objective and short answers; Class 6–8 add long answers; Class 9–12 add numerical problems); a test's size is capped like a practice (7.4). The study plan's final test is the biggest the class has; Nursery–Class 2 plans have none. Built: `question_generation/paper.py`, `services/mock_test_service.py`, `adaptive_learning/planner.py` |
+| 10 Papers, misconceptions, exam modes | Previous-year papers are analysed from Class 9 (`previous_year_questions`) and a test like them is timed at the paper's pace; misconceptions are looked for from Class 3 (`misconception_detection`); a Class 11–12 learner (`competitive_exam_modes`) whose goal is JEE, NEET or CUET takes every test in that exam's pattern — sections, +4 / −1 (CUET +5 / −1), pace — and their study plan's final test is timed the same way. Built: `question_generation/paper.py` (`EXAMS`), `analytics/papers.py`, `adaptive_learning/misconceptions.py` |
 
 ## 7.11 Changing a rule
 

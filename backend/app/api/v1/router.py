@@ -13,6 +13,7 @@ from app.api.v1 import (
     learn,
     meta,
     mock_tests,
+    papers,
     practice,
     students,
     study_plans,
@@ -39,5 +40,6 @@ api_v1_router.include_router(adaptive.router)
 api_v1_router.include_router(dashboard.router)
 api_v1_router.include_router(chat.router)
 api_v1_router.include_router(mock_tests.router)
+api_v1_router.include_router(papers.router)
 api_v1_router.include_router(study_plans.router)
 api_v1_router.include_router(meta.router)

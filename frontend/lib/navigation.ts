@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import type { copy } from "@/lib/copy";
-import type { ClassFeatures, UIMode } from "@/lib/types";
+import type { ClassFeatures, ReviseRequest, UIMode } from "@/lib/types";
 
 export interface NavItem {
   label: keyof typeof copy.nav;
@@ -85,4 +85,10 @@ export const PARENT_NAV: NavItem[] = [
 /** The learner's menu: the layout's items, minus features the class does not have. */
 export function studentNav(uiMode: UIMode, features: ClassFeatures): NavItem[] {
   return STUDENT_NAV[uiMode].filter((item) => !item.feature || features[item.feature]);
+}
+
+/** Learn a Concept with an "Explain this" request filled in (a recommendation, a plan task, a mistake). */
+export function conceptHref(revise: ReviseRequest, task?: string): string {
+  const query = `q=${encodeURIComponent(revise.question)}${task ? `&task=${task}` : ""}`;
+  return `/learn/concepts/${revise.chapter_id}?${query}`;
 }

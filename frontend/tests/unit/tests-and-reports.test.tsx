@@ -28,8 +28,8 @@ function sitting(overrides: Partial<TestAttempt> = {}): TestAttempt {
     status: "in_progress",
     seconds_left: null,
     sections: [
-      { code: "A", title: "Objective questions", marks: 1, questions: [question({})] },
-      { code: "C", title: "Short answer questions", marks: 2, questions: [written] },
+      { code: "A", title: "Objective questions", marks: 1, negative: 0, questions: [question({})] },
+      { code: "C", title: "Short answer questions", marks: 2, negative: 0, questions: [written] },
     ],
     responses: {},
     ...overrides,

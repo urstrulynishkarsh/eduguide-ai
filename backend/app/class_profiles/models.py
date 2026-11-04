@@ -65,6 +65,7 @@ class ClassFeatures(BaseModel):
     previous_year_questions: bool = False
     board_exam_preparation: bool = False
     competitive_exam_modes: bool = False  # JEE / NEET / CUET
+    misconception_detection: bool = False  # repeated wrong ideas found in wrong answers
 
 
 class ClassProfile(BaseModel):

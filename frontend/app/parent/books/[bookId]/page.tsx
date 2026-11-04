@@ -6,21 +6,34 @@ import { BookUploader } from "@/components/book-uploader";
 import { ConfirmButton } from "@/components/confirm-button";
 import { DocumentChecklist } from "@/components/document-checklist";
 import { FormMessage } from "@/components/form-message";
+import { PaperAnalysisView } from "@/components/paper-analysis";
 import { SubmitButton } from "@/components/submit-button";
-import { getBook, getChapters, getOptions } from "@/lib/api";
+import {
+  getBook,
+  getChapters,
+  getChosenChild,
+  getClassProfile,
+  getOptions,
+  getPaperAnalysis,
+} from "@/lib/api";
 import { deleteBook, removeDocument, retryDocument } from "@/lib/actions/books";
 import { copy } from "@/lib/copy";
+import type { Book } from "@/lib/types";
 
 const text = copy.library;
 
 export const metadata: Metadata = { title: text.title };
 
+/** A book: its chapters and files; for previous-year papers (Class 9–12), their analysis too. */
 export default async function BookPage({ params }: PageProps<"/parent/books/[bookId]">) {
   const { bookId } = await params;
   const [book, chapters, options] = await Promise.all([getBook(bookId), getChapters(bookId), getOptions()]);
   const reading = book.documents.some(
     (document) => document.status === "queued" || document.status === "processing",
   );
+  // A book of previous-year papers: each file is a paper, made of sections.
+  const isPapers = book.material_type === "previous_year_paper";
+  const papers = isPapers && (await paperAnalysis(book));
 
   return (
     <div className="grid max-w-4xl gap-8">
@@ -31,7 +44,7 @@ export default async function BookPage({ params }: PageProps<"/parent/books/[boo
       </div>
 
       <section className="grid gap-3">
-        <h2 className="text-xl font-bold">{text.chaptersTitle}</h2>
+        <h2 className="text-xl font-bold">{isPapers ? text.papersTitle : text.chaptersTitle}</h2>
         {chapters.length === 0 ? (
           <p className="text-muted-foreground">{text.noChapters}</p>
         ) : (
@@ -44,7 +57,7 @@ export default async function BookPage({ params }: PageProps<"/parent/books/[boo
                 >
                   <span className="font-semibold">{chapter.label}</span>
                   <span className="text-sm text-muted-foreground">
-                    {copy.chapter.exercises}: {chapter.exercise_count} ·{" "}
+                    {isPapers ? copy.chapter.sections : copy.chapter.exercises}: {chapter.exercise_count} ·{" "}
                     {copy.chapter.questions(chapter.question_count)}
                   </span>
                 </Link>
@@ -53,6 +66,15 @@ export default async function BookPage({ params }: PageProps<"/parent/books/[boo
           </ul>
         )}
       </section>
+
+      {papers && (
+        <PaperAnalysisView
+          bookId={book.id}
+          analysis={papers.analysis}
+          studentId={papers.studentId}
+          classLabel={book.class_label}
+        />
+      )}
 
       <section className="grid gap-3">
         <h2 className="text-xl font-bold">{text.files}</h2>
@@ -107,4 +129,21 @@ export default async function BookPage({ params }: PageProps<"/parent/books/[boo
       </section>
     </div>
   );
+}
+
+/**
+ * The analysis of a book of papers, where its class has previous-year papers, and the child who may
+ * practise them: the one the book is for, or else the chosen child - when in the papers' class.
+ */
+async function paperAnalysis(book: Book) {
+  const [classProfile, { children, child }] = await Promise.all([
+    getClassProfile(book.class_level),
+    getChosenChild(),
+  ]);
+  if (!classProfile.features.previous_year_questions) return null;
+  const learner = children.find((item) => item.id === book.student_id) ?? child;
+  return {
+    analysis: await getPaperAnalysis(book.id),
+    studentId: learner?.profile?.class_level === book.class_level ? learner.id : null,
+  };
 }

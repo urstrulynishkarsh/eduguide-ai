@@ -7,6 +7,7 @@ import { setTaskStatus } from "@/lib/actions/plans";
 import { createPractice } from "@/lib/actions/practice";
 import { createTest } from "@/lib/actions/tests";
 import { copy } from "@/lib/copy";
+import { conceptHref } from "@/lib/navigation";
 import type { PlanItem, StudyPlan } from "@/lib/types";
 import { formatDay } from "@/lib/utils";
 
@@ -98,10 +99,7 @@ export function TaskActions({ item }: { item: PlanItem }) {
       )}
       {item.revise?.chapter_id && (
         <Button asChild>
-          <Link
-            href={`/learn/concepts/${item.revise.chapter_id}?q=${encodeURIComponent(item.revise.question)}&task=${item.id}`}
-            aria-label={label}
-          >
+          <Link href={conceptHref(item.revise, item.id)} aria-label={label}>
             {copy.start}
           </Link>
         </Button>

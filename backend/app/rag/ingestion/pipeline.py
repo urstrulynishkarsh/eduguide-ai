@@ -18,8 +18,8 @@ import uuid
 from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import DocumentStatus, FileKind, ProcessingStage
-from app.models import Book, Chapter, Document, DocumentChunk, Exercise, Topic
+from app.core.enums import DocumentStatus, FileKind, MaterialType, ProcessingStage
+from app.models import Book, Chapter, Document, DocumentChunk, Exercise, PaperAnalysis, Topic
 from app.models.base import utcnow
 from app.rag import embeddings
 from app.rag.ingestion.chunking import ChunkDraft, make_chunks
@@ -65,6 +65,9 @@ def _labels(book: Book, structure: DocumentStructure, drafts: list[ChunkDraft]) 
 
 
 async def _delete_outputs(db: AsyncSession, document_id: uuid.UUID) -> None:
+    await db.execute(
+        delete(PaperAnalysis).where(PaperAnalysis.document_id == document_id)
+    )  # of its questions
     await db.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document_id))
     await db.execute(delete(Chapter).where(Chapter.document_id == document_id))  # topics, exercises cascade
 
@@ -200,7 +203,10 @@ async def process_document(db: AsyncSession, *, document_id: uuid.UUID) -> None:
 
         await _set_stage(db, document, ProcessingStage.DETECT_CHAPTERS)
         detector = StructureDetector(
-            extracted.pages, outline=extracted.outline, filename=document.original_filename
+            extracted.pages,
+            outline=extracted.outline,
+            filename=document.original_filename,
+            question_paper=book.material_type == MaterialType.PREVIOUS_YEAR_PAPER,
         )
         await asyncio.to_thread(detector.detect_chapters)
 

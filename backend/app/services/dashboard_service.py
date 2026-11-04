@@ -9,14 +9,14 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adaptive_learning import mastery, recommendations
+from app.adaptive_learning import mastery, misconceptions, recommendations
 from app.analytics import progress
 from app.auth.principal import Principal
 from app.models import Student
 from app.schemas.dashboard import DashboardOut, PlanToday
 from app.services import library_service, mock_test_service, student_service, study_plan_service
 
-SHOWN = 3  # strong areas, areas that need attention, and tests
+SHOWN = 3  # strong areas, areas that need attention, misconceptions, and tests
 
 
 async def snapshot(db: AsyncSession, student: Student) -> DashboardOut:
@@ -33,6 +33,7 @@ async def snapshot(db: AsyncSession, student: Student) -> DashboardOut:
         recommendations=(
             await recommendations.for_today(db, student, library_service.books_for_learner(owner, student.id))
         ).items,
+        misconceptions=(await misconceptions.of_learner(db, student, limit=SHOWN, active_only=True)).items,
         tests=await mock_test_service.recent_results(db, student.id, SHOWN),
         plan=PlanToday(
             plan_id=plan.id,

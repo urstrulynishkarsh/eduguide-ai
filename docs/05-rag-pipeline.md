@@ -67,6 +67,14 @@ Three sources of evidence, cheapest first:
    chapter, numbered from the file name when it follows the NCERT pattern, e.g. `jemh102.pdf` → 2)*: the model sees a list of candidate heading lines
    with page numbers (a few hundred tokens), not the book, and returns the outline as structured data.
 
+**A question paper** (a book of "Previous-year papers", Step 10) is read differently: each file is
+one paper, so it is one chapter named after its file (every year's paper has the same heading); its
+sections — `SECTION A`, `Section – B (2 marks each)`, `PART A – PHYSICS` then `SECTION A` (named
+"Part A Physics · Section A"), `खण्ड अ` — are its exercises, and every numbered question an exercise
+question with its section's instruction. A paper without sections is one block, "Questions",
+starting at question 1 (after numbered general instructions, if any). The front page and instructions
+are kept as `other` text, never as teaching text, and a paper has no topics.
+
 The parent can correct the result (rename a chapter, fix a page range) on the book page. Getting
 this right matters more than anything later: "Generate questions from Exercise 2.3" can only work
 if we know where Exercise 2.3 is.

@@ -3,7 +3,7 @@ import { QuestionSettingsForm } from "@/components/question-settings-form";
 import { Label } from "@/components/ui/label";
 import { getChapter, getChapters } from "@/lib/api";
 import { copy } from "@/lib/copy";
-import type { Book, ClassFeatures, ClassProfile, Option, TestKind } from "@/lib/types";
+import type { Book, ClassFeatures, ClassProfile, Exam, Option, TestKind } from "@/lib/types";
 import { searchParam } from "@/lib/utils";
 
 const text = copy.practiceForm;
@@ -132,21 +132,33 @@ export async function PracticeChooser({ area, studentId, books, chosen, ...setti
   );
 }
 
-const KIND_FEATURE: Record<TestKind, keyof ClassFeatures> = {
+// A previous-year pattern test is made from its book's paper analysis, not here.
+type ChosenKind = Exclude<TestKind, "previous_year">;
+const KIND_FEATURE: Record<ChosenKind, keyof ClassFeatures> = {
   practice: "practice_tests",
   chapter: "chapter_tests",
   full_mock: "full_mock_tests",
 };
+const EXAMS = new Set<string>(["jee", "neet", "cuet"] satisfies Exam[]);
 
 /**
  * Create Test: the kinds the class has, the place the kind allows (a full mock covers a book or all
- * books; a chapter test needs a chapter), then the settings.
+ * books; a chapter test needs a chapter), then the settings. A learner whose goal is JEE, NEET or
+ * CUET (Class 11–12) is told their tests follow the exam's pattern.
  */
-export async function TestChooser({ area, studentId, books, chosen, ...settings }: ChooserProps) {
-  const kinds = (Object.keys(KIND_FEATURE) as TestKind[]).filter(
+export async function TestChooser({
+  area,
+  studentId,
+  books,
+  chosen,
+  goal,
+  ...settings
+}: ChooserProps & { goal: string }) {
+  const kinds = (Object.keys(KIND_FEATURE) as ChosenKind[]).filter(
     (kind) => settings.classProfile.features[KIND_FEATURE[kind]],
   );
   if (kinds.length === 0) return <p className="text-muted-foreground">{copy.tests.notForClass}</p>;
+  const exam = settings.classProfile.features.competitive_exam_modes && EXAMS.has(goal) ? goal : null;
   const kind = kinds.find((item) => item === chosen.kind) ?? kinds[0];
   const { place, selects } = await pickPlace(books, chosen, kind === "full_mock" ? 1 : 2);
   const kindSelect = {
@@ -158,6 +170,11 @@ export async function TestChooser({ area, studentId, books, chosen, ...settings 
 
   return (
     <div className="grid gap-8">
+      {exam && (
+        <p className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+          {copy.tests.examMode(copy.exams[exam])}
+        </p>
+      )}
       <Picker selects={[kindSelect, ...selects]} />
       <QuestionSettingsForm
         key={[kind, ...Object.values(place)].join()}

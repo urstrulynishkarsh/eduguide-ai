@@ -3,7 +3,7 @@
 import pytest
 
 from app.class_profiles import get_class_profile
-from app.core.enums import ClassLevel
+from app.core.enums import ClassLevel, Goal
 from app.question_generation import paper
 
 
@@ -18,8 +18,8 @@ def _profile(level: str):
         ("class_2", []),
         ("class_4", ["practice"]),
         ("class_7", ["practice", "chapter"]),
-        ("class_10", ["practice", "chapter", "full_mock"]),
-        ("class_12", ["practice", "chapter", "full_mock"]),
+        ("class_10", ["practice", "chapter", "full_mock", "previous_year"]),
+        ("class_12", ["practice", "chapter", "full_mock", "previous_year"]),
     ],
 )
 def test_each_class_takes_the_tests_its_profile_allows(level: str, kinds: list[str]):
@@ -56,3 +56,32 @@ def test_default_size_and_time_of_a_paper():
     planned = paper.sections(_profile("class_10"), 30)
     marks = sum(s["marks"] * s["count"] for s in planned)
     assert marks == 61 and paper.minutes(planned) == 125  # 2 minutes a mark, up to 5 minutes
+
+
+def test_the_exam_mode_follows_the_goal_from_class_11():
+    assert paper.exam_for(_profile("class_12"), "jee") is Goal.JEE
+    assert paper.exam_for(_profile("class_11"), "cuet") is Goal.CUET
+    assert paper.exam_for(_profile("class_12"), "board_exam") is None
+    assert paper.exam_for(_profile("class_10"), "jee") is None  # no exam modes before Class 11
+
+
+@pytest.mark.parametrize(
+    ("exam", "count", "sections", "minutes"),
+    [
+        # JEE Main, one subject: 20 MCQs + 5 numerical answers, 100 marks in an hour.
+        (Goal.JEE, 25, [("A", 4, 1, 20), ("B", 4, 1, 5)], 60),
+        (Goal.NEET, 45, [("A", 4, 1, 45)], 45),  # one subject: 180 marks, 45 minutes
+        (Goal.CUET, 50, [("A", 5, 1, 50)], 60),
+    ],
+)
+def test_exam_patterns(exam: Goal, count: int, sections: list[tuple], minutes: int):
+    pattern = paper.EXAMS[exam]
+    planned = paper.sections(_profile("class_12"), count, pattern)
+    assert [(s["code"], s["marks"], s["negative"], s["count"]) for s in planned] == sections
+    assert paper.minutes(planned, pattern.minutes_per_mark) == minutes
+
+
+def test_spread_shares_out_by_weight():
+    assert paper.spread(5, [3, 1, 1]) == [3, 1, 1]
+    assert paper.spread(3, [10, 8, 5, 1]) == [1, 1, 1, 0]  # the largest remainders get the rest
+    assert paper.spread(4, [0.9, 0.1], at_least_one=True) == [3, 1]

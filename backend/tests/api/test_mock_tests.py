@@ -328,3 +328,49 @@ async def test_only_those_who_may_see_the_learner_see_their_tests(
         headers=stranger.headers,
     )
     assert error_code(borrowed) == "chapter_not_found"
+
+
+async def test_a_jee_learner_takes_tests_in_the_jee_pattern_with_negative_marks(
+    client: AsyncClient, db_session: AsyncSession
+):
+    parent, child, chapter = await family_with_book(client, "class_12", stream="science", goal="jee")
+    await _fill_bank(db_session, parent, child, chapter, mcq=8, numerical=2)
+    test = await _chapter_test(client, parent, child, chapter, count=5)
+
+    # JEE Main: objective questions and numerical answers, 4 marks each, 1 lost for a wrong one.
+    assert (test["exam"], test["total_marks"], test["duration_minutes"]) == ("jee", 20, None)
+    assert [(s["code"], s["marks"], s["negative"], len(s["questions"])) for s in test["sections"]] == [
+        ("A", 4, 1, 4),
+        ("B", 4, 1, 1),
+    ]
+    (right, wrong, _, _), (numerical,) = (_ids(section) for section in test["sections"])
+    attempt = (await client.post(f"{API}/mock-tests/{test['id']}/attempts", headers=parent.headers)).json()
+    base = f"{API}/test-attempts/{attempt['id']}"
+    for question_id, answer in ((right, {"option": 0}), (wrong, {"option": 1}), (numerical, {"value": 5})):
+        saved = await client.put(f"{base}/answers/{question_id}", json=answer, headers=parent.headers)
+        assert saved.status_code == 204
+
+    report = (await client.post(f"{base}/submit", headers=parent.headers)).json()
+    assert (report["score"], report["percentage"]) == (2, 10.0)  # 4 - 1 - 1; two left out: 0
+    assert [(s["code"], s["score"], s["total_marks"]) for s in report["sections"]] == [
+        ("A", 3, 16),
+        ("B", -1, 4),
+    ]
+    marks = {q["question"]["id"]: q["marks_awarded"] for q in report["questions"]}
+    assert (marks[right], marks[wrong], marks[numerical]) == (4, -1, -1)
+
+    # A full mock test keeps the exam's pace: 20 marks at 3 hours for 300 = 15 minutes.
+    full = await client.post(
+        f"{API}/mock-tests",
+        json={"student_id": child["id"], "kind": "full_mock", "count": 5},
+        headers=parent.headers,
+    )
+    assert (full.json()["exam"], full.json()["duration_minutes"]) == ("jee", 15)
+
+
+async def test_a_board_learner_has_no_negative_marks(client: AsyncClient, db_session: AsyncSession):
+    parent, child, chapter = await family_with_book(client, "class_12", stream="science", goal="board_exam")
+    await _fill_bank(db_session, parent, child, chapter, mcq=3, numerical=2, short_answer=2, long_answer=2)
+    test = await _chapter_test(client, parent, child, chapter)
+    assert test["exam"] is None
+    assert {section["negative"] for section in test["sections"]} == {0}

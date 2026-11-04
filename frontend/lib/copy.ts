@@ -231,6 +231,7 @@ export const copy = {
     deleteBookText: "This removes the book, its files, and the practice questions made from it.",
     deleteConfirm: "Yes, delete",
     chaptersTitle: "Chapters",
+    papersTitle: "Papers",
     noChapters: "Chapters appear here once the book has been read.",
     found: (chapters: number, exercises: number, questions: number) =>
       `Found ${counted(chapters, "chapter")}, ${counted(exercises, "exercise")} and ${counted(questions, "question")}.`,
@@ -272,6 +273,7 @@ export const copy = {
     takeTest: "Take Test",
     topics: "Topics",
     exercises: "Exercises",
+    sections: "Sections",
     questions: (count: number) => counted(count, "question"),
     page: (page: number) => `page ${page}`,
     fromBook: "As printed in the book",
@@ -305,7 +307,10 @@ export const copy = {
     practice: "Practice test",
     chapter: "Chapter test",
     full_mock: "Full mock test",
+    previous_year: "Previous-year pattern test",
   } as Record<string, string>,
+
+  exams: { jee: "JEE Main pattern", neet: "NEET pattern", cuet: "CUET pattern" } as Record<string, string>,
 
   tests: {
     title: "Mock Tests",
@@ -336,8 +341,11 @@ export const copy = {
     inProgress: "In progress",
     sittings: "Sittings",
     seeQuestions: "See the questions",
-    sectionTitle: (code: string, title: string, marks: number) =>
-      `Section ${code} · ${title} · ${counted(marks, "mark")} each`,
+    sectionTitle: (code: string, title: string, marks: number, negative: number) =>
+      `Section ${code} · ${title} · ${counted(marks, "mark")} each` +
+      (negative ? `, −${negative} for a wrong answer` : ""),
+    examMode: (exam: string) =>
+      `Tests follow the ${exam}: a wrong answer loses marks, as in the exam. A question left out costs nothing.`,
     previous: "Previous",
     next: "Next",
     answered: (count: number, total: number) => `${count} of ${total} answered`,
@@ -362,6 +370,48 @@ export const copy = {
     yourAnswer: "Your answer:",
     solution: "Solution",
     allTests: "All tests",
+  },
+
+  papers: {
+    title: "Previous-year papers",
+    intro: "See which chapters carry the most marks, then practise them or take a test like the papers.",
+    analyse: "Analyse the papers",
+    analyseAgain: "Analyse again",
+    analyseAgainHint: "Added a paper or a textbook? Analyse again.",
+    preparing: "Reading the papers… This takes a minute or two.",
+    failed: "We couldn't analyse these papers. Please try again.",
+    paperLine: (year: number | null, questions: number, marks: number) =>
+      [year ?? "Year not shown", counted(questions, "question"), counted(marks, "mark")].join(" · "),
+    notYet: "Not analysed yet",
+    whereMarks: "Where the marks go",
+    marksLine: (marks: number, papers: number, total: number) =>
+      `${counted(marks, "mark")} a paper · in ${papers} of ${counted(total, "paper")}`,
+    trend: { rising: "↑ More each year", falling: "↓ Less each year", steady: "Steady" } as Record<
+      string,
+      string
+    >,
+    unmatched: (questions: number) => `${counted(questions, "question")} not from your textbooks.`,
+    noTextbook: "Upload this class's textbook too, so the questions can be matched to its chapters.",
+    topics: "Topics asked most",
+    topicLine: (questions: number, papers: number) =>
+      `${counted(questions, "question")} · in ${counted(papers, "paper")}`,
+    kinds: "Kinds of questions",
+    layout: (year: number | null) => (year ? `The ${year} paper` : "The latest paper"),
+    layoutLine: (questions: number, marks: number) =>
+      `${counted(questions, "question")} · ${counted(marks, "mark")} each`,
+    practise: "Practise",
+    makeTest: "Make a test like these papers",
+    otherClass: (label: string) =>
+      `These papers are for ${label}. Choose a child in ${label} to practise them.`,
+  },
+
+  mistakes: {
+    title: "Understand Mistakes",
+    myTitle: "Mistakes to fix",
+    remember: "Remember:",
+    seen: (answers: number) => `Seen in ${counted(answers, "answer")}`,
+    fixed: "Put right ✓",
+    practise: "Practise this",
   },
 
   plans: {
@@ -576,5 +626,6 @@ export const copy = {
       "There are not enough saved questions for this choice, and writing new ones needs the AI, which is not switched on yet. Try another chapter, fewer questions or a different type.",
     explain_ai_not_configured: "Explanations need the AI, which is not switched on yet.",
     marking_ai_not_configured: "Written answers are marked by the AI, which is not switched on yet.",
+    analysis_ai_not_configured: "Analysing papers needs the AI, which is not switched on yet.",
   },
 };

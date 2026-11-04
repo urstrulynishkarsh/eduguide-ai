@@ -14,7 +14,10 @@ from app.schemas.practice import QuestionRequest, QuestionView, Response, Sessio
 
 class MockTestCreate(QuestionRequest):
     """`practice` (Class 3+): a short test of any one place, or of all books. `chapter` (Class 6+):
-    one chapter. `full_mock` (Class 9+): a whole book, or all books - always timed."""
+    one chapter. `full_mock` (Class 9+): a whole book, or all books - always timed. `previous_year`
+    (Class 9+): `book_id` is a book of previous-year papers, analysed; the test follows its pattern and
+    the chapters of the textbooks that carry the most marks - always timed. A Class 11-12 learner whose
+    goal is JEE, NEET or CUET gets the other kinds in that exam's pattern."""
 
     kind: TestKind = "practice"
     duration_minutes: Annotated[int, Field(ge=5, le=240)] | None = Field(
@@ -29,6 +32,8 @@ class MockTestCreate(QuestionRequest):
             raise ValueError("A chapter test needs a chapter.")
         if self.kind == "full_mock" and (self.chapter_id or self.topic_id or self.exercise_id):
             raise ValueError("A full mock test covers a whole book, or all books.")
+        if self.kind == "previous_year" and self.book_id is None:
+            raise ValueError("A previous-year pattern test needs the book of previous-year papers.")
         return self
 
 
@@ -36,7 +41,11 @@ class PaperSection(BaseModel):
     code: str = Field(description='"A", "B", ...')
     title: str = Field(description='e.g. "Objective questions".')
     marks: int = Field(description="Marks for each question of the section.")
+    negative: float = Field(description="Marks lost for each wrong answer; 0: no negative marking.")
     questions: list[QuestionView]
+
+
+Exam = Literal["jee", "neet", "cuet"]
 
 
 class AttemptSummary(BaseModel):
@@ -52,6 +61,9 @@ class MockTestSummary(BaseModel):
     id: uuid.UUID
     student_id: uuid.UUID
     kind: TestKind
+    exam: Exam | None = Field(
+        description="The competitive exam whose pattern it follows; null: a school paper."
+    )
     status: Literal["preparing", "ready", "failed"] = Field(
         description="`preparing` while questions are written - poll until `ready`."
     )
@@ -108,7 +120,8 @@ class ReportQuestion(BaseModel):
     section: str
     marks: int
     marks_awarded: float | None = Field(
-        description="Null: not answered. Written answers can earn part marks."
+        description="Null: not answered. Written answers can earn part marks; a wrong answer in a paper "
+        "with negative marking loses marks (below 0)."
     )
     correct: bool | None
     response: Response | None

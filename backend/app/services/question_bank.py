@@ -11,11 +11,13 @@ import logging
 import random
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 
 from sqlalchemy import ColumnElement, and_, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import llm
+from app.adaptive_learning import misconceptions
 from app.auth.principal import Principal
 from app.class_profiles import ClassProfile
 from app.core.enums import QuestionFormat
@@ -76,11 +78,28 @@ async def set_place(
         row.book_id = (await library_service.get_book(db, principal, data.book_id)).id
 
 
+@dataclass(frozen=True, slots=True)
+class ChapterPlace:
+    """One chapter of a wider request, asked for like it (a previous-year pattern test spreads its
+    sections over the chapters that carry the most marks)."""
+
+    chapter_id: uuid.UUID
+    difficulty: str
+    language: str
+    book_id: None = None
+    topic_id: None = None
+    exercise_id: None = None
+
+
+# Where questions come from, at what difficulty and in what language.
+Place = QuestionSettings | ChapterPlace
+
+
 def _learner_books(owner: uuid.UUID, student: Student) -> ColumnElement[bool]:
     return library_service.books_for_learner(owner, student.id)
 
 
-def _place_filter(owner: uuid.UUID, row: QuestionSettings, student: Student) -> ColumnElement[bool]:
+def _place_filter(owner: uuid.UUID, row: Place, student: Student) -> ColumnElement[bool]:
     """SQL conditions on Question for the row's place."""
     if row.exercise_id:
         return Question.exercise_id == row.exercise_id
@@ -107,7 +126,7 @@ def _given_to(student: Student) -> ColumnElement[bool]:
 async def from_bank(
     db: AsyncSession,
     owner: uuid.UUID,
-    row: QuestionSettings,
+    row: Place,
     student: Student,
     formats: Sequence[str],
     limit: int,
@@ -126,7 +145,7 @@ async def from_bank(
 
 
 async def _passages(
-    db: AsyncSession, owner: uuid.UUID, row: QuestionSettings, student: Student, budget: int
+    db: AsyncSession, owner: uuid.UUID, row: Place, student: Student, budget: int
 ) -> list[retrieval.Passage]:
     """The book text for the row's place (at most `budget` tokens), exercise or topic first when one
     was chosen."""
@@ -152,7 +171,7 @@ async def _passages(
 def to_question(
     generated: GeneratedQuestion,
     owner: uuid.UUID,
-    row: QuestionSettings,
+    row: Place,
     student: Student,
     chunks: dict[str, DocumentChunk],
 ) -> Question:
@@ -211,7 +230,7 @@ def to_question(
 async def write(
     db: AsyncSession,
     owner: uuid.UUID,
-    row: QuestionSettings,
+    row: Place,
     student: Student,
     *,
     formats: list[QuestionFormat],
@@ -236,7 +255,15 @@ async def write(
         profile=student_service.class_profile(student),
         student=student.profile,
         request=generator.Request(
-            count=count, difficulty=row.difficulty, formats=formats, language=row.language
+            count=count,
+            difficulty=row.difficulty,
+            formats=formats,
+            language=row.language,
+            mistakes=tuple(
+                await misconceptions.for_place(
+                    db, student.id, book_id=row.book_id, chapter_id=row.chapter_id, topic_id=row.topic_id
+                )
+            ),
         ),
         existing=list(existing),
     )

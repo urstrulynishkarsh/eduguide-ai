@@ -17,9 +17,11 @@ import type {
   Dashboard,
   ExerciseDetail,
   Me,
+  Misconception,
   MockTest,
   MockTestDetail,
   OnboardingOptions,
+  PaperAnalysis,
   PracticeSession,
   Progress,
   Student,
@@ -111,6 +113,10 @@ export const getPractice = (sessionId: string) =>
   load<PracticeSession>(`/practice/sessions/${id(sessionId)}`);
 export const getProgress = (studentId: string) => load<Progress>(`/students/${id(studentId)}/progress`);
 export const getDashboard = (studentId: string) => load<Dashboard>(`/students/${id(studentId)}/dashboard`);
+export const getMisconceptions = async (studentId: string) =>
+  (await load<{ items: Misconception[] }>(`/students/${id(studentId)}/misconceptions`)).items;
+export const getPaperAnalysis = (bookId: string) =>
+  load<PaperAnalysis>(`/books/${id(bookId)}/paper-analysis`);
 
 /** A learner's tests, newest first (the API's maximum page). */
 export async function getTests(studentId: string): Promise<MockTest[]> {

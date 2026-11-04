@@ -70,6 +70,7 @@ class Request:
     difficulty: str  # easy | medium | hard | mixed
     formats: list[QuestionFormat]
     language: str
+    mistakes: tuple[str, ...] = ()  # the learner's misconceptions here, for questions that check them
 
 
 def _language_name(code: str) -> str:
@@ -113,7 +114,7 @@ async def generate(
     )
     reviewer = _REVIEWER_RULES + f"\n\nThe student:\n{learner_profile(profile, student)}"
     base_task = [
-        *strategy.task_lines(profile, student.goal, request.difficulty, request.formats),
+        *strategy.task_lines(profile, student.goal, request.difficulty, request.formats, request.mistakes),
         f"Write every question, hint and solution in {_language_name(request.language)}.",
     ]
 

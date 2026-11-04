@@ -4,13 +4,15 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 9 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
+> **Build status: Step 10 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
 > child, uploads a book, creates practice from a chapter or exercise and hands the device over;
 > the child practises (with hints, steps and answers) in a layout made for their age, and both
 > see the progress. The app knows each child's mastery of every topic, moves the difficulty with
 > their results and recommends what to do next (Step 7); it runs sectioned, timed mock tests with a
 > result report and study plans that follow performance (Step 8); and it has the full parent
-> dashboard, the test and plan screens, the Parent AI Assistant and the Student AI Tutor (Step 9).
+> dashboard, the test and plan screens, the Parent AI Assistant and the Student AI Tutor (Step 9);
+> it analyses previous-year papers, finds the mistakes a child keeps making, and gives JEE / NEET /
+> CUET aspirants tests in their exam's pattern with negative marking (Step 10).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -44,6 +46,16 @@ from Nursery to Class 12.
 - **AI Assistant** for the parent ("How is my child doing this week?") and **AI Tutor** for Class
   6–12 (a hint first, more help when asked, the answer last); replies appear as they are written,
   with the books they used. Both need the AI switched on
+- **Previous-year papers** (Class 9–12): upload papers as a book of "Previous-year papers"; each
+  paper is read into its sections and questions. **Analyse the papers** shows where the marks go
+  (chapters by marks, rising or falling over the years), the topics asked most, the kinds of
+  questions and the latest paper's layout, with **Practise** for each chapter and **Make a test like
+  these papers**. Needs the AI switched on
+- **Understand Mistakes** (Class 3–12): wrong ideas a child keeps showing (found by the AI in their
+  wrong answers), with what to remember and **Practise this**; on the dashboard and both Progress
+  pages. Its next questions check the mistake; three right answers in a row put it right
+- **JEE / NEET / CUET mode** (Class 11–12, by goal): every test in the exam's pattern — +4 / −1
+  (CUET +5 / −1), JEE's numerical section, the exam's pace
 - The learner's home: **Recommended for You** and **Today's plan**
 - A child switcher at the top of the parent area; Children and Settings as before
 - The student area in **four layouts** chosen by the class: big and playful for Nursery–Class 2,

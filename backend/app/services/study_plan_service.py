@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adaptive_learning import mastery, planner, recommendations
 from app.auth.principal import Principal
-from app.class_profiles import ClassProfile
 from app.core.errors import InvalidInputError, NotFoundError
 from app.models import (
     Book,
@@ -45,12 +44,16 @@ def _plan_not_found() -> NotFoundError:
     return NotFoundError("We couldn't find this study plan.", code="study_plan_not_found")
 
 
-def _final_test(profile: ClassProfile) -> planner.FinalTest | None:
-    """The test the last day ends with: a full mock where the class has them, else a practice test."""
+def _final_test(student: Student) -> planner.FinalTest | None:
+    """The test the last day ends with: a full mock where the class has them, else a practice test -
+    in the pattern of the learner's exam (JEE / NEET / CUET), as the test itself will be."""
+    assert student.profile is not None
+    profile = student_service.class_profile(student)
+    pattern = paper.pattern_for(profile, student.profile.goal)
     for kind in ("full_mock", "practice"):
         if paper.allowed(profile, kind):
-            planned = paper.sections(profile, paper.default_count(profile, kind))
-            return planner.FinalTest(kind, paper.minutes(planned))
+            planned = paper.sections(profile, paper.default_count(profile, kind), pattern)
+            return planner.FinalTest(kind, paper.minutes(planned, pattern.minutes_per_mark))
     return None
 
 
@@ -130,7 +133,7 @@ async def _replan(db: AsyncSession, plan: StudyPlan, student: Student, today: da
 
     owner = await student_service.account_of(db, student)
     chapters = await _chapters(db, plan, student, owner, learnt)
-    final_test = _final_test(student_service.class_profile(student))
+    final_test = _final_test(student)
     work, final = planner.tasks(chapters, target=plan.target_score / 100, final_test=final_test)
     placed, plan.unscheduled = planner.schedule(
         work,
@@ -166,7 +169,7 @@ async def _replan(db: AsyncSession, plan: StudyPlan, student: Student, today: da
 
 
 async def _items(db: AsyncSession, student: Student, *where: ColumnElement[bool]) -> list[PlanItemOut]:
-    final_test = _final_test(student_service.class_profile(student))
+    final_test = _final_test(student)
     items = []
     rows = await db.execute(
         select(StudyPlanItem, Book.id, Book.title, Chapter.number, Chapter.title, Topic.number, Topic.title)

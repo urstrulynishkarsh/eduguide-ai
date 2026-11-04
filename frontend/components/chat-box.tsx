@@ -69,7 +69,11 @@ export function ChatBox({
   const end = useRef<HTMLDivElement>(null);
   const words = text[kind];
 
-  useEffect(() => end.current?.scrollIntoView?.({ block: "nearest" }), [messages, reply]);
+  // A block body: newer browsers return a Promise from scrollIntoView, which must not become the
+  // effect's clean-up.
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: "nearest" });
+  }, [messages, reply]);
 
   async function send(question: string) {
     question = question.trim();

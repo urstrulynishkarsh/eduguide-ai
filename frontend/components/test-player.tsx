@@ -159,7 +159,7 @@ export function TestPlayer({ attempt, title }: { attempt: TestAttempt; title: st
 
       <section className="grid gap-4 rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
         <p className="text-sm font-semibold text-muted-foreground">
-          {text.sectionTitle(section.code, section.title, section.marks)}
+          {text.sectionTitle(section.code, section.title, section.marks, section.negative)}
         </p>
         {question.case && (
           <p className="rounded-lg bg-muted p-3 text-sm whitespace-pre-line">{question.case}</p>

@@ -28,8 +28,8 @@ Status: ✅ done · ⏭ next · ⬜ later
 
 | Step | Status | What you get | Folders it fills | Spec items (§46) |
 |---|---|---|---|---|
-| **10** | ⏭ | **Previous-year paper analysis, misconception detection, JEE / NEET / CUET modes.** | `backend/app/analytics` · `backend/app/adaptive_learning` · `backend/app/question_generation` | 1 Previous-year analysis · 2 Misconception detection · 3 Competitive exam modes |
-| **11** | ⬜ | **Languages, gamification, advanced analytics.** Hindi / Hinglish screens, structure for more Indian languages, streaks / XP / badges, richer charts. | `frontend/` · `backend/app/analytics` | 4 Multi-language support · 5 Gamification · 6 Advanced analytics |
+| **10** | ✅ | **Previous-year paper analysis, misconception detection, JEE / NEET / CUET modes.** Papers read into sections and questions, matched to the textbook chapters by the AI, where the marks go and a test like them; repeated wrong ideas found and put right; exam patterns with negative marking. Plus their screens. | `backend/app/analytics` · `backend/app/adaptive_learning` · `backend/app/question_generation` | 1 Previous-year analysis · 2 Misconception detection · 3 Competitive exam modes |
+| **11** | ⏭ | **Languages, gamification, advanced analytics.** Hindi / Hinglish screens, structure for more Indian languages, streaks / XP / badges, richer charts. | `frontend/` · `backend/app/analytics` | 4 Multi-language support · 5 Gamification · 6 Advanced analytics |
 | **12** | ⬜ | **Production hardening.** Rate limiting, background workers on Redis, Docker images, CI, monitoring, a security review. | `infra/` · whole project | — |
 
 Note: content in **Hindi and Hinglish** already works. Explanations have it from Step 3 and
@@ -304,108 +304,122 @@ To update a Step 8 setup: `alembic upgrade head` (migration 0007), `python -m sc
 7 new demo questions; nothing else changes), then restart the API and rebuild or restart the frontend.
 No new libraries. `npm test` needs Node.js 22.12 or newer.
 
+## What Step 10 added
+
+```
+backend/
+├── alembic/versions/0008_…py            paper_analyses, paper_questions, student_misconceptions;
+│                                        mock_tests.exam, student_mastery.examined_until
+├── app/rag/ingestion/structure.py       question-paper mode: one chapter per file, sections as exercises
+├── app/rag/ingestion/labels.py          exercise_title() (a paper's "Section A" as printed), shared
+├── app/question_generation/paper.py     EXAMS (JEE / NEET / CUET patterns, negative marks, pace),
+│                                        pattern_for(), spread() (shared with the analysis)
+├── app/analytics/paper_reading.py       the AI reads a paper: marks, format, textbook area of each question
+├── app/analytics/papers.py              where the marks go, trend, layout, the test's sections - no database
+├── app/adaptive_learning/misconceptions.py   after_answer() (resolve, due?), examine() (the AI), lists
+├── app/models/paper.py · schemas/paper.py · services/paper_analysis_service.py · api/v1/papers.py
+├── app/services/question_bank.py        ChapterPlace (a section spread over chapters); mistakes to the writer
+├── app/services/mock_test_service.py    exam patterns, negative marking, previous_year tests, examine jobs
+├── app/services/dashboard_service.py · api/v1/adaptive.py   misconceptions (dashboard, GET …/misconceptions)
+└── tests/                               test_papers (unit + api), test_misconceptions, exam modes in
+                                         test_mock_tests, papers in test_structure, test_paper
+frontend/
+├── components/paper-analysis.tsx        the analysis on a paper book's page
+├── components/dashboard.tsx             + Mistakes (Understand Mistakes / Mistakes to fix)
+├── components/question-chooser.tsx      the exam-mode note; previous_year is not chosen here
+├── components/test-report.tsx           testSummary() (with the exam); a lost mark in red
+├── lib/navigation.ts                    conceptHref() (shared by recommendations, plan tasks, mistakes)
+├── lib/actions/books.ts                 analysePapers()
+└── tests/unit/papers-and-mistakes.test.tsx · tests/e2e/papers.spec.ts
+```
+
+To update a Step 9 setup: `alembic upgrade head` (migration 0008 - already applied to this machine's
+database), then restart the API and rebuild or restart the frontend. No new libraries, no seed change.
+
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 9.*
+*Rewritten at the end of every step. Last updated: end of Step 10.*
 
 ### Where things stand
 
-- Steps 1–9 are done. Backend: 343 tests pass (live tests skipped), `ruff` clean. Frontend: 110 unit
-  tests and 13 browser journeys (desktop + phone, twice in a row) pass; `lint`, `typecheck`,
+- Steps 1–10 are done. Backend: 366 tests pass (live tests skipped), `ruff` clean. Frontend: 115 unit
+  tests and 14 browser journeys (desktop + phone, twice in a row) pass; `lint`, `typecheck`,
   `format:check` and `build` are clean.
-- Checked in a real browser (the production build, the API with the AI off): a chapter test from the
-  chapter page, **Start now with …**, answers, submit, the report for the child and the parent; a
-  study plan for a new family, today's tasks, **Start Recommended Practice**, the assistant and the
-  tutor without the AI. The screens were also looked at on a desktop and a phone (dashboard, test
-  screen, report, plans, Create Test, assistant, tutor).
-- **Not tried on a real model in Part B**: the assistant and tutor screens with the AI on (Groq's
-  free daily allowance had run out in Part A). Part A's stricter rung instructions and the removal of
-  "(see [S1])" citations are still untried on a real model too. Worth one check with `LLM_PROVIDER=groq`.
-- **Node.js on this Mac**: the default `node` is still 21.5. Node 24.22.2 (the official prebuilt,
-  checksum-checked) is in `~/.local/node-v24`; run frontend commands as
-  `PATH="$HOME/.local/node-v24/bin:$PATH" npm …`. Homebrew here runs under Rosetta on macOS 27 and
-  compiles Node from source, so it was not used.
+- Looked at in a real browser (production build, AI off): a paper book's page with an analysis and
+  the dashboard's Understand Mistakes, on a desktop and a phone. The analysis shown was written
+  straight into the database for an e2e family (`papers-…@example.com`), as the AI was off.
+- **Not tried on a real model**: reading a paper (one call per paper; a 38-question paper is a few
+  thousand tokens in, ~1,500 out) and looking at wrong answers for misconceptions. Worth one check
+  with `LLM_PROVIDER=groq`: upload a real CBSE paper next to its textbook and analyse it. Step 9's
+  assistant and tutor screens are still untried on a real model too.
+- Node.js: run frontend commands as `PATH="$HOME/.local/node-v24/bin:$PATH" npm …` (unchanged).
 
-### What Step 9 built (frontend)
+### What Step 10 built
 
-- **Shared pieces.** `answer-input.tsx`: every answer format, `answerFor()` and `draftOf()` (a saved
-  answer back as a draft) — practice and tests use it. `start-button.tsx` (was QuickPractice): any
-  Server Action plus ready-made fields as hidden inputs (empty ones are left out) — a chapter's
-  Practice and Take Test, a recommendation, a plan task. `lib/forms.ts` now holds `Result`,
-  `attempt()`, `questionRequestFromForm()` and `questionsError()` shared by practice and tests.
-  "Soon" is gone (every menu item works).
-- **Create Test** (`question-chooser.tsx`, with Create Practice): the kinds the class has
-  (`KIND_FEATURE`), chosen in the same GET form as the place; a full mock test picks only a book, a
-  chapter test needs a chapter (the button waits for one). An empty number of questions gets the
-  usual length; the time limit field exists only with `timed_tests`.
-- **The test screen** (`test-player.tsx`): one question at a time, a grid, the section and its marks;
-  a choice is saved at once, typing after a 1-second pause, all saves in order; submit sends what is
-  still waiting first. The countdown starts from `seconds_left` (the device's clock, not the
-  deadline) and submits at 0 — also at once for a sitting reopened after its time ran out. After
-  submitting the page shows the report (`test-report.tsx`). A save or a submit that does not get
-  through says so and the screen carries on (a dropped save never blocks submitting).
-- **Tests and child mode**: `startChildMode(studentId, { practice } | { test })`; for a test the
-  sitting is started as the parent first, so a failure changes nothing. A learner's own new test goes
-  to `/learn/tests`, where it starts once ready.
-- **Plans**: the parent sees every day and can remove the plan; the learner sees today's tasks
-  (Start, ✓ Done / Undo) and the days to come. A learn task opens `/learn/concepts/{chapter}?q=&task=`
-  and is ticked off once explained. A student who signed up alone makes their own plan
-  (`/learn/plan/new`); in child mode the parent does.
-- **Dashboard** (`dashboard.tsx`): the week as columns in plain CSS (no chart library); the lighter
-  step `--primary-light` was checked with the dataviz validator (one hue, 2.48:1 on the card).
-  Strong / needs attention reuse the progress bars. Recommended is also on the learner's home, where a
-  weak topic can be revised first. The parent's Progress page adds the recent tests.
-- **The assistant and the tutor** (`chat-screen.tsx`, `chat-box.tsx`): a conversation is made with
-  its first message; the reply streams through `app/api/chat/[chatId]/messages` and `lib/sse.ts`;
-  when a new conversation's first reply is kept, the box resets and opens the conversation's address
-  (pages stay mounted with their state). On an error the question goes back into the box. Suggested
-  questions never contain the child's name. A conversation of another child (after switching) is not
-  shown.
-- **proxy.ts** now runs before `/api/chat/…` too (token renewal); only the upload route is left out —
-  a unit test checks the matcher (`unstable_doesMiddlewareMatch`).
+- **Reading a paper.** A book of "Previous-year papers" is read in question-paper mode
+  (`StructureDetector(question_paper=True)`): each file one chapter named after it (a year is not a
+  chapter number), sections as exercises (`Section A`, `Part A Physics · Section B`, `खण्ड अ`), each
+  numbered question an exercise question, the front page as `other` text, no topics. A paper without
+  sections is one block, "Questions", starting at question 1 (after numbered general instructions).
+- **Analysis** (`POST/GET /books/{id}/paper-analysis`): one background job and AI call per paper
+  (`analytics/paper_reading.py`): marks, format and a textbook area code per question, chosen from a
+  numbered list of the family's books of the paper's class (its subject first); year (else from the
+  file name), time, negative marks. Rows in `paper_analyses` / `paper_questions`; the report is worked
+  out on reading (`analytics/papers.py`): chapters by marks a paper, share, in how many papers, trend
+  (three or more dated papers), topics asked most, kinds, the latest paper's layout. POST analyses
+  every paper again (a textbook added later changes the matches).
+- **A test like the papers** (`kind: "previous_year"`, `book_id` = the paper book): the latest
+  paper's sections and marks (titled by their kind of question), its number of questions (≤ 50),
+  each section spread over the learner's chapters by marks (`question_bank.ChapterPlace`; the
+  section's JSON carries `chapters`), the paper's negative marks on objective sections, always timed
+  at the paper's pace.
+- **Exam modes**: a Class 11–12 learner whose goal is JEE / NEET / CUET gets every test in
+  `paper.EXAMS` (sections, +4 / −1 or +5 / −1, pace); `mock_tests.exam`; a wrong objective answer earns
+  `−negative`, so scores can be negative. The study plan's final test is timed the same way. Board
+  papers keep the old rule (every section at least one question); exam patterns keep their ratio
+  (JEE 20 : 5).
+- **Misconceptions**: after each answer (practice, or a submitted test) `misconceptions.after_answer`
+  resolves put-right ones (last 3 first answers right, all after it was last seen) and says whether
+  3+ wrong first answers are waiting; then `examine` claims them (`student_mastery.examined_until`,
+  one conditional UPDATE, so two jobs never look at the same answers) and asks the AI for wrong ideas
+  shared by 2+ answers. Shown on the dashboard (3), `GET /students/{id}/misconceptions`, both
+  Progress pages; given to the question writer for that place and to the Parent AI Assistant.
+  Class 3–12 (`misconception_detection`, a new class switch).
+- **Screens**: the analysis on the paper book's page (Analyse, Practise per chapter, Make a test like
+  these papers — for the chosen child when in the papers' class); Understand Mistakes; the exam note
+  on Create Test; the exam in a test's summary; "−1 for a wrong answer" in section titles; a lost mark
+  in red. A paper book lists "Papers" and "Sections".
 
 ### Known issues
 
-- **Written answers in a test need the AI to be marked.** With it off, a sitting with a written
-  answer cannot be submitted, and a saved answer cannot be emptied (the API refuses an empty answer).
-  The browser journey answers only objective questions.
-- The server still does not submit a test whose time ran out; the screen does (when it reaches 0,
-  or when the sitting is opened again).
-- Lists show the first 50 tests and the first 50 conversations (no "older" pages yet). There is no
-  endpoint to delete a test.
-- A first message that fails leaves an empty conversation in the database (hidden in the list).
-- The learner's home reads the whole dashboard for Recommended and today's plan (it also works out
-  the week and mastery, which the home does not show).
-- Replies are shown as plain text (no Markdown formatting). The youngest home shows recommendations
-  without their reasons; the tutor and tests are not in the Nursery–Class 5 menus (docs/04 §4.4).
-- Recommendations and plans use only the family's shared books and the learner's own: a temporary
-  browser-test child has none, so the plan journey signs up a new family and uploads the sample book.
-- **Reading a book can hold the API up for a few seconds** when several are read at once (its
-  pure-Python steps run in threads but share the interpreter with the requests). The browser tests
-  therefore wait up to 10 seconds per check (`playwright.config.ts`). Step 12's workers move reading
-  out of the API process.
-- **Running the browser tests next to your own servers:** `npm run test:e2e` reuses a frontend already
-  on port 3000 and the API on 8000. With the AI on, the recommended-practice, assistant and tutor steps
-  then call it. To keep the allowance, start the API with `LLM_PROVIDER=none` for the tests.
-- Unchanged: the plan is made again only once a day; recommendations are fixed for the day; reasons are
-  English sentences; answers given before Step 7 enter mastery only when the learner answers again in
-  that area; the upload route does not renew tokens; `npm audit` (17 moderate); no rate limiting,
-  token revocation or security headers yet (Step 12); Groq's free plan is slow (about 4 minutes for a
-  5-question hard practice). No negative marking or JEE / NEET paper patterns yet (Step 10).
+- **Exam patterns are starting constants** (NTA 2026): sources disagree on details, e.g. whether
+  JEE numerical answers lose a mark (−1 assumed) and NEET's exact time. Check each year's bulletin.
+- Reading a paper relies on numbered questions and on "Section / Part / खण्ड" headings; a sectionless
+  paper with numbered instructions but no "General Instructions" heading takes instruction 1 for
+  question 1. Scanned papers need OCR, as books do.
+- Every analysis reads every paper again (one AI call each). Changing a book's material type after a
+  file is read does not read it again (retry the file).
+- Recommendations and study plans treat a paper's chapter like a textbook chapter (practice from the
+  paper's own text), as before Step 10. Leaving paper books out of them may be better.
+- A failed look at wrong answers is given back, so with the AI on but failing, each later wrong
+  answer in that area tries again (one call each). The tutor does not use misconceptions yet.
+- Students who signed up alone have no book screens, so they cannot analyse papers in the browser.
+- Unchanged from Step 9: written test answers need the AI to be marked; the server does not submit a
+  test whose time ran out; lists show the first 50; a failed first chat message leaves an empty
+  conversation; replies are plain text; reading a book can hold the API up for a few seconds;
+  recommendations and reasons are English sentences (misconceptions are in the learner's language);
+  `npm audit` (17 moderate); no rate limiting, token revocation or security headers yet (Step 12).
+- **Running the browser tests next to your own servers:** start the API with `LLM_PROVIDER=none` (or
+  use separate ports), or the paper and assistant journeys call the AI.
 
-### What Step 10 needs to know
+### What Step 11 needs to know
 
-- Step 10 is **previous-year paper analysis, misconception detection and JEE / NEET / CUET modes**
-  (docs/03 §3.9 plans `POST /books/{id}/paper-analysis`). Class profiles already carry
-  `previous_year_questions` and `competitive_exam_modes`, and learner profiles the goal (`jee`,
-  `neet`, `cuet`).
-- **Papers**: question papers can already be uploaded as books (`material_type`); reading finds each
-  exercise question. Test papers are built in `question_generation/paper.py` (sections, marks, time);
-  exam patterns with negative marking would go there and in the marking of `mock_test_service`.
-- **Screens**: Create Test's kinds come from `KIND_FEATURE` in `components/question-chooser.tsx` and
-  `copy.testKinds`; papers and reports are drawn from the API's sections and marks, so new sections
-  need no screen change. A negative mark would show as it is in the report.
-- **Misconceptions**: every answer is a `question_attempts` row (with the response, help used and,
-  for written answers, the AI's feedback); mastery lives in `adaptive_learning/mastery.py`; the tutor
-  already checks a learner's attempt (`chat/tutor.py`).
+- Step 11 is **Hindi / Hinglish screens, gamification (streaks, XP, badges), advanced analytics**.
+  All wording is in `frontend/lib/copy.ts` (one object, English); `users.preferred_language` exists.
+  Texts made by the backend are English sentences (recommendation and plan reasons, error messages),
+  except what the AI writes (in the learner's language: questions, explanations, misconceptions).
+- Gamification tables are planned in docs/02 §2.10. Every answer is a `question_attempts` row
+  (with marks for tests); `analytics/progress.week()` counts days in India time.
+- Richer charts: the dashboard's week is plain CSS columns (`components/dashboard.tsx`); a paper
+  analysis already returns each chapter's marks `by_year`, ready for a trend chart.
 - Every new page that loads data needs its own `loading.tsx`; all wording in `frontend/lib/copy.ts`.

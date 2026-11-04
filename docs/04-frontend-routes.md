@@ -30,17 +30,17 @@ Navigation (spec §38): Dashboard · Children · My Books · Practice · Mock Te
 
 | URL | Screen | Step |
 |---|---|---|
-| `/parent/dashboard` | This week day by day (answered, right the first time, minutes), strong areas and needs attention, Recommended with **Start Recommended Practice**, today's study plan, recent tests — one call (`GET /students/{id}/dashboard`) | 6 basic · 9 full |
+| `/parent/dashboard` | This week day by day (answered, right the first time, minutes), strong areas and needs attention, **Understand Mistakes** (up to 3 mistakes the child keeps making, with what to remember and Practise this), Recommended with **Start Recommended Practice**, today's study plan, recent tests — one call (`GET /students/{id}/dashboard`) | 6 basic · 9 full · 10 |
 | `/parent/children` · `/parent/children/new` · `/parent/children/[studentId]` | List, add, edit children | 5 |
 | `/parent/books` | My Learning Library: every family book, labelled with the child it is for | 6 |
 | `/parent/books/upload` | Upload Book: the book's details, then the file with a progress bar | 6 |
-| `/parent/books/[bookId]` | Chapters of a book, its files with the reading checklist (retry, remove), add a file, delete the book | 6 |
+| `/parent/books/[bookId]` | Chapters of a book, its files with the reading checklist (retry, remove), add a file, delete the book. A book of previous-year papers (Class 9–12) lists its papers and shows their analysis: **Analyse the papers**, where the marks go (chapters by marks a paper, in how many papers, rising or falling; **Practise**), topics asked most, kinds of questions, the latest paper's layout, **Make a test like these papers** — for the chosen child when in the papers' class | 6 · 10 |
 | `/parent/books/[bookId]/chapters/[chapterId]` | Chapter page: **Learn · Practice · Exercise Questions · Generate Questions · Take Test** (a chapter test from Class 6, a practice test of the chapter in Class 3–5, none below) | 6 · 9 |
 | `/parent/practice` | Create Practice: number, difficulty, type, source, language. `?book=&chapter=&exercise=` preselect the source | 6 |
 | `/parent/practice/[sessionId]` | A practice the parent made: "getting ready", then its questions and **Start now with {child}** (child mode straight into it) | 6 |
-| `/parent/tests` · `/parent/tests/new` · `/parent/tests/[testId]` | The chosen child's tests; Create Test (`?kind=&book=&chapter=`: the kinds and the time limit follow the class's `practice_tests`, `chapter_tests`, `full_mock_tests`, `timed_tests`); a test: "getting ready", **Start now with {child}** (child mode straight into the test), its sittings and the report of one (`?attempt=`) | 9 |
+| `/parent/tests` · `/parent/tests/new` · `/parent/tests/[testId]` | The chosen child's tests; Create Test (`?kind=&book=&chapter=`: the kinds and the time limit follow the class's `practice_tests`, `chapter_tests`, `full_mock_tests`, `timed_tests`; a JEE / NEET / CUET learner is told their tests follow the exam's pattern, with marks lost for a wrong answer); a test: "getting ready", **Start now with {child}** (child mode straight into the test), its sittings and the report of one (`?attempt=`) | 9 |
 | `/parent/plans` · `/parent/plans/new` | The chosen child's study plan day by day (one per learner, API: `GET /students/{id}/study-plan`), and making a new one: exam date, minutes a day, target, chapters | 9 |
-| `/parent/progress` | Numbers, by chapter and topic, recent practice, recent tests | 6 basic · 9 · 11 |
+| `/parent/progress` | Numbers, by chapter and topic, recent practice, Understand Mistakes (current and put right), recent tests | 6 basic · 9 · 10 · 11 |
 | `/parent/assistant` · `/parent/assistant/[chatId]` | Parent AI Assistant about the chosen child: suggested questions, replies as they are written with the books they used, earlier conversations. A new conversation is made with its first message and then opens at its own address | 9 |
 | `/parent/settings` | Account, language, sign out | 5 |
 
@@ -57,7 +57,7 @@ Navigation (spec §38): Home · Practice · Learn · Tests · Progress · Study 
 | `/learn/practice` · `/learn/practice/[sessionId]` | Choose and do practice; **Hint → Show Steps → Show Answer**. Nursery–Class 2: big "Play" tiles per chapter, one tap answers, a number pad for counting, "try again" instead of a wrong mark, stars at the end | 6 |
 | `/learn/concepts` · `/learn/concepts/[chapterId]` | Learn a concept; "Explain simply / Like I'm 10 / in Hindi / in Hinglish". `?q=` fills in the question, `?task=` is a learn task of the plan (ticked off once explained) | 6 · 9 |
 | `/learn/tests` · `/learn/tests/[attemptId]` | My tests (Start, Continue, See result, Take again) and Create Test; the test screen: sections, a question grid, the timer (when the test has a time limit), each answer saved as it is given, submit — by the button or when the time runs out — then the result report | 9 |
-| `/learn/progress` | My progress | 6 |
+| `/learn/progress` | My progress; Mistakes to fix (Class 3+: Revise the idea first, Practise this) | 6 · 10 |
 | `/learn/plan` · `/learn/plan/new` | Today's tasks from the study plan (Start, ✓ Done), then the days to come. A student who signed up alone makes their own plan; a child's is made by the parent | 9 |
 | `/learn/tutor` · `/learn/tutor/[chatId]` | AI Tutor: hint first, answer last; each reply shows its rung (Hint 1 … Answer) and the books it used | 9 |
 

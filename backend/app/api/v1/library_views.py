@@ -3,7 +3,7 @@
 from app.core.enums import ClassLevel, DocumentStatus, ProcessingStage
 from app.models import Book, Chapter, Document, DocumentChunk, Exercise, Topic
 from app.rag.ingestion.errors import processing_error_message
-from app.rag.ingestion.labels import chapter_label
+from app.rag.ingestion.labels import chapter_label, exercise_title
 from app.schemas.library import (
     BookOut,
     BookStatus,
@@ -108,10 +108,6 @@ def chapter_out(chapter: Chapter, counts: dict[str, int]) -> ChapterOut:
         exercise_count=counts["exercises"],
         question_count=counts["questions"],
     )
-
-
-def exercise_title(label: str) -> str:
-    return f"Exercise {label}" if label else "Exercises"
 
 
 def exercise_out(exercise: Exercise) -> ExerciseOut:

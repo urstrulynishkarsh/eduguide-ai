@@ -1,4 +1,4 @@
-"""Cursor pages for lists that grow (docs/03 §3.9): newest first, `?limit=&cursor=`.
+"""Cursor pages for lists that grow (docs/03 §3.10): newest first, `?limit=&cursor=`.
 
 The cursor is the (created_at, id) of the last row of the page, so a row added meanwhile never
 shifts the next page.

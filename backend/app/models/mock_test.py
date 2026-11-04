@@ -20,9 +20,12 @@ from app.models.practice import QuestionSettings
 class MockTest(QuestionSettings, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "mock_tests"
 
-    kind: Mapped[str] = mapped_column(String(16))  # practice | chapter | full_mock
+    kind: Mapped[str] = mapped_column(String(16))  # practice | chapter | full_mock | previous_year
+    # The competitive exam whose pattern the paper follows (jee | neet | cuet); empty: a school paper.
+    exam: Mapped[str | None] = mapped_column(String(8))
     duration_minutes: Mapped[int | None] = mapped_column(SmallInteger)  # empty = untimed
-    # The paper's plan: [{"code": "A", "title", "marks" (each), "count", "formats"}]
+    # The paper's plan: [{"code": "A", "title", "marks" and "negative" (each), "count", "formats",
+    # "chapters"?: {chapter_id: count} - a previous-year pattern test spreads a section over chapters}]
     sections: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
 
 

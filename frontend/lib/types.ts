@@ -93,7 +93,8 @@ export type ClassFeatures = Record<
   | "full_mock_tests"
   | "previous_year_questions"
   | "board_exam_preparation"
-  | "competitive_exam_modes",
+  | "competitive_exam_modes"
+  | "misconception_detection",
   boolean
 >;
 
@@ -132,6 +133,8 @@ export interface Book {
   id: string;
   title: string;
   subject: string;
+  material_type: string;
+  class_level: string;
   class_label: string;
   student_id: string | null;
   status: string;
@@ -265,7 +268,11 @@ export interface ReviseRequest {
 
 // ---- Mock tests (docs/03 §3.7)
 
-export type TestKind = "practice" | "chapter" | "full_mock";
+/** previous_year: a test like a book's previous-year papers, started from their analysis. */
+export type TestKind = "practice" | "chapter" | "full_mock" | "previous_year";
+
+/** JEE / NEET / CUET mode: the competitive exam whose pattern a Class 11–12 learner's tests follow. */
+export type Exam = "jee" | "neet" | "cuet";
 
 /** An answer as the API takes and gives it back: the field that fits the question. */
 export interface Answer {
@@ -279,6 +286,8 @@ export interface PaperSection {
   code: string;
   title: string;
   marks: number;
+  /** Marks lost for a wrong answer; 0: no negative marking. */
+  negative: number;
   questions: Question[];
 }
 
@@ -286,6 +295,7 @@ export interface MockTest {
   id: string;
   student_id: string;
   kind: TestKind;
+  exam: Exam | null;
   status: "preparing" | "ready" | "failed";
   book_title: string | null;
   chapter: string | null;
@@ -402,6 +412,47 @@ export interface Dashboard {
     submitted_at: string;
   }[];
   plan: { days_left: number; done: number; total: number; today: PlanItem[] } | null;
+  /** Up to 3 active misconceptions. */
+  misconceptions: Misconception[];
+}
+
+/** A wrong idea the learner keeps showing in an area (docs/03 §3.9). */
+export interface Misconception extends Area {
+  id: string;
+  status: "active" | "resolved";
+  pattern: string;
+  fix: string;
+  answers: number;
+  practice: RequestBody;
+  revise: ReviseRequest;
+}
+
+// ---- Previous-year paper analysis (docs/03 §3.9)
+
+export interface PaperAnalysis {
+  status: "none" | "preparing" | "ready" | "failed";
+  papers: {
+    document_id: string;
+    title: string;
+    status: "new" | "preparing" | "ready" | "failed";
+    error: { code: string; message: string } | null;
+    year: number | null;
+    questions: number;
+    total_marks: number;
+  }[];
+  chapters: (Area & {
+    marks_per_paper: number;
+    share: number;
+    papers: number;
+    trend: "rising" | "falling" | "steady" | null;
+    practice: RequestBody;
+  })[];
+  unmatched: { questions: number };
+  topics: (Area & { questions: number; papers: number })[];
+  formats: { format: string; share: number }[];
+  layout: { title: string; questions: number; marks: number }[];
+  layout_year: number | null;
+  test: RequestBody | null;
 }
 
 // ---- The Parent AI Assistant and the Student AI Tutor (docs/03 §3.8)

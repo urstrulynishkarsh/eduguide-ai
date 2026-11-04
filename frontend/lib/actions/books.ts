@@ -5,6 +5,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { api, CHOSEN_CHILD_COOKIE } from "@/lib/api";
+import { ApiError } from "@/lib/backend";
+import { copy } from "@/lib/copy";
 import { formError, formText, type FormState } from "@/lib/forms";
 import type { Book } from "@/lib/types";
 
@@ -55,4 +57,19 @@ export async function retryDocument(documentId: string): Promise<void> {
 export async function removeDocument(documentId: string): Promise<void> {
   await api(`/documents/${id(documentId)}`, { method: "DELETE" });
   refresh();
+}
+
+/** Analyse the previous-year papers of a book: the AI reads them in the background. */
+export async function analysePapers(bookId: string): Promise<FormState> {
+  try {
+    await api(`/books/${id(bookId)}/paper-analysis`, { method: "POST" });
+  } catch (error) {
+    const state = formError(error);
+    if (error instanceof ApiError && error.body.code === "ai_not_configured") {
+      state.message = copy.errors.analysis_ai_not_configured;
+    }
+    return state;
+  }
+  refresh();
+  return {};
 }

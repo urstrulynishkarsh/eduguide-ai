@@ -184,6 +184,18 @@ Both mark the passages they use as `[S1]`; `chat_service.citations` takes the ma
 text and turns them into `sources`. A question and its reply are saved together when the reply is
 complete, so a reply that fails half-way leaves nothing behind.
 
+### Reading papers and wrong answers (Step 10)
+
+- **A previous-year paper** (`app/analytics/paper_reading.py`, default tier, one call per paper):
+  the paper's front page and its numbered questions, and the family's textbook chapters and topics
+  as codes (`C3`, `C3.2`). It returns each question's marks (null when not shown), format and area
+  code - so it can only name chapters that exist - and the year, time and negative marking.
+- **Misconceptions** (`app/adaptive_learning/misconceptions.py`, default tier): up to 10 wrong first
+  answers of one area (question, right answer, the learner's answer, the marker's note) and the
+  area's known misconceptions. It returns only wrong ideas at least two answers share, in the
+  learner's language, with a fix and a question for "Explain this". Code checks the evidence and
+  decides when one is put right.
+
 ## 6.6 Cost and speed
 
 - Batch generation; reuse saved questions; cache identical requests (Redis, Step 12).

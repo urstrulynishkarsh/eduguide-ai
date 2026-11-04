@@ -100,6 +100,10 @@ def child_data(board: DashboardOut, areas: list[AreaMastery], overall: ProgressO
         },
         "last_7_days": [day.model_dump(mode="json") for day in board.week],
         "topics": [_area(area) for area in areas],
+        "mistakes_it_keeps_making": [
+            {"chapter": m.chapter, "topic": m.topic, "mistake": m.pattern, "remember": m.fix}
+            for m in board.misconceptions
+        ],
         "recommended_today": [
             {"kind": r.kind, "chapter": r.chapter, "topic": r.topic, "reason": r.reason, "status": r.status}
             for r in board.recommendations

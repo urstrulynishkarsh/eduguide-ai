@@ -24,7 +24,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics.progress import first_answers
 from app.class_profiles import ClassFeatures, get_class_profile
-from app.models import Book, Chapter, Question, Recommendation, Student, StudentMastery, Topic
+from app.models import (
+    Book,
+    Chapter,
+    Question,
+    Recommendation,
+    Student,
+    StudentMastery,
+    StudentMisconception,
+    Topic,
+)
 from app.rag.ingestion.labels import chapter_label, topic_label
 from app.schemas.adaptive import AreaMastery, MasteryOut, MasteryStatus
 
@@ -161,7 +170,9 @@ async def record_answer(db: AsyncSession, student: Student, question: Question) 
 # ---------------------------------------------------------------------------- reading areas
 
 
-def with_names(table: type[StudentMastery] | type[Recommendation]) -> Select[Any]:
+def with_names(
+    table: type[StudentMastery] | type[Recommendation] | type[StudentMisconception],
+) -> Select[Any]:
     """Rows of an area table, each with the names of its book, chapter and topic (see `names`)."""
     return (
         select(table, Book.id, Book.title, Chapter.number, Chapter.title, Topic.number, Topic.title)

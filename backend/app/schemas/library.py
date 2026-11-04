@@ -180,7 +180,9 @@ class ExerciseOut(BaseModel):
 
     id: uuid.UUID
     label: str
-    title: str = Field(description='"Exercise 2.3", or "Exercises" when the book gives no number.')
+    title: str = Field(
+        description='"Exercise 2.3", "Exercises" when the book gives no number, a paper\'s "Section A".'
+    )
     page_start: int | None
     page_end: int | None
     question_count: int
