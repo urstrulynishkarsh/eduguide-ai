@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 
 import { useCopy } from "@/components/copy-provider";
 import { Choice, ChoiceGroup, ErrorText, SelectField } from "@/components/choice";
-import { Field } from "@/components/field";
+import { Field, NO_AUTOFILL } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
@@ -126,7 +126,7 @@ export function LearnerProfileForm({
                 error={errors.name}
                 required
                 maxLength={80}
-                autoComplete="off"
+                autoComplete={NO_AUTOFILL}
               />
               <Field
                 name="age"
@@ -163,6 +163,7 @@ export function LearnerProfileForm({
                 onChange={(event) => setBoardName(event.target.value)}
                 error={errors.board_name}
                 maxLength={80}
+                autoComplete={NO_AUTOFILL}
               />
             )}
             <SelectField

@@ -68,6 +68,16 @@ describe("LearnerProfileForm", () => {
     expect(screen.getByLabelText("Name of the board")).toBeInTheDocument();
   });
 
+  it("keeps the browser from filling the child's and the board's names with the parent's own", async () => {
+    const { user } = renderForm();
+    await user.click(radio("Class 7"));
+    await user.selectOptions(screen.getByLabelText("Board"), "state");
+    // Not "off": Chrome ignores that and offers the parent's saved name (components/field.tsx).
+    for (const label of ["Child's name", "Name of the board"]) {
+      expect(screen.getByLabelText(label)).toHaveAttribute("autocomplete", "none");
+    }
+  });
+
   it("lets the parent add a subject of their own, once", async () => {
     const { user } = renderForm();
     await user.click(radio("Class 7"));

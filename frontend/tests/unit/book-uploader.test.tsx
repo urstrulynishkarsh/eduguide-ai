@@ -51,4 +51,10 @@ describe("BookUploader", () => {
     expect(Upload.sent).toEqual([{ url: "/api/books/b1/documents", body: expect.any(FormData) }]);
     expect(Upload.sent[0].body.get("file")).toBe(book);
   });
+
+  it("keeps the browser from filling the book's name with the parent's own", () => {
+    render(<BookUploader newBook={{ options, learners: [], chosenId: null }} limits={options.upload} />);
+    // Not "off": Chrome ignores that and offers the parent's saved name (components/field.tsx).
+    expect(screen.getByLabelText("Book name")).toHaveAttribute("autocomplete", "none");
+  });
 });
