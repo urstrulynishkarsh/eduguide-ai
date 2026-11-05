@@ -35,7 +35,7 @@ from app.models.base import utcnow
 from app.question_generation.schemas import CHOICE_FORMATS, NUMBER_FORMATS, WRITTEN_FORMATS
 from app.rag.answering import learner_profile, write_in
 from app.schemas.adaptive import MisconceptionOut, MisconceptionsOut
-from app.schemas.learn import ExplainRequest
+from app.schemas.learn import QUESTION_MIN_LENGTH, ExplainRequest
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +254,8 @@ async def examine(
 
     for found in result.output.misconceptions:
         shown = [oldest_first[n - 1] for n in dict.fromkeys(found.answers) if 1 <= n <= len(oldest_first)]
-        if len(shown) < MIN_EVIDENCE or not found.pattern.strip():
+        pattern, question = found.pattern.strip()[:300], found.explain_question.strip()[:300]
+        if len(shown) < MIN_EVIDENCE or len(pattern) < QUESTION_MIN_LENGTH:
             continue
         evidence = [str(row.id) for row in shown]
         seen = max(row.created_at for row in shown)
@@ -268,9 +269,10 @@ async def examine(
                 student_id=student_id,
                 chapter_id=chapter_id,
                 topic_id=topic_id,
-                pattern=found.pattern.strip()[:300],
+                pattern=pattern,
                 fix=found.fix.strip()[:500],
-                explain_question=found.explain_question.strip()[:300],
+                # "Explain this" needs a question: the wrong idea itself, when the AI gave none.
+                explain_question=question if len(question) >= QUESTION_MIN_LENGTH else pattern,
                 evidence=evidence,
                 status="active",
                 last_seen_at=seen,

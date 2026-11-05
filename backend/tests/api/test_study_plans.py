@@ -98,6 +98,26 @@ async def test_a_plan_from_today_to_the_exam(client: AsyncClient):
     assert again.json() == plan
 
 
+async def test_a_chapter_named_by_one_letter_is_learnt_by_its_book_and_name(client: AsyncClient):
+    # A PDF's bookmark can call a chapter just "1"; "Explain this" needs two letters or more.
+    parent, child, chapter = await family_with_book(client)
+    renamed = await client.patch(
+        f"{API}/chapters/{chapter['id']}", json={"title": "1", "number": None}, headers=parent.headers
+    )
+    assert renamed.status_code == 200, renamed.text
+
+    response = await _plan(client, parent.headers, child, 10)
+
+    assert response.status_code == 201, response.text
+    (learn,) = (
+        item
+        for day in response.json()["days"]
+        for item in day["items"]
+        if item["kind"] == "learn" and item["chapter_id"] == chapter["id"]
+    )
+    assert learn["revise"]["question"] == "Class 8 Mathematics 1"
+
+
 async def test_each_morning_the_rest_is_planned_again_from_what_the_learner_knows(
     client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):

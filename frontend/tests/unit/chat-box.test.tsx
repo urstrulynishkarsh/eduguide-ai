@@ -53,6 +53,7 @@ describe("ChatBox", () => {
     await user.type(screen.getByLabelText("Type your question or problem…"), "x + 5 = 12?");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
+    expect(await screen.findByText("Socho:")).toBeInTheDocument(); // the first piece, before the rest
     expect(await screen.findByText("Hint 1")).toBeInTheDocument();
     expect(screen.getByText("Socho: x ke saath kya juda hai?")).toBeInTheDocument();
     expect(screen.getByText(/Based on: Class 7 Maths → Chapter 4/)).toBeInTheDocument();

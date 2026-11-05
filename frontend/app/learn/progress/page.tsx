@@ -26,12 +26,7 @@ export default async function MyProgressPage() {
       <h1 className="text-3xl font-extrabold playful:text-center playful:text-5xl dense:text-2xl">
         {playful ? `⭐ ${copy.progress.starsTitle}` : copy.progress.myTitle}
       </h1>
-      <ProgressView
-        copy={copy}
-        progress={progress}
-        stars={playful}
-        sessionHref={(id) => `/learn/practice/${id}`}
-      />
+      <ProgressView copy={copy} progress={progress} area="learn" stars={playful} />
       {trends && (
         <ProgressOverTime copy={copy} trends={trends} simple={classProfile.ui_mode === "friendly"} />
       )}

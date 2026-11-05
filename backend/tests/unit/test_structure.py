@@ -262,6 +262,23 @@ def test_outline_with_front_matter():
     assert structure.segments[0].chapter is None
 
 
+def test_bookmarks_that_are_only_a_number_are_the_chapters_numbers():
+    pages = [
+        PageText(
+            number=1,
+            lines=[TextLine("Chapter 1"), TextLine("Knowing Our Numbers"), TextLine("We count every day.")],
+        ),
+        PageText(number=2, lines=[TextLine("Whole Numbers"), TextLine("Zero is a whole number.")]),
+    ]
+    outline = [OutlineEntry("1", 0, 1), OutlineEntry(" II ", 0, 2)]
+    structure = detect_structure(pages, outline=outline, filename="book.pdf")
+    # The page's heading names the first; the second page has none.
+    assert [(c.number, c.title, c.detected_by) for c in structure.chapters] == [
+        (1, "Knowing Our Numbers", "outline"),
+        (2, "Chapter 2", "outline"),
+    ]
+
+
 def test_helpers():
     assert roman_to_int("IV") == 4
     assert roman_to_int("XII") == 12

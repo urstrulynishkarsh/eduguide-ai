@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.api.deps import CurrentPrincipal, DbSession, Queue, limit_account
+from app.api.deps import CurrentPrincipal, DbSession, Queue, RateCounter, limit_account
 from app.core.rate_limits import PREPARE_PER_DAY
 from app.schemas import practice
 from app.schemas.mock_test import AttemptOut, MockTestCreate, MockTestOut, MockTestPage, TestReport
@@ -90,12 +90,13 @@ async def save_answer(
 
 @router.post("/test-attempts/{attempt_id}/submit", response_model=TestReport, summary="Submit the test")
 async def submit(
-    attempt_id: uuid.UUID, principal: CurrentPrincipal, db: DbSession, queue: Queue
+    attempt_id: uuid.UUID, principal: CurrentPrincipal, db: DbSession, queue: Queue, counter: RateCounter
 ) -> TestReport:
     """Marks every saved answer (written ones by the AI tutor, with part marks; a wrong one loses the
     section's negative marks) and returns the report. Also accepted after the time is up; submitting
-    twice returns the same report."""
-    return await mock_test_service.submit(db, principal, attempt_id, queue=queue)
+    twice returns the same report. A sitting with written answers counts once against the family's AI
+    allowance (`429`, nothing marked: it can be submitted again later)."""
+    return await mock_test_service.submit(db, principal, attempt_id, queue=queue, counter=counter)
 
 
 @router.get("/test-attempts/{attempt_id}/report", response_model=TestReport, summary="The result report")

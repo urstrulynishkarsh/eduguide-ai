@@ -1,17 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ApiError, callBackend } from "@/lib/backend";
 import { redirectFor } from "@/lib/routes";
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
   clearTokens,
-  isFresh,
-  readClaims,
+  renewSession,
   storeTokens,
   type CookieStore,
 } from "@/lib/session";
-import type { Role, TokenPair } from "@/lib/types";
 
 /**
  * Runs before every page and Server Action: renews an expired access token with the refresh
@@ -21,23 +18,7 @@ import type { Role, TokenPair } from "@/lib/types";
 export async function proxy(request: NextRequest) {
   const accessToken = request.cookies.get(ACCESS_COOKIE)?.value;
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
-  const access = readClaims(accessToken);
-  const refresh = readClaims(refreshToken);
-
-  let role: Role | null = access && isFresh(access) ? access.role : null;
-  let tokens: TokenPair | null = null;
-  let unreachable = false;
-  if (!role && refreshToken && refresh && isFresh(refresh)) {
-    try {
-      tokens = await callBackend<TokenPair>("/auth/refresh", {
-        method: "POST",
-        body: { refresh_token: refreshToken },
-      });
-      role = readClaims(tokens.access_token)?.role ?? null;
-    } catch (error) {
-      unreachable = error instanceof ApiError && error.status === 0;
-    }
-  }
+  const { role, tokens, unreachable } = await renewSession(accessToken, refreshToken);
   // A dead session is forgotten. One the backend could not check (it is down) is kept.
   const forget = !role && !unreachable && Boolean(accessToken || refreshToken);
   const save = (store: CookieStore) => {

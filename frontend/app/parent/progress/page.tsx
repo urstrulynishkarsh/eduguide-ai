@@ -21,7 +21,7 @@ export default async function ParentProgressPage() {
       <h1 className="text-3xl font-extrabold">
         {copy.progress.title} · {child.name}
       </h1>
-      <ProgressView copy={copy} progress={progress} sessionHref={(id) => `/parent/practice/${id}`} />
+      <ProgressView copy={copy} progress={progress} area="parent" />
       <ProgressOverTime copy={copy} trends={trends} />
       <section className="grid gap-3">
         <h2 className="text-lg font-bold">{copy.rewards.title}</h2>

@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: { default: APP_NAME, template: `%s · ${APP_NAME}` }, description: copy.landing.subtitle };
 }
 
-export const viewport: Viewport = { themeColor: "#fbfaf6" };
+export const viewport: Viewport = { themeColor: "#fdf5e6" }; // the cream page (app/globals.css)
 
 /** Every screen in the device's screen language: client components read it through `useCopy()`. */
 async function InLanguage({ children }: { children: React.ReactNode }) {

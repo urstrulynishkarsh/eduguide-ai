@@ -411,7 +411,9 @@ POST /api/v1/practice/sessions/{id}/answers
 { "correct": false, "try_again": false, "feedback": null, "correct_answer": "p = 14", "session_completed": false }
 ```
 
-Written answers are marked by the AI (`feedback` says what was right and what to add). For
+Written answers are marked by the AI (`feedback` says what was right and what to add); each one
+counts against the family's AI allowance like Explain (§3.11), and an answer checked exactly never
+does. For
 Nursery–Class 2 a wrong answer gives `try_again: true` and no `correct_answer`: the child is
 invited to try again, and "Show Answer" is there when they want it.
 
@@ -538,8 +540,11 @@ is a retake of the same paper.
 
 **Marking.** Choice, number, blank and matching answers exactly; written answers by the AI, which
 also counts the key points covered: a written answer earns that share of its marks, to the nearest
-half mark (2 of 4 key points of a 5-mark answer = 2.5). One AI call per written answer; if the AI
-fails, nothing is stored and `submit` can be sent again. Every answer becomes a question attempt with
+half mark (2 of 4 key points of a 5-mark answer = 2.5). One AI call per written answer, and a
+sitting with written answers counts once against the family's AI allowance (§3.11); if the AI
+fails or the allowance is used up, nothing is stored and `submit` can be sent again. The sitting is
+locked while it is marked: a second `submit` at the same moment (the time running out as the button
+is pressed) waits, then returns the same report. Every answer becomes a question attempt with
 its marks, so progress and mastery count it; questions left out earn nothing and are not counted.
 
 ```json
@@ -822,7 +827,7 @@ for all endpoints:
   |---|---|---|---|
   | Failed sign-ins | email · address | 10 · 60 per 15 minutes | `too_many_requests` |
   | Sign-ups | address | 60 per hour | `too_many_requests` |
-  | Explain, a practice question explained, a chat message | account | 20 a minute, 300 a day | `too_many_requests` · `daily_limit_reached` |
+  | Explain, a practice question explained, a chat message, a written practice answer, a test submitted with written answers | account | 20 a minute, 300 a day | `too_many_requests` · `daily_limit_reached` |
   | Create Practice, create a test, analyse papers | account | 60 a day | `daily_limit_reached` |
   | Upload or retry a file | account | 100 a day | `daily_limit_reached` |
 

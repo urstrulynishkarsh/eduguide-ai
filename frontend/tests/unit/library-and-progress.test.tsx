@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { stepsInParentWords } from "@/components/document-checklist";
-import { ProgressView } from "@/components/progress-view";
+import { ProgressView, RecentPractice } from "@/components/progress-view";
 import type { Progress } from "@/lib/types";
 import { en } from "@/lib/copy/en";
 
@@ -54,15 +54,51 @@ const progress: Progress = {
 
 describe("ProgressView", () => {
   it("shows numbers and accuracy by chapter", () => {
-    render(<ProgressView copy={en} progress={progress} />);
+    render(<ProgressView copy={en} progress={progress} area="parent" />);
     expect(screen.getByText("Correct the first time").nextSibling).toHaveTextContent("70%");
     expect(screen.getByText("Chapter 4 Simple Equations")).toBeInTheDocument();
     expect(screen.getByText("5 min")).toBeInTheDocument();
   });
 
   it("shows the youngest stars, never marks or percentages", () => {
-    const { container } = render(<ProgressView copy={en} progress={progress} stars />);
+    const { container } = render(<ProgressView copy={en} progress={progress} area="learn" stars />);
     expect(screen.getByText("You earned 7 stars!")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/%|correct/i);
+  });
+});
+
+describe("RecentPractice", () => {
+  it("opens a practice again, one being prepared or half done included", () => {
+    const sessions: Progress["recent_sessions"] = [
+      {
+        id: "p2",
+        status: "preparing",
+        questions: 5,
+        answered: 0,
+        correct: 0,
+        created_at: "2026-11-05T09:00:00Z",
+      },
+      {
+        id: "p1",
+        status: "ready",
+        questions: 3,
+        answered: 2,
+        correct: 1,
+        created_at: "2026-11-04T09:00:00Z",
+      },
+    ];
+    render(<RecentPractice copy={en} sessions={sessions} area="learn" />);
+
+    const [preparing, halfDone] = screen.getAllByRole("link");
+    expect(preparing).toHaveAttribute("href", "/learn/practice/p2");
+    expect(preparing).toHaveTextContent("Being prepared");
+    expect(halfDone).toHaveAttribute("href", "/learn/practice/p1");
+    expect(halfDone).toHaveTextContent("2 of 3 answered · 1 correct");
+    expect(halfDone).toHaveTextContent("Not finished");
+  });
+
+  it("shows nothing before the first practice", () => {
+    const { container } = render(<RecentPractice copy={en} sessions={[]} area="parent" />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

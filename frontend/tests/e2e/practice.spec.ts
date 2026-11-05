@@ -71,6 +71,12 @@ test("a parent prepares chapter practice, and a Class 7 child does all of it", a
   await expect(
     page.getByText(/Generated from concepts in: Sample: Class 7 Mathematics/).first(),
   ).toBeVisible();
+  // Left for another page, the practice is found again on Create Practice.
+  const practice = page.url();
+  await page.goto("/parent/dashboard");
+  await page.goto("/parent/practice");
+  await page.getByRole("link", { name: /Not finished/ }).click();
+  await expect(page).toHaveURL(practice);
   await page.getByRole("button", { name: `Start now with ${name}` }).click();
   await expect(page).toHaveURL(/\/learn\/practice\/[^/]+$/);
 

@@ -30,10 +30,15 @@ export function TestHeading({ test, copy }: { test: MockTest; copy: Copy }) {
   );
 }
 
-/** The learner's answer in words. */
+/** The learner's answer in words: a matching question's pairs as "left → right". */
 function answerText(question: Question, answer: Answer): string {
   if (answer.option != null) return question.options[answer.option];
   if (answer.value != null) return [answer.value, question.unit].filter(Boolean).join(" ");
+  if (answer.pairs) {
+    return answer.pairs
+      .map((right, left) => `${question.match_left[left]} → ${question.match_right[right]}`)
+      .join(", ");
+  }
   return answer.text ?? "";
 }
 

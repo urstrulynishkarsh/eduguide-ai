@@ -19,6 +19,7 @@ from app import llm
 from app.adaptive_learning import mastery, misconceptions, recommendations
 from app.analytics import rewards
 from app.auth.principal import Principal
+from app.core import rate_limits
 from app.core.enums import LearningBand
 from app.core.errors import InvalidInputError, NotFoundError
 from app.core.tasks import TaskQueue
@@ -163,7 +164,13 @@ async def _item(
 
 
 async def answer(
-    db: AsyncSession, principal: Principal, session_id: uuid.UUID, data: AnswerIn, *, queue: TaskQueue
+    db: AsyncSession,
+    principal: Principal,
+    session_id: uuid.UUID,
+    data: AnswerIn,
+    *,
+    queue: TaskQueue,
+    counter: rate_limits.Counter,
 ) -> AnswerResult:
     session = await get_session(db, principal, session_id)
     if session.status not in ("ready", "completed"):
@@ -177,6 +184,7 @@ async def answer(
     correct = checking.is_correct(question, response)
     feedback = None
     if correct is None:
+        await rate_limits.check_ai(counter, principal.user.id)  # the AI marks it: a request like Explain
         grade = await checking.mark_written(
             question, response["text"], profile=profile, student=student.profile
         )

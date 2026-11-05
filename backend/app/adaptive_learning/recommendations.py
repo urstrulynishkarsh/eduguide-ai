@@ -27,7 +27,7 @@ from app.class_profiles import get_class_profile
 from app.models import Book, Chapter, PracticeSession, Recommendation, Student, StudentMastery
 from app.models.base import utcnow
 from app.schemas.adaptive import RecommendationOut, RecommendationsOut
-from app.schemas.learn import ExplainRequest
+from app.schemas.learn import QUESTION_MIN_LENGTH, ExplainRequest
 from app.schemas.practice import PracticeCreate
 
 PER_DAY = 3
@@ -165,10 +165,12 @@ def practice_body(student_id: uuid.UUID, place: dict[str, Any], difficulty: str)
 
 
 def revise_body(student_id: uuid.UUID, place: dict[str, Any]) -> ExplainRequest:
-    """The "Explain this" request for an area (`mastery.names`), searched in its chapter."""
-    return ExplainRequest(
-        question=place["topic"] or place["chapter"], student_id=student_id, chapter_id=place["chapter_id"]
-    )
+    """The "Explain this" request for an area (`mastery.names`), searched in its chapter. A name too
+    short to ask about (a chapter a PDF's bookmark calls "1") goes with its book's title."""
+    question = place["topic"] or place["chapter"]
+    if len(question.strip()) < QUESTION_MIN_LENGTH:
+        question = f"{place['book_title']} {question}"
+    return ExplainRequest(question=question, student_id=student_id, chapter_id=place["chapter_id"])
 
 
 async def mark_done(db: AsyncSession, session: PracticeSession) -> None:

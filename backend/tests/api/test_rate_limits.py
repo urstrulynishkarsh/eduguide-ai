@@ -1,9 +1,18 @@
 """Rate limits on the routes: sign-in, sign-up, and the family's use of the AI (Step 12)."""
 
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import rate_limits
-from tests.api.helpers import API, add_child, error_code, register, start_child_session
+from tests.api.helpers import (
+    API,
+    add_child,
+    bank,
+    error_code,
+    family_with_book,
+    register,
+    start_child_session,
+)
 
 
 async def test_sign_in_is_refused_after_ten_tries_for_one_email(client: AsyncClient):
@@ -71,3 +80,54 @@ async def test_the_ai_limit_is_the_familys_also_in_child_mode(client: AsyncClien
     assert (
         await client.post(f"{API}/learn/explain", json=body, headers=other_family.headers)
     ).status_code != 429
+
+
+async def test_marking_a_written_answer_counts_like_explain(client: AsyncClient, db_session: AsyncSession):
+    parent, child, chapter = await family_with_book(client)
+    for fmt in ("mcq", "short_answer"):
+        await bank(db_session, parent, child, chapter, count=1, fmt=fmt)
+    body = {"student_id": child["id"], "chapter_id": chapter["id"], "count": 2}
+    session = (await client.post(f"{API}/practice/sessions", json=body, headers=parent.headers)).json()
+    ids = {item["question"]["format"]: item["question"]["id"] for item in session["items"]}
+
+    async def answer(fmt: str, **given: object) -> int:
+        response = await client.post(
+            f"{API}/practice/sessions/{session['id']}/answers",
+            json={"question_id": ids[fmt], **given},
+            headers=parent.headers,
+        )
+        return response.status_code
+
+    # A choice is checked without the AI: trying again is free, however often.
+    for _ in range(rate_limits.AI_PER_MINUTE.times + 1):
+        assert await answer("mcq", option=1) == 200
+    # Each written answer is marked by the AI (switched off here: 503), and counted.
+    for _ in range(rate_limits.AI_PER_MINUTE.times):
+        assert await answer("short_answer", text="Both sides stay equal.") == 503
+    assert await answer("short_answer", text="Both sides stay equal.") == 429
+
+
+async def test_submitting_a_test_with_written_answers_counts_once(
+    client: AsyncClient, db_session: AsyncSession
+):
+    parent, child, chapter = await family_with_book(client)
+    for fmt in ("mcq", "short_answer", "long_answer"):
+        await bank(db_session, parent, child, chapter, count=1, fmt=fmt)
+    body = {"student_id": child["id"], "kind": "chapter", "chapter_id": chapter["id"], "count": 3}
+    test = (await client.post(f"{API}/mock-tests", json=body, headers=parent.headers)).json()
+    sitting = (await client.post(f"{API}/mock-tests/{test['id']}/attempts", headers=parent.headers)).json()
+    base = f"{API}/test-attempts/{sitting['id']}"
+    for section in sitting["sections"]:
+        for question in section["questions"]:
+            given = {"option": 0} if question["format"] == "mcq" else {"text": "Both sides stay equal."}
+            saved = await client.put(f"{base}/answers/{question['id']}", json=given, headers=parent.headers)
+            assert saved.status_code == 204, saved.text
+    explain = {"question": "What is a fraction?", "student_id": child["id"]}
+    for _ in range(rate_limits.AI_PER_MINUTE.times - 1):
+        await client.post(f"{API}/learn/explain", json=explain, headers=parent.headers)
+
+    # Two written answers, one request: the minute's last (the AI is off: 503, nothing is marked).
+    assert (await client.post(f"{base}/submit", headers=parent.headers)).status_code == 503
+    refused = await client.post(f"{base}/submit", headers=parent.headers)
+    assert refused.status_code == 429
+    assert (await client.get(base, headers=parent.headers)).json()["status"] == "in_progress"

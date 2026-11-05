@@ -68,9 +68,9 @@ export function BookUploader({
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const file = formData.get("file");
-    if (!(file instanceof File) || !file.size) return;
+    const form = event.currentTarget;
+    const file = (form.elements.namedItem("file") as HTMLInputElement).files?.[0];
+    if (!file?.size) return;
     if (file.size > limits.max_file_mb * 1024 * 1024) {
       setState({ fieldErrors: { file: text.tooBig(limits.max_file_mb) } });
       return;
@@ -78,7 +78,10 @@ export function BookUploader({
     setPercent(0);
     let target = bookId;
     if (!target) {
-      const created = await createBook({}, formData);
+      // The fields only: the file goes to the upload route below, as a Server Action takes at most 1 MB.
+      const fields = new FormData(form);
+      fields.delete("file");
+      const created = await createBook({}, fields);
       if (!created.bookId) {
         setState(created);
         setPercent(null);

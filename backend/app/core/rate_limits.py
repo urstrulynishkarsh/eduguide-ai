@@ -12,6 +12,7 @@ import hashlib
 import logging
 import math
 import time
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -136,6 +137,13 @@ async def check(counter: Counter, limit: Limit, who: str) -> None:
     window = _window(limit, who)
     if await counter.add(window.key, limit.seconds) > limit.times:
         _refuse(limit, window)
+
+
+async def check_ai(counter: Counter, account: uuid.UUID) -> None:
+    """A request seen to need the AI only once it is looked at (a written answer to mark): counted
+    against the family's AI allowance, as `limit_account(AI_PER_MINUTE, AI_PER_DAY)` counts a route."""
+    for limit in (AI_PER_MINUTE, AI_PER_DAY):
+        await check(counter, limit, account.hex)
 
 
 @asynccontextmanager

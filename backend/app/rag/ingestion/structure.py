@@ -66,6 +66,7 @@ _QUESTION_PREFIXED = re.compile(
 )
 _SOLUTION = re.compile(r"^(?:solution|sol\.|answer|ans\.|हल)\b", re.IGNORECASE)
 _LEADING_NUMBER = re.compile(r"^(?P<num>\d{1,2})\s*[.:)\-–]?\s+(?P<title>\S.*)$")
+_BARE_NUMBER = re.compile(r"^(?:\d{1,3}|[IVXLC]{1,7})$")  # a bookmark that is only the chapter's number
 _NOT_A_TOPIC = re.compile(
     r"^(?:activity|solution|sol\.|answer|ans\.|hint|note|remember|try these|do this|think|figure|fig\.|"
     r"table|example|illustration|exercise|q\.|question|गतिविधि|क्रियाकलाप|हल|उत्तर|चित्र|सारणी)\b",
@@ -342,14 +343,17 @@ class StructureDetector:
         return [span.chapter for span in self.spans if span.chapter is not None]
 
     def _parse_chapter_title(self, text: str) -> tuple[int | None, str]:
-        match = _CHAPTER.match(to_ascii_digits(text))
+        ascii_text = to_ascii_digits(text).strip()
+        match = _CHAPTER.match(ascii_text)
         if match:
             number = _parse_number(match.group("num"))
             if number is not None:
                 return number, match.group("rest").strip(" -:.–—") or f"Chapter {number}"
-        leading = _LEADING_NUMBER.match(to_ascii_digits(text))
+        leading = _LEADING_NUMBER.match(ascii_text)
         if leading:
             return int(leading.group("num")), leading.group("title").strip()
+        if _BARE_NUMBER.match(ascii_text) and (number := _parse_number(ascii_text)) is not None:
+            return number, f"Chapter {number}"
         return None, text
 
     def _spans_from_outline(self) -> list[_Span]:
@@ -377,6 +381,8 @@ class StructureDetector:
                 continue
             number, title = self._parse_chapter_title(entry.title)
             heading = self._chapter_heading_at(self.lines[start])
+            if heading and heading[0] == number and title == f"Chapter {number}":
+                title = heading[1]  # the bookmark gave only the number; the page names the chapter
             used = heading[2] if heading else {start}
             spans.append(
                 _Span(

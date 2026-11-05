@@ -1,19 +1,21 @@
+import { RecentPractice } from "@/components/progress-view";
 import { chosenFrom, PracticeChooser } from "@/components/question-chooser";
 import { StartButton } from "@/components/start-button";
 import { createPractice } from "@/lib/actions/practice";
-import { getBooks, getChapters, getLearner, getOptions } from "@/lib/api";
+import { getBooks, getChapters, getLearner, getOptions, getProgress } from "@/lib/api";
 import { getCopy, titled } from "@/lib/copy/server";
 
 export const generateMetadata = titled((copy) => copy.nav.practice);
 
 /**
  * Practice for the learner. Nursery – Class 2 get big "Play" tiles, one per chapter, with the
- * class's usual settings; everyone else gets Create Practice.
+ * class's usual settings; everyone else gets Create Practice, under their latest practices (one left
+ * while being prepared or half done opens again from there).
  */
 export default async function LearnPracticePage({ searchParams }: PageProps<"/learn/practice">) {
   const copy = await getCopy();
   const text = copy.practiceForm;
-  const [{ profile, classProfile }, books, query, options] = await Promise.all([
+  const [{ student, profile, classProfile }, books, query, options] = await Promise.all([
     getLearner(),
     getBooks(),
     searchParams,
@@ -59,9 +61,11 @@ export default async function LearnPracticePage({ searchParams }: PageProps<"/le
     );
   }
 
+  const progress = await getProgress(student.id);
   return (
     <div className="grid max-w-3xl gap-6">
       <h1 className="text-3xl font-extrabold dense:text-2xl">{text.title}</h1>
+      <RecentPractice sessions={progress.recent_sessions} copy={copy} area="learn" />
       <PracticeChooser
         area="learn"
         books={books}

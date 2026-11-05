@@ -78,6 +78,23 @@ async def test_repeated_wrong_answers_become_a_misconception_and_right_ones_reso
     assert dashboard["misconceptions"] == []
 
 
+async def test_without_a_question_to_ask_the_wrong_idea_itself_is_explained(
+    client: AsyncClient, db_session: AsyncSession, ai
+):
+    parent, child, chapter = await family_with_book(client)
+    await bank(db_session, parent, child, chapter, count=3)
+    # "Explain this" needs a question of two letters or more; the AI left this one empty.
+    found = _found(SIGN, [1, 2]).model_copy(update={"explain_question": " "})
+    ai(FakeLLM(MistakeReading(misconceptions=[found])))
+
+    await _topic_practice(client, parent, child, chapter, [False, False, False])
+
+    (shown,) = await _misconceptions(client, parent, child)
+    assert shown["revise"]["question"] == SIGN
+    dashboard = await client.get(f"{API}/students/{child['id']}/dashboard", headers=parent.headers)
+    assert dashboard.status_code == 200, dashboard.text
+
+
 async def test_the_question_writer_checks_the_misconceptions_of_the_place(
     client: AsyncClient, db_session: AsyncSession, ai
 ):

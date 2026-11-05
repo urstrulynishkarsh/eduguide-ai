@@ -28,6 +28,7 @@ from app import llm
 from app.adaptive_learning import mastery, misconceptions
 from app.analytics import rewards
 from app.auth.principal import Principal
+from app.core import rate_limits
 from app.core.enums import QuestionFormat
 from app.core.errors import InvalidInputError, NotFoundError
 from app.core.tasks import TaskQueue
@@ -45,6 +46,7 @@ from app.models import (
 )
 from app.models.base import utcnow
 from app.question_generation import checking, paper
+from app.question_generation.schemas import WRITTEN_FORMATS
 from app.rag.ingestion.labels import chapter_label, topic_label
 from app.schemas.dashboard import TestResult
 from app.schemas.library import DocumentError
@@ -404,17 +406,19 @@ async def recent_results(db: AsyncSession, student_id: uuid.UUID, limit: int = 3
 
 
 async def _sitting(
-    db: AsyncSession, principal: Principal, attempt_id: uuid.UUID
+    db: AsyncSession, principal: Principal, attempt_id: uuid.UUID, *, lock: bool = False
 ) -> tuple[MockTestAttempt, MockTest]:
-    row = (
-        await db.execute(
-            select(MockTestAttempt, MockTest)
-            .join(MockTest, MockTest.id == MockTestAttempt.mock_test_id)
-            .join(Student, Student.id == MockTestAttempt.student_id)
-            .where(MockTestAttempt.id == attempt_id, student_service.visible_to(principal))
-            .execution_options(populate_existing=True)
-        )
-    ).first()
+    """`lock`: the sitting's row is locked until the transaction ends (submitting it)."""
+    query = (
+        select(MockTestAttempt, MockTest)
+        .join(MockTest, MockTest.id == MockTestAttempt.mock_test_id)
+        .join(Student, Student.id == MockTestAttempt.student_id)
+        .where(MockTestAttempt.id == attempt_id, student_service.visible_to(principal))
+        .execution_options(populate_existing=True)
+    )
+    if lock:
+        query = query.with_for_update(of=MockTestAttempt)
+    row = (await db.execute(query)).first()
     if row is None:
         raise NotFoundError("We couldn't find this test.", code="test_attempt_not_found")
     attempt, test = row
@@ -496,12 +500,19 @@ async def save_answer(
 
 
 async def submit(
-    db: AsyncSession, principal: Principal, attempt_id: uuid.UUID, *, queue: TaskQueue
+    db: AsyncSession,
+    principal: Principal,
+    attempt_id: uuid.UUID,
+    *,
+    queue: TaskQueue,
+    counter: rate_limits.Counter,
 ) -> TestReport:
-    """Marks the sitting (once; submitting again returns the same report)."""
-    attempt, test = await _sitting(db, principal, attempt_id)
+    """Marks the sitting (once; submitting again returns the same report). Locked first: a second
+    submit at the same moment (the time running out as the button is pressed) waits for the first,
+    then gets its report. Marking written answers counts once against the family's AI allowance."""
+    attempt, test = await _sitting(db, principal, attempt_id, lock=True)
     if attempt.submitted_at is None:
-        for question in await _mark(db, attempt, test):
+        for question in await _mark(db, attempt, test, counter=counter, account=principal.user.id):
             await queue.enqueue(
                 misconceptions.examine,
                 student_id=test.student_id,
@@ -511,7 +522,14 @@ async def submit(
     return await _report(db, attempt, test)
 
 
-async def _mark(db: AsyncSession, attempt: MockTestAttempt, test: MockTest) -> list[Question]:
+async def _mark(
+    db: AsyncSession,
+    attempt: MockTestAttempt,
+    test: MockTest,
+    *,
+    counter: rate_limits.Counter,
+    account: uuid.UUID,
+) -> list[Question]:
     """Marks and stores every answer; returns a question of each area due a look for misconceptions."""
     student = await db.get(Student, test.student_id)
     assert student is not None and student.profile is not None
@@ -524,13 +542,14 @@ async def _mark(db: AsyncSession, attempt: MockTestAttempt, test: MockTest) -> l
             .order_by(MockTestQuestion.section, MockTestQuestion.position)
         )
     ).all()
+    answered = [(link, question) for link, question in rows if str(question.id) in attempt.responses]
+    if any(question.format in WRITTEN_FORMATS for _, question in answered):
+        await rate_limits.check_ai(counter, account)  # the AI marks them: one request, like Explain
     negative = {section["code"]: section.get("negative", 0) for section in test.sections}
     # Every answer is marked before anything is stored: if the AI fails, the sitting stays as it was.
     marked = []
-    for link, question in rows:
-        saved = attempt.responses.get(str(question.id))
-        if saved is None:
-            continue
+    for link, question in answered:
+        saved = attempt.responses[str(question.id)]
         response = {key: value for key, value in saved.items() if key != "time_taken_ms"}
         correct, feedback = checking.is_correct(question, response), None
         if correct is None:

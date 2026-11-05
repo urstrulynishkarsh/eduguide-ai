@@ -74,6 +74,8 @@ export function TestPlayer({ attempt, title }: { attempt: TestAttempt; title: st
   // Answers not sent yet, and the saves in order (a later answer must not arrive first).
   const unsaved = useRef(new Map<string, { draft: Draft; timer: ReturnType<typeof setTimeout> }>());
   const saves = useRef(Promise.resolve());
+  // One submission at a time: the time can run out while the button's is still being marked.
+  const sending = useRef(false);
 
   const { question, section } = items[index];
   const draft = drafts[question.id] ?? {};
@@ -100,12 +102,15 @@ export function TestPlayer({ attempt, title }: { attempt: TestAttempt; title: st
   }
 
   async function submit() {
+    if (sending.current) return;
+    sending.current = true;
     setChecking(false);
     setSubmitting(true);
     items.forEach((item) => save(item.question));
     await saves.current;
     const result = await submitTest(attempt.id).catch(offline);
     if ("error" in result) {
+      sending.current = false;
       setError(result.error);
       setSubmitting(false);
     } else router.refresh(); // the page shows the report

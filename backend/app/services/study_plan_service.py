@@ -272,15 +272,18 @@ async def create_plan(db: AsyncSession, principal: Principal, data: StudyPlanCre
 
 
 async def current_plan(db: AsyncSession, student: Student) -> StudyPlanOut | None:
-    """The learner's plan, planned again first if this is the first visit of the day."""
-    plan = await db.scalar(select(StudyPlan).where(StudyPlan.student_id == student.id))
-    if plan is None:
-        return None
+    """The learner's plan, planned again first if this is the first visit of the day. The plan is
+    locked and read again to plan it: two first visits at the same moment (the child's device and the
+    parent's) plan it once, rather than each adding the day's tasks."""
+    mine = select(StudyPlan).where(StudyPlan.student_id == student.id)
+    plan = await db.scalar(mine)
     today = recommendations.today()
-    if plan.planned_on < today:
-        await _replan(db, plan, student, today)
+    if plan is not None and plan.planned_on < today:
+        plan = await db.scalar(mine.with_for_update().execution_options(populate_existing=True))
+        if plan is not None and plan.planned_on < today:
+            await _replan(db, plan, student, today)
         await db.commit()
-    return await _view(db, plan, student, today)
+    return await _view(db, plan, student, today) if plan is not None else None
 
 
 async def get_plan(db: AsyncSession, principal: Principal, student_id: uuid.UUID) -> StudyPlanOut:

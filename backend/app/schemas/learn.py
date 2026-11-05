@@ -8,9 +8,15 @@ from pydantic import BaseModel, Field, StringConstraints
 from app.rag.answering import ExplainStyle
 from app.schemas.library import Source
 
+# The shortest question "Explain this" takes. The app's own requests (a recommendation, a plan task, a
+# misconception) are made long enough first.
+QUESTION_MIN_LENGTH = 2
+
 
 class ExplainRequest(BaseModel):
-    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=1000)]
+    question: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=QUESTION_MIN_LENGTH, max_length=1000)
+    ]
     student_id: uuid.UUID | None = Field(
         default=None, description="Which child (parents only). A student session always uses itself."
     )

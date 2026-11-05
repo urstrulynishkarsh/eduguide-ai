@@ -425,14 +425,49 @@ frontend. `REDIS_URL` stays empty locally unless you want a worker (README).
 
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 12.*
+*Rewritten at the end of every step. Last updated: after the full code review that followed Step 12
+(5 November 2026).*
 
 ### Where things stand
 
-- **All 12 steps are done.** Backend: 413 tests pass (live tests skipped), `ruff` clean,
-  `pip-audit` clean. Frontend: 136 unit tests and 15 browser journeys (desktop + phone) pass;
-  `lint`, `typecheck`, `format:check` and `build` are clean; `npm audit` has 8 moderate warnings,
-  all in the lint tools.
+- **All 12 steps are done, and the whole code has been reviewed since.** Backend: 418 tests pass
+  (live tests skipped), `ruff` clean, `pip-audit` clean (not re-run in the review). Frontend: 143
+  unit tests and 15 browser journeys (desktop + phone) pass; `lint`, `typecheck`, `format:check` and
+  `build` are clean; `npm audit` had 8 moderate warnings, all in the lint tools.
+
+### The review after Step 12
+
+No migration and no new library. Fixed (each with a test, unless said otherwise):
+
+- **Crashes from "Explain this" questions shorter than two letters.** A chapter a PDF's bookmark
+  calls just "1" (one was in this machine's database) made the study plan, the dashboard and a
+  "strengthen" recommendation answer 500; so did a misconception the AI gave no question for, on the
+  dashboard, Progress and `GET …/misconceptions`. `recommendations.revise_body` adds the book's title
+  to so short a name; `misconceptions.examine` falls back to the wrong idea itself
+  (`schemas/learn.QUESTION_MIN_LENGTH`). The cause is fixed too: a bookmark that is only a number
+  ("1", "IV") is that chapter's number, titled from the page's "Chapter 1 …" heading
+  (`structure._parse_chapter_title`); books read before keep their chapters until read again.
+- **A test submitted twice at once was marked twice** (the time running out while the button's
+  submission was being marked): duplicate answers, XP and mastery, or a 500 on the mastery row. The
+  sitting's row is locked for `submit`; the test screen also sends one submission at a time.
+- **Two first visits of a day planned the study plan twice** (the child's device and the parent's at
+  once: today's tasks doubled). `current_plan` locks the plan and reads it again first. Both races
+  were checked with two real database sessions (script, not in the suite: the API tests share one
+  transaction).
+- **Written answers called the AI with no limit**: a written practice answer, and a test submitted
+  with written answers, now count against the family's AI allowance like Explain
+  (`rate_limits.check_ai`; docs/03 §3.11).
+- **Adding a file to a book after 30 minutes on its page failed** ("session expired"): the upload
+  route is outside proxy.ts, so it renews an expired access token itself (`session.renewSession`,
+  shared with the proxy).
+- A matching answer showed as an empty "Your answer:" in a test report.
+- **Light cream theme** (`app/globals.css`, the browser's theme colour): cream pages, ivory cards,
+  amber accent; every layout keeps the cream with its own main colour. Contrast was computed, not
+  eyeballed: all text 4.5:1 or more (the playful orange and friendly teal were darkened a step, as
+  they were below it before); the chart colours pass the dataviz validator on the new card.
+- Reviewed and kept, from work left uncommitted before the review: Recent practice on Create
+  Practice (a practice left while being prepared opens again), the file sent past the Server
+  Action's 1 MB limit, chat replies shown at a reading pace, and the assistant's shorter replies.
 - Tried for real in Step 12: the API and a worker with Redis reading a book (the job in Redis, the
   worker's and the API's metrics, `--check`); the whole production setup on this computer
   (`DOMAIN=localhost`: HTTPS, http → https, headers, JSON logs) with the sign-up journeys run

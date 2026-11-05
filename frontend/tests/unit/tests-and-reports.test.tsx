@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -95,6 +95,22 @@ describe("TestPlayer", () => {
     await act(() => vi.advanceTimersByTimeAsync(2000));
     expect(screen.getByRole("timer")).toHaveTextContent("00:00");
     await vi.waitFor(() => expect(submitTest).toHaveBeenCalledWith("a1"));
+  });
+
+  it("submits once when the time runs out while the test is being marked", async () => {
+    vi.useFakeTimers();
+    let marked: (result: { data: undefined }) => void = () => {};
+    vi.mocked(submitTest).mockReturnValue(new Promise((resolve) => (marked = resolve)));
+    render(<TestPlayer attempt={sitting({ seconds_left: 3 })} title="Full mock test" />);
+    fireEvent.click(screen.getByRole("button", { name: "Submit test" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, submit" }));
+    await vi.waitFor(() => expect(submitTest).toHaveBeenCalledTimes(1));
+
+    await act(() => vi.advanceTimersByTimeAsync(3000)); // marking written answers takes a while
+    marked({ data: undefined });
+
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(submitTest).toHaveBeenCalledTimes(1);
   });
 
   it("still submits after an answer could not be sent", async () => {
@@ -195,5 +211,19 @@ describe("TestReportView", () => {
     expect(screen.getByText("Add an example.")).toBeInTheDocument();
     expect(screen.getByText("0 / 5")).toBeInTheDocument();
     expect(screen.getAllByText("Solution")).toHaveLength(3);
+  });
+
+  it("shows a matching answer as its pairs", () => {
+    const matching = question({
+      id: "q4",
+      format: "matching",
+      text: "Match each number with its word.",
+      options: [],
+      match_left: ["1", "2"],
+      match_right: ["two", "one"],
+    });
+    const pairs = { ...report.questions[1], question: matching, response: { pairs: [1, 0] } };
+    render(<TestReportView copy={en} report={{ ...report, questions: [pairs] }} />);
+    expect(screen.getByText("Your answer: 1 → one, 2 → two")).toBeInTheDocument();
   });
 });

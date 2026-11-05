@@ -1,4 +1,5 @@
-import type { Role } from "@/lib/types";
+import { ApiError, callBackend } from "@/lib/backend";
+import type { Role, TokenPair } from "@/lib/types";
 
 /*
  * The session lives in two httpOnly cookies that only the Next.js server reads
@@ -39,6 +40,37 @@ export function readClaims(token: string | undefined): TokenClaims | null {
 
 export function isFresh(claims: TokenClaims, now = Date.now()): boolean {
   return claims.exp * 1000 - now > EXPIRY_MARGIN_MS;
+}
+
+/** A request's session: its role (null: none), new tokens if it was renewed, and whether it could not be. */
+interface Renewal {
+  role: Role | null;
+  tokens: TokenPair | null;
+  /** The backend could not be reached to renew it. */
+  unreachable: boolean;
+}
+
+/**
+ * The session of a request's cookies: a fresh access token as it is, one that has run out renewed with
+ * the refresh token. Used by proxy.ts, and by the upload route it does not run before.
+ */
+export async function renewSession(
+  accessToken: string | undefined,
+  refreshToken: string | undefined,
+): Promise<Renewal> {
+  const access = readClaims(accessToken);
+  if (access && isFresh(access)) return { role: access.role, tokens: null, unreachable: false };
+  const refresh = readClaims(refreshToken);
+  if (!refreshToken || !refresh || !isFresh(refresh)) return { role: null, tokens: null, unreachable: false };
+  try {
+    const tokens = await callBackend<TokenPair>("/auth/refresh", {
+      method: "POST",
+      body: { refresh_token: refreshToken },
+    });
+    return { role: readClaims(tokens.access_token)?.role ?? null, tokens, unreachable: false };
+  } catch (error) {
+    return { role: null, tokens: null, unreachable: error instanceof ApiError && error.status === 0 };
+  }
 }
 
 interface CookieOptions {

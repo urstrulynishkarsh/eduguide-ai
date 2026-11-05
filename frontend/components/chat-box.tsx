@@ -19,6 +19,17 @@ type ReplyEvent =
   | { event: "done"; data: { question: ChatMessage; answer: ChatMessage } }
   | { event: "error"; data: { code: string; message: string } };
 
+/**
+ * A fast model writes a whole reply in a fraction of a second, which would land all at once: each
+ * piece stays a moment, in step with its length, so the reply is shown at a steady reading pace. A
+ * slower model's pieces come no faster than this anyway. A hidden tab is not paced: its timers wait a
+ * second or more.
+ */
+function pace(piece: string): Promise<void> {
+  if (document.hidden) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, piece.length * 5));
+}
+
 function Bubble({ message }: { message: Pick<ChatMessage, "role" | "content"> & Partial<ChatMessage> }) {
   const copy = useCopy();
   const text = copy.chat;
@@ -44,9 +55,10 @@ function Bubble({ message }: { message: Pick<ChatMessage, "role" | "content"> & 
 }
 
 /**
- * A conversation with the assistant or the tutor. The reply appears as it is written, and the
- * question and the reply are kept once it is complete; after an error the question can be sent
- * again. A new conversation is made with its first message, then opened at its own address.
+ * A conversation with the assistant or the tutor. The reply appears as it is written, at a steady
+ * reading pace, and the question and the reply are kept once it is complete; after an error the
+ * question can be sent again. A new conversation is made with its first message, then opened at its
+ * own address.
  */
 export function ChatBox({
   kind,
@@ -111,8 +123,10 @@ export function ChatBox({
         );
       }
       for await (const { event, data } of readEvents(response.body) as AsyncGenerator<ReplyEvent>) {
-        if (event === "delta") setReply((current) => current + data.text);
-        else if (event === "error") return fail(data);
+        if (event === "delta") {
+          setReply((current) => current + data.text);
+          await pace(data.text);
+        } else if (event === "error") return fail(data);
         else {
           if (chat) {
             setMessages((current) => [...current, data.question, data.answer]);

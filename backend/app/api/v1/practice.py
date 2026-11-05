@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, status
 
 from app.analytics.progress import progress
-from app.api.deps import CurrentPrincipal, DbSession, Queue, limit_account
+from app.api.deps import CurrentPrincipal, DbSession, Queue, RateCounter, limit_account
 from app.core.rate_limits import AI_PER_DAY, AI_PER_MINUTE, PREPARE_PER_DAY
 from app.models import PracticeSession
 from app.schemas.learn import ExplainResponse
@@ -96,11 +96,17 @@ async def get_session(session_id: uuid.UUID, principal: CurrentPrincipal, db: Db
     "/practice/sessions/{session_id}/answers", response_model=AnswerResult, summary="Answer a question"
 )
 async def answer(
-    session_id: uuid.UUID, data: AnswerIn, principal: CurrentPrincipal, db: DbSession, queue: Queue
+    session_id: uuid.UUID,
+    data: AnswerIn,
+    principal: CurrentPrincipal,
+    db: DbSession,
+    queue: Queue,
+    counter: RateCounter,
 ) -> AnswerResult:
     """Every answer is saved, with the hints and steps opened before it. Written answers are
-    marked by the AI tutor. Wrong answers are looked at for misconceptions in the background."""
-    return await practice_service.answer(db, principal, session_id, data, queue=queue)
+    marked by the AI tutor, each counted against the family's AI allowance like Explain. Wrong
+    answers are looked at for misconceptions in the background."""
+    return await practice_service.answer(db, principal, session_id, data, queue=queue, counter=counter)
 
 
 @router.post(

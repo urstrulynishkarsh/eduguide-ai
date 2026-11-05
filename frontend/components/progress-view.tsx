@@ -35,20 +35,64 @@ export function Bars({ title, areas }: { title: string; areas: Progress["by_chap
 }
 
 /**
+ * The latest practices, newest first, each opening again: one being prepared or not finished is
+ * never lost by leaving its page.
+ */
+export function RecentPractice({
+  sessions,
+  copy,
+  area,
+}: {
+  sessions: Progress["recent_sessions"];
+  copy: Copy;
+  area: "parent" | "learn";
+}) {
+  if (sessions.length === 0) return null;
+  const text = copy.progress;
+  return (
+    <section className="grid gap-3">
+      <h2 className="text-lg font-bold">{text.recent}</h2>
+      <ul className="grid gap-2">
+        {sessions.map((session) => (
+          <li key={session.id}>
+            <Link
+              href={`/${area}/practice/${session.id}`}
+              className="flex flex-wrap justify-between gap-2 rounded-lg border bg-card px-4 py-3 hover:border-primary"
+            >
+              <span className="font-medium">
+                {text.sessionLine(session.answered, session.questions, session.correct)}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {text.status[session.status]} ·{" "}
+                {formatDay(copy.language.locale, session.created_at, {
+                  day: "numeric",
+                  month: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
  * Basic progress. Nursery – Class 2 (`stars`) never see marks or percentages: a star for every
  * right answer instead (spec §5).
  */
 export function ProgressView({
   progress,
   copy,
+  area,
   stars = false,
-  sessionHref,
 }: {
   progress: Progress;
   copy: Copy;
+  /** Where a recent practice opens. */
+  area: "parent" | "learn";
   stars?: boolean;
-  /** Where a recent session opens; none when the viewer cannot do practice (the parent). */
-  sessionHref?: (sessionId: string) => string;
 }) {
   const text = copy.progress;
   if (progress.questions_answered === 0 && progress.recent_sessions.length === 0) {
@@ -87,46 +131,7 @@ export function ProgressView({
         <Bars title={text.byChapter} areas={progress.by_chapter} />
         <Bars title={text.byTopic} areas={progress.by_topic} />
       </div>
-      {progress.recent_sessions.length > 0 && (
-        <section className="grid gap-3">
-          <h2 className="text-lg font-bold">{text.recent}</h2>
-          <ul className="grid gap-2">
-            {progress.recent_sessions.map((session) => {
-              const line = (
-                <>
-                  <span className="font-medium">
-                    {text.sessionLine(session.answered, session.questions, session.correct)}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {text.status[session.status]} ·{" "}
-                    {formatDay(copy.language.locale, session.created_at, {
-                      day: "numeric",
-                      month: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
-                </>
-              );
-              return (
-                <li key={session.id}>
-                  {sessionHref ? (
-                    <Link
-                      href={sessionHref(session.id)}
-                      className="flex flex-wrap justify-between gap-2 rounded-lg border bg-card px-4 py-3 hover:border-primary"
-                    >
-                      {line}
-                    </Link>
-                  ) : (
-                    <div className="flex flex-wrap justify-between gap-2 rounded-lg border bg-card px-4 py-3">
-                      {line}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      <RecentPractice sessions={progress.recent_sessions} copy={copy} area={area} />
     </div>
   );
 }

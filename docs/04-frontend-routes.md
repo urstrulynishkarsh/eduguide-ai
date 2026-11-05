@@ -76,6 +76,10 @@ routes and the same data — only the presentation changes.
 Features are hidden using the `features` flags of the class profile (for example the timer exists
 only when `timed_tests` is true), so the frontend contains no class numbers of its own.
 
+Every area uses the light cream theme (`app/globals.css`): cream pages, ivory cards, ink-blue text.
+Each layout keeps the cream and has its own main colour (orange for `playful` on a sunnier cream,
+teal for `friendly`, blue for `standard`, a deeper blue for `dense`); text keeps 4.5:1 contrast.
+
 ## 4.5 Words we use with parents
 
 The parent may not be technical (spec §47). These words never appear on a parent screen:
