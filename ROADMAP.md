@@ -465,9 +465,21 @@ No migration and no new library. Fixed (each with a test, unless said otherwise)
   amber accent; every layout keeps the cream with its own main colour. Contrast was computed, not
   eyeballed: all text 4.5:1 or more (the playful orange and friendly teal were darkened a step, as
   they were below it before); the chart colours pass the dataviz validator on the new card.
+- **Chat replies are typed out like ChatGPT's** (`components/chat-box.tsx`). Measured first: the
+  stream reaches the browser piece by piece (backend, `next dev` and `next start` alike), but Groq
+  writes a whole reply in about 0.2 s after a ~1.3 s silence, so it seemed to appear all at once. Now:
+  dots while the AI thinks, then the words at a steady pace (catching up on a long reply), with a
+  cursor; citation tags never flash; the typed reply then joins the conversation, and a new
+  conversation opens at its own address only once its reply is all on screen. This replaces the
+  earlier per-character `pace()`. Tried and dropped: `history.replaceState` instead of that
+  navigation - with `cacheComponents`, Next keeps the "new conversation" page (React `<Activity>`),
+  which would then still hold the conversation. Left as it was: the conversation page's brief
+  loading state when a new conversation opens (`loading.tsx`, which every page keeps).
 - Reviewed and kept, from work left uncommitted before the review: Recent practice on Create
   Practice (a practice left while being prepared opens again), the file sent past the Server
-  Action's 1 MB limit, chat replies shown at a reading pace, and the assistant's shorter replies.
+  Action's 1 MB limit, and the assistant's shorter replies.
+- **This Mac has 8 GB of RAM** and Docker's VM takes about 4 GB: with Chrome and VS Code open,
+  extra servers (a second `next dev`, a production build) make everything page heavily.
 - Tried for real in Step 12: the API and a worker with Redis reading a book (the job in Redis, the
   worker's and the API's metrics, `--check`); the whole production setup on this computer
   (`DOMAIN=localhost`: HTTPS, http → https, headers, JSON logs) with the sign-up journeys run

@@ -134,12 +134,15 @@ Built in Step 5 (`frontend/lib/session.ts`, `frontend/proxy.ts`).
   (`NEXT_OUTPUT=standalone`).
 - **Uploads** (Step 6) go from the browser to one route handler, `/api/books/[bookId]/documents`,
   which streams the file on to the backend with the cookie's token. It sits outside `proxy.ts`,
-  because the proxy buffers request bodies only up to 10 MB. Progress screens (a book being read,
-  practice or a test being prepared) reload their data every 2 seconds until it is done.
+  because the proxy buffers request bodies only up to 10 MB, so it renews an expired access token
+  itself (`renewSession`, shared with the proxy). Progress screens (a book being read, practice or a
+  test being prepared) reload their data every 2 seconds until it is done.
 - **Replies of the assistant and the tutor** (Step 9) stream from the backend as Server-Sent Events
   through a second route handler, `/api/chat/[chatId]/messages`, which passes them on piece by piece
   (`lib/sse.ts` reads them in the browser). It runs behind `proxy.ts`, so an expired token is renewed
-  first; only the upload route is left out of the proxy.
+  first; only the upload route is left out of the proxy. The chat box types the reply out word by
+  word at a steady pace, as ChatGPT does (dots while the AI thinks, a cursor while it types), because
+  a fast model sends a whole reply in a fraction of a second.
 - **Screen language** (Step 11): English, Hindi or Hinglish, in the `eg_lang` cookie (not secret; it
   stays when the session ends). Sign-in and sign-up set it from the account (`users.preferred_language`;
   sign-up gives the account the language the screens were in); child mode sets it to the child's

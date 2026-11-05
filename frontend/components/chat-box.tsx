@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 
 import { useCopy } from "@/components/copy-provider";
 import { FormMessage } from "@/components/form-message";
@@ -19,16 +19,53 @@ type ReplyEvent =
   | { event: "done"; data: { question: ChatMessage; answer: ChatMessage } }
   | { event: "error"; data: { code: string; message: string } };
 
-/**
- * A fast model writes a whole reply in a fraction of a second, which would land all at once: each
- * piece stays a moment, in step with its length, so the reply is shown at a steady reading pace. A
- * slower model's pieces come no faster than this anyway. A hidden tab is not paced: its timers wait a
- * second or more.
- */
-function pace(piece: string): Promise<void> {
-  if (document.hidden) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, piece.length * 5));
+type Kept = { question: ChatMessage; answer: ChatMessage };
+
+// A citation as models write it: "[S1]", "[S1, S2]", "(see [S2])". The books are listed under the reply
+// instead, as in the reply that is kept (the backend's chat_service.citations()).
+const TAGS = String.raw`\[S\d+(?:\s*,\s*S\d+)*\](?:\s*\[S\d+(?:\s*,\s*S\d+)*\])*`;
+const CITATION = new RegExp(String.raw`\s*\((?:see\s+)?${TAGS}\)|\s*${TAGS}`, "gi");
+
+const WORD_MS = 30; // a word every 30 ms: the pace a chat model types at
+const CATCH_UP = 40; // further behind than this many words, several are shown at a time
+
+/** Where `count` more words end after `from` (each word with the spaces after it), at most at `limit`. */
+function afterWords(text: string, from: number, count: number, limit: number): number {
+  const word = /\S+\s*/g;
+  word.lastIndex = from;
+  let end = from;
+  for (let i = 0; i < count && word.exec(text); i++) end = word.lastIndex;
+  return Math.min(end, limit);
 }
+
+/**
+ * The part of a reply shown so far: word by word at a steady pace, however it arrives - a fast model
+ * sends a whole reply in a fraction of a second, a busy one in bursts. Far behind, several words come
+ * at a time, so a long reply never trails much behind. Until the reply is complete only whole words
+ * show, so a citation is whole (and taken out) before it could.
+ */
+function useTyped(text: string, complete: boolean): string {
+  const [end, setEnd] = useState(0);
+  const target = complete ? text.length : text.search(/\S*$/);
+  useEffect(() => {
+    if (end >= target) return;
+    const timer = setTimeout(() => {
+      const behind = text.slice(end, target).match(/\S+/g)?.length ?? 1;
+      const next = afterWords(text, end, Math.ceil(behind / CATCH_UP), target);
+      setEnd(next > end ? next : target); // only spaces left: all of it
+    }, WORD_MS);
+    return () => clearTimeout(timer);
+  }, [text, end, target]);
+  return text.slice(0, Math.min(end, target));
+}
+
+/** Keeps the end of the conversation in view. (A block body: newer browsers return a Promise from
+ * scrollIntoView, which must not become an effect's clean-up.) */
+function bringIntoView(element: HTMLElement | null) {
+  element?.scrollIntoView?.({ block: "nearest" });
+}
+
+const bubble = "grid max-w-[85%] gap-2 rounded-2xl px-4 py-3";
 
 function Bubble({ message }: { message: Pick<ChatMessage, "role" | "content"> & Partial<ChatMessage> }) {
   const copy = useCopy();
@@ -37,7 +74,7 @@ function Bubble({ message }: { message: Pick<ChatMessage, "role" | "content"> & 
   return (
     <li
       className={cn(
-        "grid max-w-[85%] gap-2 rounded-2xl px-4 py-3",
+        bubble,
         mine ? "justify-self-end bg-primary text-primary-foreground" : "justify-self-start border bg-card",
       )}
     >
@@ -55,10 +92,64 @@ function Bubble({ message }: { message: Pick<ChatMessage, "role" | "content"> & 
 }
 
 /**
- * A conversation with the assistant or the tutor. The reply appears as it is written, at a steady
- * reading pace, and the question and the reply are kept once it is complete; after an error the
- * question can be sent again. A new conversation is made with its first message, then opened at its
- * own address.
+ * The reply being written: dots while the AI thinks, then its words as they are typed, with a cursor,
+ * the conversation's `end` kept in view. `onTyped` once it is complete and all of it is shown.
+ */
+function Reply({
+  text,
+  complete,
+  end,
+  onTyped,
+}: {
+  text: string;
+  complete: boolean;
+  end: React.RefObject<HTMLDivElement | null>;
+  onTyped: () => void;
+}) {
+  const copy = useCopy();
+  const shown = useTyped(text, complete);
+  const typing = !complete || shown.length < text.length;
+  const typed = useEffectEvent(onTyped);
+  useEffect(() => {
+    bringIntoView(end.current);
+  }, [shown, end]);
+  useEffect(() => {
+    if (!typing) typed();
+  }, [typing]);
+  return (
+    <li className={cn(bubble, "justify-self-start border bg-card")}>
+      {shown ? (
+        <p className="whitespace-pre-line">
+          {shown}
+          {typing && (
+            <span
+              aria-hidden
+              className="ml-1 inline-block size-2.5 rounded-full bg-foreground align-middle motion-safe:animate-pulse"
+            />
+          )}
+        </p>
+      ) : (
+        <p role="status" className="flex h-6 items-center gap-1">
+          <span className="sr-only">{copy.chat.thinking}</span>
+          {[0, 150, 300].map((delay) => (
+            <span
+              key={delay}
+              aria-hidden
+              className="size-2 rounded-full bg-muted-foreground/60 motion-safe:animate-bounce"
+              style={{ animationDelay: `${delay}ms` }}
+            />
+          ))}
+        </p>
+      )}
+    </li>
+  );
+}
+
+/**
+ * A conversation with the assistant or the tutor, shown as ChatGPT or Claude show one: the reply is
+ * typed out as it is written (dots while the AI thinks), and the question and the reply are kept once
+ * it is complete; after an error the question can be sent again. A new conversation is made with its
+ * first message, then opened at its own address.
  */
 export function ChatBox({
   kind,
@@ -78,23 +169,26 @@ export function ChatBox({
   const [draft, setDraft] = useState("");
   const [asking, setAsking] = useState<string | null>(null);
   const [reply, setReply] = useState("");
+  const [kept, setKept] = useState<Kept | null>(null); // the reply is complete; typed out, it is kept
+  const [turn, setTurn] = useState(0); // a fresh reply for each question
   const [error, setError] = useState<Refusal>();
   const [, startTransition] = useTransition();
   const chatId = useRef(chat?.id);
   const end = useRef<HTMLDivElement>(null);
   const words = text[kind];
+  const shownReply = reply.replace(CITATION, "").trimStart();
 
-  // A block body: newer browsers return a Promise from scrollIntoView, which must not become the
-  // effect's clean-up.
   useEffect(() => {
-    end.current?.scrollIntoView?.({ block: "nearest" });
-  }, [messages, reply]);
+    bringIntoView(end.current);
+  }, [messages]);
 
   async function send(question: string) {
     question = question.trim();
     if (!question || asking) return;
     setAsking(question);
     setReply("");
+    setKept(null);
+    setTurn((current) => current + 1);
     setError(undefined);
     setDraft("");
     const fail = (refusal: Refusal) => {
@@ -123,31 +217,35 @@ export function ChatBox({
         );
       }
       for await (const { event, data } of readEvents(response.body) as AsyncGenerator<ReplyEvent>) {
-        if (event === "delta") {
-          setReply((current) => current + data.text);
-          await pace(data.text);
-        } else if (event === "error") return fail(data);
-        else {
-          if (chat) {
-            setMessages((current) => [...current, data.question, data.answer]);
-            setAsking(null);
-          } else {
-            // The new conversation opens at its own address; this page (kept for returning to)
-            // starts afresh for the next new one.
-            const opened = `${basePath}/${chatId.current}`;
-            chatId.current = undefined;
-            startTransition(() => {
-              setAsking(null);
-              router.replace(opened, { scroll: false });
-            });
-          }
-          return;
-        }
+        if (event === "delta") setReply((current) => current + data.text);
+        else if (event === "error") return fail(data);
+        else return setKept(data);
       }
       fail({ code: "internal_error" }); // the stream ended before the reply was complete
     } catch {
       fail({ code: "unreachable" });
     }
+  }
+
+  /**
+   * The complete reply is typed out: it joins the conversation. A new conversation then opens at its
+   * own address, and this page, which Next.js keeps to come back to, starts afresh for the next one.
+   */
+  function keep() {
+    if (!kept) return;
+    if (chat) {
+      setMessages((current) => [...current, kept.question, kept.answer]);
+      setAsking(null);
+      setKept(null);
+      return;
+    }
+    const opened = `${basePath}/${chatId.current}`;
+    chatId.current = undefined;
+    startTransition(() => {
+      setAsking(null);
+      setKept(null);
+      router.replace(opened, { scroll: false });
+    });
   }
 
   return (
@@ -168,7 +266,7 @@ export function ChatBox({
         {asking && (
           <>
             <Bubble message={{ role: "user", content: asking }} />
-            <Bubble message={{ role: "assistant", content: reply || text.thinking }} />
+            <Reply key={turn} text={shownReply} complete={kept !== null} end={end} onTyped={keep} />
           </>
         )}
       </ol>
