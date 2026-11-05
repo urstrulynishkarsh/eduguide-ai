@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -30,3 +30,16 @@ class Parent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "parents"
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+
+
+class AuthSession(UUIDPrimaryKeyMixin, Base):
+    """One sign-in, or one child-mode session. Every token names its session (`ses`); signing out
+    revokes the session, and none of its tokens work from then on."""
+
+    __tablename__ = "auth_sessions"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # When its last token runs out (moved on at every refresh). Old rows are removed at sign-in.
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

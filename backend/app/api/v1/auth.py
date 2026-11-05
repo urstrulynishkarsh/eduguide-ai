@@ -1,13 +1,15 @@
 """Sign-up, sign-in and "who am I"."""
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, Response, status
 
-from app.api.deps import CurrentPrincipal, DbSession
+from app.api.deps import CurrentPrincipal, DbSession, RateCounter, client_address, limit_address
 from app.auth import service as auth_service
+from app.core import rate_limits
 from app.schemas.auth import (
     AccountUpdate,
     AuthResponse,
     LoginRequest,
+    LogoutRequest,
     MeResponse,
     RefreshRequest,
     RegisterRequest,
@@ -25,6 +27,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
     response_model=AuthResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a parent or student account",
+    dependencies=[limit_address(rate_limits.SIGN_UP_PER_ADDRESS)],
 )
 async def register(data: RegisterRequest, db: DbSession) -> AuthResponse:
     """The first onboarding screen: "Who are you? Parent / Student".
@@ -38,8 +41,16 @@ async def register(data: RegisterRequest, db: DbSession) -> AuthResponse:
 
 
 @router.post("/login", response_model=AuthResponse, summary="Sign in with email and password")
-async def login(data: LoginRequest, db: DbSession) -> AuthResponse:
-    user = await auth_service.authenticate(db, data.email, data.password)
+async def login(data: LoginRequest, request: Request, db: DbSession, counter: RateCounter) -> AuthResponse:
+    """`429 too_many_requests` after 10 failed tries for one email in 15 minutes, or 60 from one
+    address. Signing in that works is never counted."""
+    email = auth_service.normalize_email(data.email)
+    counted = (
+        (rate_limits.SIGN_IN_PER_EMAIL, email),
+        (rate_limits.SIGN_IN_PER_ADDRESS, client_address(request)),
+    )
+    async with rate_limits.failures(counter, *counted):
+        user = await auth_service.authenticate(db, data.email, data.password)
     tokens = await auth_service.issue_tokens(db, user)
     return AuthResponse(user=UserOut.model_validate(user), tokens=tokens)
 
@@ -47,6 +58,14 @@ async def login(data: LoginRequest, db: DbSession) -> AuthResponse:
 @router.post("/refresh", response_model=TokenPair, summary="Swap a refresh token for new tokens")
 async def refresh(data: RefreshRequest, db: DbSession) -> TokenPair:
     return await auth_service.refresh_tokens(db, data.refresh_token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Sign out")
+async def logout(data: LogoutRequest, db: DbSession) -> Response:
+    """Ends the session of the token sent (the refresh token, or in child mode the access token):
+    none of its tokens work any more. Always `204`, also for a session that has ended already."""
+    await auth_service.sign_out(db, data.token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/me", response_model=UserOut, summary="Change the account's screen language")

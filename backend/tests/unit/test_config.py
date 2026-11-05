@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.core.config import Settings
 
 GOOD_SECRET = "s" * 48
+PRODUCTION = {"jwt_secret_key": GOOD_SECRET, "environment": "production", "redis_url": "redis://redis:6379/0"}
 
 
 def _settings(**values):
@@ -34,12 +35,19 @@ def test_cors_origins_are_split_on_commas():
 
 def test_production_refuses_wildcard_cors():
     with pytest.raises(ValidationError):
-        _settings(jwt_secret_key=GOOD_SECRET, environment="production", cors_origins="*")
+        _settings(**PRODUCTION, cors_origins="*")
 
 
 def test_production_refuses_sql_echo():
     with pytest.raises(ValidationError):
-        _settings(jwt_secret_key=GOOD_SECRET, environment="production", db_echo=True)
+        _settings(**PRODUCTION, db_echo=True)
+
+
+def test_production_needs_redis():
+    with pytest.raises(ValidationError) as error:
+        _settings(**{**PRODUCTION, "redis_url": ""})
+    assert "REDIS_URL is required in production" in str(error.value)
+    assert _settings(**PRODUCTION).is_production
 
 
 @pytest.mark.parametrize(("provider", "key"), [("anthropic", "anthropic_api_key"), ("groq", "groq_api_key")])

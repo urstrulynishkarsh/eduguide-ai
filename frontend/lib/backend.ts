@@ -27,16 +27,19 @@ interface CallOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   token?: string;
+  /** The browser's address (`X-Forwarded-For`), for the backend's limits on signing in and up. */
+  forwardedFor?: string | null;
 }
 
 /** One backend call. Throws ApiError, with status 0 when the backend can't be reached. */
 export async function callBackend<T>(
   path: string,
-  { method = "GET", body, token }: CallOptions = {},
+  { method = "GET", body, token, forwardedFor }: CallOptions = {},
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (forwardedFor) headers["X-Forwarded-For"] = forwardedFor;
 
   let response: Response;
   try {
@@ -59,4 +62,14 @@ export async function callBackend<T>(
     );
   }
   return data as T;
+}
+
+/**
+ * Signs a session out on the backend: none of its tokens work any more. Takes any token of the
+ * session (the refresh token, or in child mode the access token). Never throws: the cookies are
+ * forgotten either way.
+ */
+export async function endSession(token: string | undefined): Promise<void> {
+  if (!token) return;
+  await callBackend("/auth/logout", { method: "POST", body: { token } }).catch(() => undefined);
 }

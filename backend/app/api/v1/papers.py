@@ -4,7 +4,8 @@ import uuid
 
 from fastapi import APIRouter, status
 
-from app.api.deps import CurrentPrincipal, DbSession, Queue
+from app.api.deps import CurrentPrincipal, DbSession, Queue, limit_account
+from app.core.rate_limits import PREPARE_PER_DAY
 from app.schemas.paper import PaperAnalysisOut
 from app.services import paper_analysis_service
 
@@ -16,6 +17,7 @@ router = APIRouter(tags=["Previous-year papers"])
     response_model=PaperAnalysisOut,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Analyse the papers",
+    dependencies=[limit_account(PREPARE_PER_DAY)],
 )
 async def start_analysis(
     book_id: uuid.UUID, principal: CurrentPrincipal, db: DbSession, queue: Queue

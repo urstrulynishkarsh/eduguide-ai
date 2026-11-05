@@ -21,6 +21,7 @@ from typing import Any
 
 import anthropic
 
+from app.core import metrics
 from app.llm.base import AIDeclinedError, AIUnavailableError, LLMResult, Message, ModelTier, RequestSize, T
 
 logger = logging.getLogger(__name__)
@@ -40,15 +41,20 @@ def _failures(tier: ModelTier) -> Iterator[None]:
     try:
         yield
     except (anthropic.AuthenticationError, anthropic.PermissionDeniedError):
+        metrics.ai_call("anthropic", tier, "failed")
         logger.error("Claude rejected the API key - check ANTHROPIC_API_KEY in backend/.env")
         raise AIUnavailableError() from None
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:  # 429, 5xx, network
+        metrics.ai_call("anthropic", tier, "failed")
         logger.warning("Claude request failed (%s, tier=%s)", type(exc).__name__, tier)
         raise AIUnavailableError() from None
 
 
-def _log(response: Any, tier: ModelTier, started: float, request_id: str | None) -> None:
+def _log(response: Any, tier: ModelTier, started: float, request_id: str | None, outcome: str) -> None:
     usage = response.usage
+    metrics.ai_call(
+        "anthropic", tier, outcome, input_tokens=usage.input_tokens, output_tokens=usage.output_tokens
+    )
     logger.info(
         "LLM %s tier=%s stop=%s in=%d cached=%d out=%d %.0f ms request=%s",
         response.model,
@@ -60,6 +66,10 @@ def _log(response: Any, tier: ModelTier, started: float, request_id: str | None)
         (time.perf_counter() - started) * 1000,
         request_id,
     )
+
+
+def _outcome(refused: bool, unusable: bool = False) -> str:
+    return "declined" if refused else "invalid" if unusable else "ok"
 
 
 class AnthropicProvider:
@@ -98,10 +108,11 @@ class AnthropicProvider:
             response = await self._client.beta.messages.parse(
                 **self._request(system, messages, tier, max_output_tokens), output_format=schema
             )
-        _log(response, tier, started, response._request_id)
-        if response.stop_reason == "refusal":
+        refused, unusable = response.stop_reason == "refusal", response.parsed_output is None
+        _log(response, tier, started, response._request_id, _outcome(refused, unusable))
+        if refused:
             raise AIDeclinedError()
-        if response.parsed_output is None:  # cut off (max_tokens) or not valid for the schema
+        if unusable:  # cut off (max_tokens) or not valid for the schema
             logger.warning("Claude gave no valid %s (stop=%s)", schema.__name__, response.stop_reason)
             raise AIUnavailableError()
         return LLMResult(
@@ -128,6 +139,6 @@ class AnthropicProvider:
                 async for text in stream.text_stream:
                     yield text
                 response = await stream.get_final_message()
-        _log(response, tier, started, stream.request_id)
+        _log(response, tier, started, stream.request_id, _outcome(response.stop_reason == "refusal"))
         if response.stop_reason == "refusal":  # what was sent so far is discarded by the caller
             raise AIDeclinedError()

@@ -6,7 +6,8 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response, status
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import CurrentPrincipal, DbSession
+from app.api.deps import CurrentPrincipal, DbSession, limit_account
+from app.core.rate_limits import AI_PER_DAY, AI_PER_MINUTE
 from app.schemas.chat import ChatCreate, ChatKind, ChatMessageIn, ChatOut, ChatPage, ChatSummary
 from app.services import chat_service
 
@@ -54,6 +55,7 @@ async def delete_session(chat_id: uuid.UUID, principal: CurrentPrincipal, db: Db
     "/chat/sessions/{chat_id}/messages",
     response_class=StreamingResponse,
     summary="Send a message; the reply streams back",
+    dependencies=[limit_account(AI_PER_MINUTE, AI_PER_DAY)],
     responses={200: {"content": {"text/event-stream": {}}, "description": "Server-Sent Events."}},
 )
 async def send_message(

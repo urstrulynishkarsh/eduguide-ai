@@ -32,7 +32,8 @@ flowchart LR
 
     PG[("PostgreSQL + pgvector<br/>data and vectors")]
     FS[("File storage<br/>uploaded books")]
-    RD[("Redis<br/>jobs, cache, rate limits")]
+    RD[("Redis<br/>jobs, rate limits")]
+    WK["worker (python -m app.worker)<br/>the background jobs"]
     EXT["External providers<br/>LLM · embeddings · OCR"]
 
     FE -->|HTTPS + JSON| API --> SVC
@@ -42,6 +43,8 @@ flowchart LR
     SVC --> PG
     RAG --> PG & FS
     SVC -.-> RD
+    RD -.-> WK
+    WK --> RAG & QG & AL
     LLM --> EXT
 ```
 
@@ -53,7 +56,7 @@ modules talk to each other through small interfaces, not through each other's ta
 
 | Folder (`backend/app/…`) | Responsibility | Built in |
 |---|---|---|
-| `core` | Settings, database session, security primitives, error format, logging, shared vocabulary (classes, boards, goals…), request size limits, the background `TaskQueue` | Step 1, 2 |
+| `core` | Settings, database session, security primitives, error format, logging, shared vocabulary (classes, boards, goals…), request size limits and security headers, the background `TaskQueue` (in-process or Redis), rate limits, metrics | Step 1, 2, 12 |
 | `models` | Database tables (SQLAlchemy) | every step adds its own |
 | `schemas` | Request / response shapes (Pydantic) | every step |
 | `auth` | Sign-up, sign-in, tokens, child mode, "who is calling" | Step 1 |
@@ -104,6 +107,7 @@ Token claims:
 | `sub` (account) | parent's user id | parent's user id | student's user id |
 | `role` (may act as) | `parent` | `student` | `student` |
 | `sid` (limited to learner) | — | the child's id | their own learner id |
+| `ses` (session, Step 12) | the sign-in's session | its own session (signed out on leaving child mode) | the sign-in's session |
 
 What a `student` session can do: see and practise as **that one learner only**. It cannot see
 siblings, change name / class / board, add or remove children, or open any parent screen.
@@ -142,8 +146,17 @@ database or a reranker would be one more adapter there, added when measurements 
 Reading a 300-page book (text extraction, OCR, embeddings) takes minutes, so it never runs inside
 the upload request. The upload returns immediately; processing continues as a job whose progress is
 stored on the document row, and the frontend shows it as a checklist. Each stage can be re-run
-safely. Step 2 starts with an in-process worker behind a `TaskQueue` interface; Step 12 moves it to
-Redis-backed workers without touching the callers.
+safely. Callers only see the `TaskQueue` interface (`core/tasks.py`), with two queues behind it:
+
+- `REDIS_URL` empty (the local default): jobs run inside the API process, and the API picks up
+  unfinished work when it starts.
+- `REDIS_URL` set (required in production, Step 12): jobs go to Redis by name with their ids as JSON
+  (SAQ), and `python -m app.worker` runs them, in as many processes as needed. A job's key is its
+  name and ids, so the same work is never queued twice; a running job is marked alive every 30
+  seconds, and one whose worker died is run again after 2 minutes. The worker picks up unfinished
+  work when it starts. Only the jobs listed in `app/worker.py` can run.
+
+Reading a book in the worker keeps the API answering quickly while it happens.
 
 ## 1.8 Educational guardrails — where each one is enforced
 
@@ -162,6 +175,14 @@ Step 1 gives every request an id (`X-Request-ID`) and logs method, path, status 
 Later steps add retrieval latency, LLM latency, token usage, validation failures and user
 feedback (spec §44). **Logs contain ids and counts — never children's names, answers or book text.**
 
+Step 12: `LOG_FORMAT=json` writes one JSON object per line for a log collector, and in production a
+failed query's values are left out of its error. The API and the worker serve Prometheus metrics on
+`METRICS_PORT`, never on the public port (`core/metrics.py`): requests by route pattern, status and
+time; jobs by name, outcome and time; AI calls and tokens by provider, tier and outcome; refusals by
+rate limit. `infra/monitoring/` holds the Prometheus setup and its alert rules. `/health` says the
+process is up, `/health/ready` that the database (and Redis) answer; `python -m app.worker --check`
+that a worker is alive. No outside error tracker: it would send children's data to a third party.
+
 ## 1.10 Security and privacy
 
 - Passwords hashed with Argon2id. Tokens are signed JWTs; access tokens are short-lived.
@@ -169,7 +190,12 @@ feedback (spec §44). **Logs contain ids and counts — never children's names, 
 - Uploads (Step 2): type checked by content, size and page limits, stored outside the web root
   under random names, never served directly.
 - Secrets only in environment variables. `.env` is git-ignored.
-- Planned for Step 12: rate limiting (especially sign-in), token revocation on sign-out, security headers.
+- Step 12: rate limits (failed sign-ins per email and per address, sign-ups per address, the
+  family's use of the AI and of uploads; docs/03 §3.11); sessions, so that signing out stops every
+  token of the session (`auth_sessions`); security headers on the API and on every page (a CSP
+  without nonces, so Cache Components' prebuilt pages stay); no API docs in production; Docker
+  images that never run as root, behind Caddy (HTTPS), with only Caddy reachable from outside.
+  The review and what is still open: [doc 8](08-security-review.md).
 
 **Children's data and Indian law.** The platform stores personal data of children. India's Digital
 Personal Data Protection Act, 2023 requires verifiable parental consent before processing the

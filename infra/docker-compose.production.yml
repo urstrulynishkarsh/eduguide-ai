@@ -1,0 +1,163 @@
+# EduGuide AI on one server (README, "Running on a server").
+#
+#   cp infra/production.env.example infra/production.env       then fill it in (never commit it)
+#   docker compose -f infra/docker-compose.production.yml --env-file infra/production.env up -d --build
+#
+# Only Caddy is reachable from outside: ports 80 and 443, with an HTTPS certificate for DOMAIN. The
+# browser talks to the frontend only; the API, the database and Redis have no published port.
+# Monitoring (Prometheus, infra/monitoring/): add `--profile monitoring`.
+
+name: eduguide-production
+
+x-backend-environment: &backend-environment
+  ENVIRONMENT: production
+  LOG_FORMAT: json
+  DATABASE_URL: postgresql+asyncpg://eduguide:${POSTGRES_PASSWORD:?}@db:5432/eduguide
+  REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379/0
+  METRICS_PORT: "9100"
+
+x-backend: &backend
+  build: ../backend
+  image: eduguide-backend
+  restart: unless-stopped
+  env_file: production.env
+  volumes:
+    - uploads:/app/storage/uploads
+    - models:/app/storage/models # the search model, downloaded once (~1 GB)
+  networks: [eduguide]
+
+services:
+  caddy:
+    image: caddy:2.11.6-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # the certificates
+      - caddy_config:/config
+    depends_on: [frontend]
+    networks: [eduguide]
+
+  frontend:
+    build: ../frontend
+    image: eduguide-frontend
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://api:8000/api/v1
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [eduguide]
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-environment
+      # Only the frontend reaches the API; its X-Forwarded-For (from Caddy) is the browser's address.
+      FORWARDED_ALLOW_IPS: 172.28.0.0/24
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    environment: *backend-environment
+    # Jobs still running after its 10-second grace period are put back in the queue.
+    stop_grace_period: 15s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.worker", "--check"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-environment
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: pgvector/pgvector:0.8.6-pg16-trixie
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eduguide
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: eduguide
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eduguide -d eduguide"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [eduguide]
+
+  redis:
+    image: redis:8.10.1-alpine
+    restart: unless-stopped
+    # The queue is kept on disk and never dropped to free memory.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?}", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?}
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [eduguide]
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=30d"]
+    ports:
+      - "127.0.0.1:9090:9090" # this server only: open it through an SSH tunnel
+    volumes:
+      - ./monitoring:/etc/prometheus:ro
+      - prometheus:/prometheus
+    networks: [eduguide]
+
+networks:
+  eduguide:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  pgdata:
+  redis:
+  uploads:
+  models:
+  caddy_data:
+  caddy_config:
+  prometheus:

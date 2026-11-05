@@ -5,7 +5,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.api.deps import CurrentPrincipal, DbSession, Queue
+from app.api.deps import CurrentPrincipal, DbSession, Queue, limit_account
+from app.core.rate_limits import PREPARE_PER_DAY
 from app.schemas import practice
 from app.schemas.mock_test import AttemptOut, MockTestCreate, MockTestOut, MockTestPage, TestReport
 from app.services import mock_test_service
@@ -14,7 +15,11 @@ router = APIRouter(tags=["Mock tests"])
 
 
 @router.post(
-    "/mock-tests", response_model=MockTestOut, status_code=status.HTTP_201_CREATED, summary="Create a test"
+    "/mock-tests",
+    response_model=MockTestOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a test",
+    dependencies=[limit_account(PREPARE_PER_DAY)],
 )
 async def create_test(
     data: MockTestCreate, principal: CurrentPrincipal, db: DbSession, queue: Queue

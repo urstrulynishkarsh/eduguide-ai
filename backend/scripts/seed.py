@@ -28,7 +28,7 @@ from app.auth.principal import Principal
 from app.core.config import get_settings
 from app.core.database import SessionLocal, engine
 from app.core.enums import Board, ClassLevel, Goal, MaterialType, Role, Stream
-from app.core.tasks import get_task_queue
+from app.core.tasks import InProcessTaskQueue
 from app.models import Book, Chapter, DocumentChunk, Exercise, PracticeSession, Question, Student, User
 from app.question_generation.schemas import GeneratedQuestion
 from app.schemas.auth import RegisterRequest
@@ -147,7 +147,8 @@ async def _seed_sample_book(child_name: str, title: str, subject: str, file_name
         )
         file = SAMPLE_DATA / file_name
         upload = UploadFile(io.BytesIO(file.read_bytes()), filename=file.name)
-        queue = get_task_queue()
+        # Read here and now, also when REDIS_URL is set: the demo needs the book ready.
+        queue = InProcessTaskQueue(SessionLocal, concurrency=1)
         document = await document_service.upload_document(
             db, principal, book.id, upload, storage=get_file_storage(), queue=queue
         )

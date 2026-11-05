@@ -10,16 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.api import health
 from app.api.v1.router import api_v1_router
+from app.core import metrics
 from app.core.config import get_settings
-from app.core.database import SessionLocal, engine
+from app.core.database import engine
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
-from app.core.tasks import get_task_queue
-from app.services.document_service import resume_unfinished_documents
-from app.services.mock_test_service import resume_unfinished_tests
-from app.services.paper_analysis_service import resume_unfinished_analyses
-from app.services.practice_service import resume_unfinished_sessions
+from app.core.tasks import InProcessTaskQueue, get_task_queue
+from app.worker import resume_unfinished_work
 
 logger = logging.getLogger(__name__)
 
@@ -34,26 +32,29 @@ press **Authorize** and paste it.
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    metrics.serve(get_settings().metrics_port)
     queue = get_task_queue()
-    try:
-        # Books being read, and practice and tests being prepared, when the server last stopped are
-        # picked up again.
-        await resume_unfinished_documents(SessionLocal, queue)
-        await resume_unfinished_sessions(SessionLocal, queue)
-        await resume_unfinished_tests(SessionLocal, queue)
-        await resume_unfinished_analyses(SessionLocal, queue)
-    except Exception:
-        logger.warning("Could not resume unfinished work (is the database running?)", exc_info=True)
+    if isinstance(queue, InProcessTaskQueue):
+        # The jobs run in this process: the work left unfinished when it last stopped is picked up
+        # again. (With Redis, the worker does this.)
+        try:
+            await resume_unfinished_work(queue)
+        except Exception:
+            logger.warning("Could not resume unfinished work (is the database running?)", exc_info=True)
     yield
-    await queue.shutdown()
+    await queue.close()
     await engine.dispose()
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, settings.log_format)
 
-    app = FastAPI(title=settings.app_name, version=__version__, description=_DESCRIPTION, lifespan=lifespan)
+    # No API docs in production: the API is only for the Next.js server.
+    docs = {"docs_url": None, "redoc_url": None, "openapi_url": None} if settings.is_production else {}
+    app = FastAPI(
+        title=settings.app_name, version=__version__, description=_DESCRIPTION, lifespan=lifespan, **docs
+    )
 
     # Middleware added last runs first: request id -> CORS -> body size limit -> the app.
     app.add_middleware(BodySizeLimitMiddleware)

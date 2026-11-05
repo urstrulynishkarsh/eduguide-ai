@@ -1,0 +1,9 @@
+# Secrets, build output and anything the image does not run.
+.env
+.env.*
+node_modules
+.next
+tests
+test-results
+playwright-report
+*.tsbuildinfo

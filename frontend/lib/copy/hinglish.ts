@@ -726,6 +726,8 @@ export const hinglish: Copy = {
     chapter_not_found: "Humein yeh chapter nahin mila.",
     chat_not_found: "Humein yeh baatcheet nahin mili.",
     conflict: "Yeh pehle se maujood kisi cheez se takrata hai.",
+    daily_limit_reached:
+      "Aaj ke liye iski limit poori ho gayi hai. Yeh raat 12 baje ke baad phir se shuru hogi.",
     document_already_uploaded: "Yeh file is book mein pehle se hai.",
     document_limit_reached: "Is book mein isse zyada files nahin jodi ja sakti.",
     document_not_failed: "Sirf wahi file phir se try ho sakti hai jo padhi nahin ja saki.",
@@ -780,6 +782,7 @@ export const hinglish: Copy = {
       "Hum yeh text file nahin padh sake. Please ise UTF-8 mein save karke phir se upload karein.",
     too_many_pages:
       "Is PDF mein bahut zyada pages hain. Please ise hisson mein upload karein (jaise har chapter ki ek file).",
+    too_many_requests: "Thode time mein bahut baar try ho gaya. Please thoda ruk kar phir se try karein.",
     topic_not_found: "Humein yeh topic nahin mila.",
     unsupported_file_type: "Please PDF, Word file (.docx) ya text file (.txt) upload karein.",
     upload_rejected: "Hum yeh file nahin le sake.",

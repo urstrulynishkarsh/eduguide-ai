@@ -39,10 +39,12 @@ from sqlalchemy import make_url, text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
+from app.core import rate_limits  # noqa: E402
 from app.core.database import get_db  # noqa: E402
-from app.core.tasks import Job, get_task_queue  # noqa: E402
+from app.core.tasks import Job, get_task_queue, job_key  # noqa: E402
 from app.main import app  # noqa: E402
 from app.rag import embeddings  # noqa: E402
+from app.worker import JOBS  # noqa: E402
 from tests.fakes import FakeEmbeddings  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -130,6 +132,9 @@ class InlineTaskQueue:
         self.jobs: list[str] = []
 
     async def enqueue(self, job: Job, /, **kwargs: Any) -> None:
+        # What the Redis queue needs: ids only, and a job the worker knows (app/worker.py JOBS).
+        job_key(job, kwargs)
+        assert JOBS.get(job.__name__) is job, f"{job.__name__} is not in app.worker.JOBS"
         self.jobs.append(job.__name__)
         await job(self.session, **kwargs)
 
@@ -141,13 +146,16 @@ def task_queue(db_session: AsyncSession) -> InlineTaskQueue:
 
 @pytest.fixture
 async def client(db_session: AsyncSession, task_queue: InlineTaskQueue) -> AsyncIterator[AsyncClient]:
-    """An HTTP client that talks to the app in-process, using the test session."""
+    """An HTTP client that talks to the app in-process, using the test session. Rate limits count
+    from zero in every test."""
 
     async def use_test_session() -> AsyncIterator[AsyncSession]:
         yield db_session
 
+    counter = rate_limits.MemoryCounter()
     app.dependency_overrides[get_db] = use_test_session
     app.dependency_overrides[get_task_queue] = lambda: task_queue
+    app.dependency_overrides[rate_limits.get_counter] = lambda: counter
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http_client:
             yield http_client

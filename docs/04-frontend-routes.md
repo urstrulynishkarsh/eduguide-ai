@@ -116,9 +116,18 @@ Built in Step 5 (`frontend/lib/session.ts`, `frontend/proxy.ts`).
   → `/who-is-learning`. These redirects only choose a screen; the backend checks every call.
 - **Child mode** replaces the access token with the child-session token **and deletes the parent's
   refresh token**, so nothing on the device can act as the parent. Leaving child mode
-  (`/learn/exit`, "Grown-ups") asks for the parent's password, which signs the parent in again.
-  When the 12-hour child session ends, the device goes to sign-in.
+  (`/learn/exit`, "Grown-ups") asks for the parent's password, which signs the parent in again;
+  the child-mode session is then signed out on the backend (Step 12). When the 12-hour child
+  session ends, the device goes to sign-in.
 - A session the backend refuses (say the child was removed) is ended through `/signout`.
+- **Signing out** (Step 12): `/signout` first calls `POST /auth/logout` with the refresh token (in
+  child mode the access token), so the session's tokens stop working everywhere, then deletes the
+  cookies. Sign-in and sign-up pass the browser's address on (`X-Forwarded-For`) for the backend's
+  rate limits.
+- **Security headers** (Step 12, `next.config.ts`) on every page: a CSP that allows this site only
+  (inline scripts too: nonces would make every page dynamic), no framing, HSTS, nosniff,
+  Referrer-Policy and Permissions-Policy. The Docker image runs the standalone server
+  (`NEXT_OUTPUT=standalone`).
 - **Uploads** (Step 6) go from the browser to one route handler, `/api/books/[bookId]/documents`,
   which streams the file on to the backend with the cookie's token. It sits outside `proxy.ts`,
   because the proxy buffers request bodies only up to 10 MB. Progress screens (a book being read,

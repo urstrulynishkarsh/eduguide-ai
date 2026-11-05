@@ -1,0 +1,22 @@
+# Collects the numbers of the API and of every worker (backend/app/core/metrics.py) every 15 seconds.
+# Started with `--profile monitoring` (infra/docker-compose.production.yml); see it on
+# http://localhost:9090 through an SSH tunnel. The alerts show under "Alerts"; to have them emailed,
+# add an Alertmanager.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+rule_files: [alerts.yml]
+
+scrape_configs:
+  # Every container of the service, however many are running.
+  - job_name: api
+    dns_sd_configs:
+      - names: [api]
+        type: A
+        port: 9100
+  - job_name: worker
+    dns_sd_configs:
+      - names: [worker]
+        type: A
+        port: 9100

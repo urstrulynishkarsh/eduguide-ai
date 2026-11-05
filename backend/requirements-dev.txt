@@ -5,3 +5,4 @@ pytest-asyncio==1.4.0
 httpx==0.28.1
 ruff==0.16.10
 reportlab==5.0.1           # builds sample PDFs inside the tests
+pip-audit==2.10.1          # known security issues in the libraries above

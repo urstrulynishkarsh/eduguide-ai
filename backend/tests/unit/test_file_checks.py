@@ -9,6 +9,7 @@ from reportlab.lib import pdfencrypt
 from reportlab.pdfgen import canvas
 
 from app.core.enums import FileKind
+from app.rag.ingestion import file_checks
 from app.rag.ingestion.errors import UnsupportedFileError, UploadRejectedError
 from app.rag.ingestion.file_checks import check_file, decode_text_file
 from tests.samples import NOTES_TEXT, make_docx, make_pdf
@@ -99,3 +100,34 @@ def test_text_encodings():
     with pytest.raises(UploadRejectedError) as error:
         decode_text_file("café".encode("latin-1"))
     assert error.value.code == "text_encoding_unsupported"
+
+
+def _docx_with(content_types: bytes) -> bytes:
+    """A real Word document whose [Content_Types].xml is replaced."""
+    source = zipfile.ZipFile(io.BytesIO(make_docx()))
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        for entry in source.infolist():
+            data = content_types if entry.filename == "[Content_Types].xml" else source.read(entry)
+            archive.writestr(entry.filename, data)
+    return output.getvalue()
+
+
+def test_a_word_document_too_large_unpacked_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A small zip can unpack to gigabytes (a "zip bomb"): the declared sizes are added up first."""
+    monkeypatch.setattr(file_checks, "_MAX_DOCX_UNPACKED_BYTES", 1000)
+    with pytest.raises(UploadRejectedError) as error:
+        check_file(_write(tmp_path, make_docx()), max_pdf_pages=100)
+    assert error.value.code == "file_too_large"
+
+
+def test_entities_in_a_word_document_are_never_expanded(tmp_path: Path):
+    """The "billion laughs": ten levels of ten times ten would be 10 GB of text if expanded."""
+    levels = "".join(f'<!ENTITY l{n} "{f"&l{n - 1};" * 10}">' for n in range(1, 10))
+    bomb = (
+        f'<?xml version="1.0"?><!DOCTYPE Types [<!ENTITY l0 "laugh">{levels}]>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Override PartName="/word/document.xml" ContentType="&l9;"/></Types>'
+    ).encode()
+    with pytest.raises(UnsupportedFileError):
+        check_file(_write(tmp_path, _docx_with(bomb)), max_pdf_pages=100)

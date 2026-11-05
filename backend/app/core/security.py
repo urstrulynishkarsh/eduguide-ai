@@ -5,6 +5,7 @@ Passwords are hashed with Argon2id. Tokens are JWTs with these claims:
     sub   the account (users.id) that signed in
     role  what this token may act as: "parent" or "student"
     sid   the learner (students.id) this token is limited to - student tokens only
+    ses   the session (auth_sessions.id) it belongs to; signing out revokes the session
     type  "access" (sent with every request) or "refresh" (only used to get new tokens)
 
 A parent who hands the device to a child gets a token with their own `sub`,
@@ -51,6 +52,7 @@ class TokenPayload:
     user_id: uuid.UUID
     role: Role
     token_type: TokenType
+    session_id: uuid.UUID
     student_id: uuid.UUID | None = None
 
 
@@ -60,6 +62,7 @@ def create_token(
     role: Role,
     token_type: TokenType,
     expires_in: timedelta,
+    session_id: uuid.UUID,
     student_id: uuid.UUID | None = None,
 ) -> str:
     settings = get_settings()
@@ -68,6 +71,7 @@ def create_token(
         "sub": str(user_id),
         "role": role.value,
         "type": token_type.value,
+        "ses": str(session_id),
         "iat": now,
         "exp": now + expires_in,
         "jti": uuid.uuid4().hex,
@@ -84,12 +88,13 @@ def decode_token(token: str, *, expected_type: TokenType) -> TokenPayload:
             token,
             settings.jwt_secret_key,
             algorithms=[settings.jwt_algorithm],
-            options={"require": ["sub", "role", "type", "exp"]},
+            options={"require": ["sub", "role", "type", "ses", "exp"]},
         )
         payload = TokenPayload(
             user_id=uuid.UUID(claims["sub"]),
             role=Role(claims["role"]),
             token_type=TokenType(claims["type"]),
+            session_id=uuid.UUID(claims["ses"]),
             student_id=uuid.UUID(claims["sid"]) if claims.get("sid") else None,
         )
     except (jwt.PyJWTError, ValueError, KeyError, TypeError) as exc:

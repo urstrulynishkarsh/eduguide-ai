@@ -1,4 +1,4 @@
-"""Request id + timing for every HTTP request, and request body size limits."""
+"""Request id, timing, metrics and security headers for every HTTP request; request body size limits."""
 
 import json
 import logging
@@ -9,6 +9,7 @@ import uuid
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.core import metrics
 from app.core.config import get_settings
 from app.core.errors import error_body
 from app.core.logging import request_id_var
@@ -16,17 +17,43 @@ from app.core.logging import request_id_var
 logger = logging.getLogger("app.request")
 
 _SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+_METHODS = {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+
+# Only the Next.js server calls the API, but its answers hold a family's data: never cached, never
+# shown in a frame, never read as anything but what they say they are.
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "no-store",
+}
+# The API docs page (not served in production) loads its scripts from a CDN.
+_CSP = "default-src 'none'; frame-ancestors 'none'"
+_DOCS_PAGES = ("/docs", "/redoc")
+_HSTS = "max-age=31536000; includeSubDomains"
+
+
+def _route_pattern(scope: Scope) -> str:
+    """`/api/v1/books/{book_id}` for a request to one book: the path with its parameters' names in
+    place of their values. "unmatched" when no route took the request."""
+    if "route" not in scope:
+        return "unmatched"
+    names = {str(value): name for name, value in scope.get("path_params", {}).items()}
+    return "/".join(f"{{{names[part]}}}" if part in names else part for part in scope["path"].split("/"))
 
 
 class RequestContextMiddleware:
-    """Gives each request an id (returned as `X-Request-ID`) and logs how long it took.
+    """Gives each request an id (returned as `X-Request-ID`) and the security headers, logs how long
+    it took and counts it for monitoring (core/metrics).
 
     Only the method, path, status and duration are logged - never query
-    strings or bodies, which can contain personal data.
+    strings or bodies, which can contain personal data. The metrics name the route's pattern
+    (`/api/v1/books/{book_id}`), never the ids in the path.
     """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
+        self._production = get_settings().is_production
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -39,18 +66,29 @@ class RequestContextMiddleware:
         started = time.perf_counter()
         status_code = 500
 
-        async def send_with_request_id(message: Message) -> None:
+        async def send_with_headers(message: Message) -> None:
             nonlocal status_code
             if message["type"] == "http.response.start":
                 status_code = message["status"]
-                MutableHeaders(scope=message)["X-Request-ID"] = request_id
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-ID"] = request_id
+                for name, value in _SECURITY_HEADERS.items():
+                    headers.setdefault(name, value)  # a stream keeps its own Cache-Control
+                if not scope["path"].startswith(_DOCS_PAGES):
+                    headers["Content-Security-Policy"] = _CSP
+                if self._production:
+                    headers["Strict-Transport-Security"] = _HSTS
             await send(message)
 
         try:
-            await self.app(scope, receive, send_with_request_id)
+            await self.app(scope, receive, send_with_headers)
         finally:
-            duration_ms = (time.perf_counter() - started) * 1000
-            logger.info("%s %s -> %s in %.1f ms", scope["method"], scope["path"], status_code, duration_ms)
+            seconds = time.perf_counter() - started
+            logger.info("%s %s -> %s in %.1f ms", scope["method"], scope["path"], status_code, seconds * 1000)
+            method = scope["method"] if scope["method"] in _METHODS else "OTHER"
+            route = _route_pattern(scope)
+            metrics.HTTP_REQUESTS.labels(method, route, str(status_code)).inc()
+            metrics.HTTP_SECONDS.labels(method, route).observe(seconds)
             request_id_var.reset(token)
 
 

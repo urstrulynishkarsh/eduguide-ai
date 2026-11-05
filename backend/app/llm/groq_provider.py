@@ -25,6 +25,7 @@ from typing import Any
 import groq
 from pydantic import BaseModel, ValidationError
 
+from app.core import metrics
 from app.llm.base import AIUnavailableError, LLMResult, Message, ModelTier, RequestSize, T
 
 logger = logging.getLogger(__name__)
@@ -64,17 +65,16 @@ def _failures(tier: ModelTier, model: str) -> Iterator[None]:
     """Provider errors become AIUnavailableError; the reason goes to the log."""
     try:
         yield
-    except (groq.AuthenticationError, groq.PermissionDeniedError):
-        logger.error("Groq rejected the API key - check GROQ_API_KEY in backend/.env")
-        raise AIUnavailableError() from None
-    except groq.NotFoundError:
-        logger.error("Groq has no model %r - check LLM_MODEL_* in backend/.env", model)
-        raise AIUnavailableError() from None
-    except groq.APIStatusError as exc:  # 429 and 413: the plan's limits; 5xx: Groq itself
-        logger.warning("Groq request failed (HTTP %d, tier=%s): %s", exc.status_code, tier, exc.message)
-        raise AIUnavailableError() from None
-    except groq.APIConnectionError:
-        logger.warning("Groq could not be reached (tier=%s)", tier)
+    except (groq.APIStatusError, groq.APIConnectionError) as exc:
+        metrics.ai_call("groq", tier, "failed")
+        if isinstance(exc, groq.AuthenticationError | groq.PermissionDeniedError):
+            logger.error("Groq rejected the API key - check GROQ_API_KEY in backend/.env")
+        elif isinstance(exc, groq.NotFoundError):
+            logger.error("Groq has no model %r - check LLM_MODEL_* in backend/.env", model)
+        elif isinstance(exc, groq.APIStatusError):  # 429 and 413: the plan's limits; 5xx: Groq itself
+            logger.warning("Groq request failed (HTTP %d, tier=%s): %s", exc.status_code, tier, exc.message)
+        else:
+            logger.warning("Groq could not be reached (tier=%s)", tier)
         raise AIUnavailableError() from None
 
 
@@ -140,11 +140,14 @@ class GroqProvider:
             latency_ms,
             response.id,
         )
+        tokens = {"input_tokens": input_tokens, "output_tokens": output_tokens}
         try:
             output = schema.model_validate_json(choice.message.content or "")
         except ValidationError:  # cut off (length) or not valid for the model's rules
+            metrics.ai_call("groq", tier, "invalid", **tokens)
             logger.warning("Groq gave no valid %s (finish=%s)", schema.__name__, choice.finish_reason)
             raise AIUnavailableError() from None
+        metrics.ai_call("groq", tier, "ok", **tokens)
         return LLMResult(
             output=output,
             model=response.model,
@@ -172,12 +175,15 @@ class GroqProvider:
                 finish = chunk.choices[0].finish_reason or finish
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
+        input_tokens = usage.prompt_tokens if usage else 0
+        output_tokens = usage.completion_tokens if usage else 0
+        metrics.ai_call("groq", tier, "ok", input_tokens=input_tokens, output_tokens=output_tokens)
         logger.info(
             "LLM stream %s tier=%s finish=%s in=%d out=%d %.0f ms",
             request["model"],
             tier,
             finish,
-            usage.prompt_tokens if usage else 0,
-            usage.completion_tokens if usage else 0,
+            input_tokens,
+            output_tokens,
             (time.perf_counter() - started) * 1000,
         )

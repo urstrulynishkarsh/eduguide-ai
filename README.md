@@ -4,7 +4,7 @@
 An AI personal tutor, practice generator, study planner and parent assistant for Indian students
 from Nursery to Class 12.
 
-> **Build status: Step 11 of 12 is complete.** The MVP works end to end: a parent signs up, adds a
+> **Build status: all 12 steps are complete.** The MVP works end to end: a parent signs up, adds a
 > child, uploads a book, creates practice from a chapter or exercise and hands the device over;
 > the child practises (with hints, steps and answers) in a layout made for their age, and both
 > see the progress. The app knows each child's mastery of every topic, moves the difficulty with
@@ -14,7 +14,9 @@ from Nursery to Class 12.
 > it analyses previous-year papers, finds the mistakes a child keeps making, and gives JEE / NEET /
 > CUET aspirants tests in their exam's pattern with negative marking (Step 10); every screen is in
 > English, Hindi or Hinglish, children earn streaks, XP and badges, and Progress shows how things
-> change over the weeks (Step 11).
+> change over the weeks (Step 11). It is ready for a server (Step 12): background workers on Redis,
+> rate limits, sign-out that ends the session, security headers, Docker images behind HTTPS,
+> monitoring and CI — see "Run it on a server" and the [security review](docs/08-security-review.md).
 > See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## What works today
@@ -218,6 +220,20 @@ sudo apt install tesseract-ocr tesseract-ocr-hin      # Ubuntu / Debian
 Without it, a fully scanned book shows the message *"This looks like a scanned or photographed
 book…"* instead of empty results.
 
+### Optional: background work in a worker, as on a server
+
+By default books are read and questions written inside the API process, which is all a laptop
+needs. To run them the way a server does, set `REDIS_URL=redis://localhost:6379/0` in `backend/.env`
+(`docker compose up -d` already started Redis) and start a worker next to the API, in a third
+terminal:
+
+```bash
+cd backend && source .venv/bin/activate
+python -m app.worker
+```
+
+Without a running worker, uploaded books then stay *waiting*.
+
 ### Demo accounts (created by `python -m scripts.seed`)
 
 | Email | Password | Who |
@@ -234,19 +250,51 @@ same question twice, so they last for a practice or two, or one chapter test; af
 questions need the AI. Written answers in a test are marked by the AI too. Seeded before? Run
 `python -m scripts.seed` again: it adds only what is missing.
 
+## Run it on a server
+
+Everything runs in Docker on one Linux server: Caddy (HTTPS, the only part reachable from outside),
+the frontend, the API, a background worker, PostgreSQL and Redis
+([`infra/docker-compose.production.yml`](infra/docker-compose.production.yml)). You need a server with
+Docker, about 4 GB of memory, and a domain whose DNS points at it.
+
+```bash
+git clone https://github.com/urstrulynishkarsh/eduguide-ai.git && cd eduguide-ai
+cp infra/production.env.example infra/production.env      # fill in every empty value (it explains each)
+docker compose -f infra/docker-compose.production.yml --env-file infra/production.env up -d --build
+```
+
+Open `https://<DOMAIN>`: Caddy gets the certificate on the first visit. The database tables are
+made (and later brought up to date) by the `migrate` service before the API starts. The first book
+read downloads the search model (~1 GB) once. There are no demo accounts on a server.
+
+| I want to… | Command (from the project folder; `c` = `docker compose -f infra/docker-compose.production.yml --env-file infra/production.env`) |
+|---|---|
+| Update to a new version | `git pull`, then `c up -d --build` |
+| See what is running | `c ps` (each part has a health check) |
+| Read the logs (one JSON object per line) | `c logs -f api worker` |
+| Read more books at once | `c up -d --scale worker=2` (or raise `PROCESSING_CONCURRENCY`) |
+| Back up the database | `c exec -T db pg_dump -U eduguide eduguide > backup.sql` — and copy the `uploads` volume. Do both daily |
+| Watch the numbers and alerts | `c --profile monitoring up -d`, then `ssh -L 9090:localhost:9090 <server>` and open <http://localhost:9090> |
+| Try it all on this computer | `DOMAIN=localhost` in `infra/production.env` (the browser will warn about the certificate) |
+
 ## Run the tests
 
 From `backend/` with the virtual environment active:
 
 ```bash
-pytest                 # everything (the database must be running); no AI calls, no model download
+pytest                 # everything (the database and Redis must be running: docker compose up -d);
+                       # no AI calls, no model download
 pytest tests/unit      # only the tests that need nothing running
 pytest -m live         # real calls to Groq and/or Claude, whichever keys are in .env
 ruff check .           # code style
 ```
 
 The API tests use a separate database (`eduguide_test`), rebuild it from the migrations on every run,
-and roll back after every test — your real data is never touched.
+and roll back after every test — your real data is never touched. The tests of the Redis parts
+(`tests/redis/`) use Redis database 15, emptied around each test.
+
+Every push and pull request runs all of this on GitHub (`.github/workflows/ci.yml`): the backend and
+frontend checks, the browser journeys, both Docker images, and the libraries' known security issues.
 
 From `frontend/`:
 
@@ -283,6 +331,10 @@ is reused; otherwise the tests build and start one).
 | `backend/tests` | Automated tests |
 | `backend/app/adaptive_learning` | Mastery per topic, difficulty that follows results, daily recommendations, the study planner |
 | `backend/app/chat` | The Student AI Tutor's hint ladder and the Parent AI Assistant |
+| `backend/app/worker.py` | The background worker (`python -m app.worker`), used when `REDIS_URL` is set |
+| `backend/Dockerfile`, `frontend/Dockerfile` | The images a server runs |
+| `infra/` | The server setup (Docker Compose, Caddy, monitoring); the test database's init script |
+| `.github/workflows/` | CI: the checks that run on every push |
 | `frontend/app` | The screens (Next.js pages): public, onboarding, `parent/`, `learn/` |
 | `frontend/components`, `frontend/lib` | Shared pieces, the wording of every screen in each language (`lib/copy/`), sessions, calls to the API |
 
@@ -291,8 +343,9 @@ is reused; otherwise the tests build and start one).
 | I want to… | Command |
 |---|---|
 | Start the API | `uvicorn app.main:app --reload` |
+| Start a background worker (only with `REDIS_URL` set) | `python -m app.worker` |
 | Apply database changes | `alembic upgrade head` |
-| Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0008` (the next free number) |
+| Create a migration after changing a model | `alembic revision --autogenerate -m "what changed" --rev-id 0011` (the next free number) |
 | Undo the last migration | `alembic downgrade -1` |
 | Make every book searchable again (after an upgrade or a search-model change) | `python -m scripts.reembed` |
 | Measure search quality on the sample book | `python -m scripts.eval_retrieval` |
@@ -303,6 +356,12 @@ is reused; otherwise the tests build and start one).
 | Problem | What to do |
 |---|---|
 | `JWT_SECRET_KEY is missing or shorter than 32 characters` | Run `python -m scripts.init_env` inside `backend/`. |
+| Everyone was signed out after updating to Step 12 | Expected once: tokens now belong to a session (migration 0010). Sign in again |
+| *"Too many tries in a short time"* (`429`) | A rate limit: 10 wrong passwords for one email in 15 minutes, or a family's AI use per minute. Wait the minutes shown in `Retry-After`; restarting the API resets the counts when `REDIS_URL` is empty |
+| *"Today's allowance for this has been used"* (`429 daily_limit_reached`) | The family's daily limit for the AI, new practices / tests or uploads (docs/03 §3.11). It starts again at midnight India time |
+| Uploaded books stay *waiting* | `REDIS_URL` is set but no worker runs: start `python -m app.worker`, or empty `REDIS_URL` |
+| `Cannot reach Redis at redis://localhost:6379/15` when running tests | Start it: `docker compose up -d` (from the project folder) |
+| `REDIS_URL is required in production` | A server needs Redis: the production compose file sets it for you |
 | `Connection refused` / cannot reach the database | Is Docker running? `docker compose ps` should show `db` as *healthy*. |
 | Port 5432 is already in use | Another PostgreSQL is running. Change the port in `docker-compose.yml` (see the comment there) and in `backend/.env`. |
 | A book stays `failed` with `scanned_document` | It has no text layer. Install Tesseract (see above), set `OCR_PROVIDER=tesseract`, restart, then `POST /api/v1/documents/{id}/retry` |
@@ -322,4 +381,5 @@ is reused; otherwise the tests build and start one).
 
 Not using Docker? A PostgreSQL you install yourself also works (this step was tested on
 PostgreSQL 16): create a user `eduguide` with password `eduguide` and the databases `eduguide` and
-`eduguide_test`. From Step 3 the server also needs the `pgvector` extension.
+`eduguide_test`. From Step 3 the server also needs the `pgvector` extension. Redis is optional
+outside the tests (leave `REDIS_URL` empty).

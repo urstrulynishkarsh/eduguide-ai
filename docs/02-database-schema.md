@@ -280,6 +280,19 @@ Counted as the learner works (`analytics/rewards.record`, in the answer's transa
 locked) and never worked out again from history: a book deleted later takes no XP, streak or badge
 away. Progress over time (`GET …/progress/trends`) is worked out on reading, like basic progress.
 
+## 2.9a Table added in Step 12 — sessions
+
+Migration `0010`. Goes with the account (`ON DELETE CASCADE`).
+
+| Table | Columns |
+|---|---|
+| `auth_sessions` | one per sign-in and per child-mode session: `user_id`, `created_at`, `expires_at` (when its last token runs out; moved on at every refresh), `revoked_at` (signed out) |
+
+Every token names its session (the `ses` claim) and every request checks it has not been revoked, in
+the same query that loads the account. `POST /auth/logout` revokes it. An account's expired and
+signed-out rows are deleted when it next signs in. The background jobs and the rate limits live in
+Redis, not in tables.
+
 ## 2.10 The whole picture
 
 Every table built so far.
@@ -335,7 +348,7 @@ erDiagram
     students ||--o{ student_badges : earns
 ```
 
-No more tables are planned: Step 12 (production hardening) moves the background work to Redis.
+All 12 steps are built; `auth_sessions` (Step 12) is the last table so far.
 
 **Why `books` and `documents` are separate:** NCERT publishes a textbook as one PDF per chapter. A
 parent should see *one* "Class 8 Mathematics" in the library even if it arrived as 13 files.

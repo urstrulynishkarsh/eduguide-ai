@@ -5,8 +5,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Query, Response, UploadFile, status
 
-from app.api.deps import CurrentPrincipal, DbSession, Queue, Storage
+from app.api.deps import CurrentPrincipal, DbSession, Queue, Storage, limit_account
 from app.api.v1.library_views import book_out, chapter_out, document_out
+from app.core.rate_limits import UPLOADS_PER_DAY
 from app.models import Book
 from app.schemas.common import ErrorResponse
 from app.schemas.library import BookCreate, BookOut, BookPage, BookUpdate, ChapterOut, DocumentOut
@@ -75,6 +76,7 @@ async def delete_book(
     response_model=DocumentOut,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Upload a file into a book",
+    dependencies=[limit_account(UPLOADS_PER_DAY)],
     responses={
         409: {"model": ErrorResponse, "description": "The file is already in this book, or the book is full"},
         413: {"model": ErrorResponse, "description": "The file is too large"},

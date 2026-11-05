@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     app_name: str = "EduGuide AI"
     environment: Literal["local", "test", "staging", "production"] = "local"
     log_level: str = "INFO"
+    # "json": one JSON object per line, for a log collector (production). "text": easy to read.
+    log_format: Literal["text", "json"] = "text"
+    # Prometheus metrics are served on this port by the API and by the worker (each its own port in
+    # Docker); never on the API's own port. 0 = off.
+    metrics_port: int = Field(default=0, ge=0, le=65535)
     api_v1_prefix: str = "/api/v1"
     # Comma-separated list of frontend addresses allowed to call this API.
     cors_origins: str = "http://localhost:3000"
@@ -29,6 +34,12 @@ class Settings(BaseSettings):
     # ---- Database ----
     database_url: str = "postgresql+asyncpg://eduguide:eduguide@localhost:5432/eduguide"
     db_echo: bool = False
+
+    # ---- Redis (Step 12) ----
+    # Empty: background jobs run inside the API process and rate limits are counted in its memory
+    # (fine for one computer). Set (e.g. redis://localhost:6379/0): jobs go to Redis and are run by
+    # `python -m app.worker`; the limits are shared by every API process. Required in production.
+    redis_url: str = ""
 
     # ---- Auth ----
     jwt_secret_key: str = ""
@@ -102,6 +113,8 @@ class Settings(BaseSettings):
                 raise ValueError("CORS_ORIGINS cannot contain '*' in production.")
             if self.db_echo:
                 raise ValueError("DB_ECHO must be off in production (it prints query values to the logs).")
+            if not self.redis_url:
+                raise ValueError("REDIS_URL is required in production (background workers, rate limits).")
         return self
 
     @property

@@ -24,6 +24,7 @@ def _access_token(**overrides):
         "role": Role.PARENT,
         "token_type": TokenType.ACCESS,
         "expires_in": timedelta(minutes=5),
+        "session_id": uuid.uuid4(),
         **overrides,
     }
     return create_token(**values)
@@ -45,13 +46,26 @@ def test_verify_password_survives_a_broken_hash():
     assert not verify_password("anything", "this-is-not-a-hash")
 
 
-def test_token_round_trip_keeps_user_role_and_student():
-    user_id, student_id = uuid.uuid4(), uuid.uuid4()
-    token = _access_token(user_id=user_id, role=Role.STUDENT, student_id=student_id)
+def test_token_round_trip_keeps_user_role_session_and_student():
+    user_id, session_id, student_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    token = _access_token(user_id=user_id, role=Role.STUDENT, session_id=session_id, student_id=student_id)
     payload = decode_token(token, expected_type=TokenType.ACCESS)
     assert payload.user_id == user_id
     assert payload.role is Role.STUDENT
+    assert payload.session_id == session_id
     assert payload.student_id == student_id
+
+
+def test_token_without_a_session_is_rejected():
+    """Tokens made before sessions existed (Step 12) stop working: everyone signs in once more."""
+    settings = get_settings()
+    token = jwt.encode(
+        {"sub": str(uuid.uuid4()), "role": "parent", "type": "access", "exp": 9999999999},
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+    with pytest.raises(TokenError):
+        decode_token(token, expected_type=TokenType.ACCESS)
 
 
 def test_parent_token_has_no_student():
@@ -110,7 +124,13 @@ def test_garbage_is_rejected(garbage):
 def test_token_with_an_unknown_role_is_rejected():
     settings = get_settings()
     token = jwt.encode(
-        {"sub": str(uuid.uuid4()), "role": "admin", "type": "access", "exp": 9999999999},
+        {
+            "sub": str(uuid.uuid4()),
+            "role": "admin",
+            "type": "access",
+            "ses": str(uuid.uuid4()),
+            "exp": 9999999999,
+        },
         settings.jwt_secret_key,
         algorithm=settings.jwt_algorithm,
     )

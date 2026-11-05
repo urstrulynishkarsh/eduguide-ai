@@ -1,0 +1,9 @@
+# The front door (infra/docker-compose.production.yml). Caddy gets and renews the HTTPS certificate
+# for DOMAIN itself, sends http:// to https://, and sets X-Forwarded-For to the browser's address
+# (whatever the browser sent in that header is dropped).
+{$DOMAIN} {
+	reverse_proxy frontend:3000 {
+		# The tutor's and the assistant's replies stream: pass each piece on at once.
+		flush_interval -1
+	}
+}

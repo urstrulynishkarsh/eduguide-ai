@@ -14,9 +14,10 @@ from app.models.practice import PracticeItem, PracticeSession, Question, Questio
 from app.models.rewards import StudentBadge, StudentReward
 from app.models.student import Student, StudentProfile
 from app.models.study_plan import StudyPlan, StudyPlanItem
-from app.models.user import Parent, User
+from app.models.user import AuthSession, Parent, User
 
 __all__ = [
+    "AuthSession",
     "Base",
     "Book",
     "Chapter",

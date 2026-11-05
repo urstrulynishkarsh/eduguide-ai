@@ -5,7 +5,8 @@ import uuid
 from fastapi import APIRouter, status
 
 from app.analytics.progress import progress
-from app.api.deps import CurrentPrincipal, DbSession, Queue
+from app.api.deps import CurrentPrincipal, DbSession, Queue, limit_account
+from app.core.rate_limits import AI_PER_DAY, AI_PER_MINUTE, PREPARE_PER_DAY
 from app.models import PracticeSession
 from app.schemas.learn import ExplainResponse
 from app.schemas.library import DocumentError
@@ -71,6 +72,7 @@ async def _session_out(db: DbSession, session: PracticeSession) -> SessionOut:
     response_model=SessionOut,
     status_code=status.HTTP_201_CREATED,
     summary="Create Practice",
+    dependencies=[limit_account(PREPARE_PER_DAY)],
 )
 async def create_session(
     data: PracticeCreate, principal: CurrentPrincipal, db: DbSession, queue: Queue
@@ -117,6 +119,7 @@ async def help_with(
     "/practice/sessions/{session_id}/questions/{question_id}/explain",
     response_model=ExplainResponse,
     summary="Explain this question simply, like I'm 10, in Hindi or Hinglish",
+    dependencies=[limit_account(AI_PER_MINUTE, AI_PER_DAY)],
 )
 async def explain_question(
     session_id: uuid.UUID,

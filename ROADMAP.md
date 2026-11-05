@@ -30,7 +30,7 @@ Status: ✅ done · ⏭ next · ⬜ later
 |---|---|---|---|---|
 | **10** | ✅ | **Previous-year paper analysis, misconception detection, JEE / NEET / CUET modes.** Papers read into sections and questions, matched to the textbook chapters by the AI, where the marks go and a test like them; repeated wrong ideas found and put right; exam patterns with negative marking. Plus their screens. | `backend/app/analytics` · `backend/app/adaptive_learning` · `backend/app/question_generation` | 1 Previous-year analysis · 2 Misconception detection · 3 Competitive exam modes |
 | **11** | ✅ | **Languages, gamification, advanced analytics.** Hindi / Hinglish screens, structure for more Indian languages, streaks / XP / badges, richer charts. | `frontend/` · `backend/app/analytics` | 4 Multi-language support · 5 Gamification · 6 Advanced analytics |
-| **12** | ⏭ | **Production hardening.** Rate limiting, background workers on Redis, Docker images, CI, monitoring, a security review. | `infra/` · whole project | — |
+| **12** | ✅ | **Production hardening.** Rate limiting, background workers on Redis, Docker images, CI, monitoring, a security review. | `infra/` · whole project | — |
 
 Note: content in **Hindi and Hinglish** works from Steps 3–4 (the language is part of every request
 to the AI); Step 11 translated the screens and made a place for further Indian languages.
@@ -376,77 +376,116 @@ the API and rebuild or restart the frontend. No new libraries. The demo parent n
 English screens; on a database seeded before Step 11 its account stays Hinglish until it is switched
 in Settings (this machine's database was switched).
 
+## What Step 12 added
+
+```
+backend/
+├── alembic/versions/0010_auth_sessions.py   auth_sessions (tokens name their session: `ses`)
+├── app/core/tasks.py            RedisTaskQueue (SAQ, JSON, a key per piece of work) beside the
+│                                in-process queue, chosen by REDIS_URL; run_job() counts each job
+├── app/worker.py                python -m app.worker [--check]: JOBS, heartbeats, resumes unfinished work
+├── app/core/rate_limits.py      fixed windows in Redis or memory; check(), failures() (sign-in)
+├── app/core/redis.py · metrics.py   one Redis client; Prometheus counters, served on METRICS_PORT
+├── app/core/middleware.py       + security headers, requests counted by route pattern
+├── app/core/logging.py          LOG_FORMAT=json
+├── app/core/config.py           REDIS_URL (required in production), LOG_FORMAT, METRICS_PORT
+├── app/core/database.py         hide_parameters in production
+├── app/auth/ · api/v1/auth.py   sessions; POST /auth/logout; sign-in and sign-up limits
+├── app/api/deps.py              limit_account(), limit_address(), client_address()
+├── app/api/health.py            /health/ready also checks Redis
+├── app/llm/*_provider.py        AI calls and tokens counted
+├── app/main.py                  API docs off in production; resumes work only without Redis
+├── Dockerfile · .dockerignore   one image: api, worker, migrate (Tesseract inside, never root)
+└── tests/                       redis/ (queue, worker, limits; Redis db 15), test_sessions,
+                                 test_rate_limits (api + unit), test_route_security (every route),
+                                 headers / metrics / JSON logs in test_health, Word-file bombs
+frontend/
+├── next.config.ts               security headers (CSP without nonces); standalone output for Docker
+├── app/signout/route.ts · lib/actions/auth.ts   sign out on the backend; leaving child mode too;
+│                                the browser's address passed on at sign-in and sign-up
+├── lib/backend.ts               endSession(), forwardedFor
+├── lib/copy/hi.ts · hinglish.ts too_many_requests, daily_limit_reached
+├── Dockerfile · .dockerignore
+└── tests/unit/signout.test.ts
+infra/
+├── docker-compose.production.yml   Caddy → frontend → api; worker; migrate; PostgreSQL; Redis;
+│                                   Prometheus (profile monitoring)
+├── Caddyfile · production.env.example
+└── monitoring/prometheus.yml · alerts.yml
+.github/workflows/ci.yml          backend, frontend, e2e, images (+ pip-audit, npm audit)
+docs/08-security-review.md        what was checked, fixed, and is still open
+docker-compose.yml                + Redis
+```
+
+To update a Step 11 setup: `docker compose up -d` (starts Redis, which the tests now need),
+`pip install -r requirements-dev.txt` (saq, redis, prometheus-client, pip-audit; pillow 13 and
+fastembed 0.9.1), `alembic upgrade head` (migration 0010 - already applied to this machine's
+database; **everyone signs in once more**), then restart the API and rebuild or restart the
+frontend. `REDIS_URL` stays empty locally unless you want a worker (README).
+
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: end of Step 11.*
+*Rewritten at the end of every step. Last updated: end of Step 12.*
 
 ### Where things stand
 
-- Steps 1–11 are done. Backend: 381 tests pass (live tests skipped), `ruff` clean. Frontend: 132 unit
-  tests and 15 browser journeys (desktop + phone) pass; `lint`, `typecheck`, `format:check` and
-  `build` are clean.
-- Looked at in a real browser (production build, AI off, desktop and phone): the landing page and
-  parent dashboard in Hindi; a Class 7 child's practice, home and Progress in Hinglish (XP after an
-  answer, streak and goal, the 12-week chart, badges); the parent's Progress in English.
+- **All 12 steps are done.** Backend: 413 tests pass (live tests skipped), `ruff` clean,
+  `pip-audit` clean. Frontend: 136 unit tests and 15 browser journeys (desktop + phone) pass;
+  `lint`, `typecheck`, `format:check` and `build` are clean; `npm audit` has 8 moderate warnings,
+  all in the lint tools.
+- Tried for real in Step 12: the API and a worker with Redis reading a book (the job in Redis, the
+  worker's and the API's metrics, `--check`); the whole production setup on this computer
+  (`DOMAIN=localhost`: HTTPS, http → https, headers, JSON logs) with the sign-up journeys run
+  through it; all 30 journeys against the production build with the CSP on.
+- **CI has not run yet**: it runs on the first push to GitHub. If a job fails there, its log and
+  (for the browser journeys) the uploaded report say why.
 - Node.js: run frontend commands as `PATH="$HOME/.local/node-v24/bin:$PATH" npm …` (unchanged).
 
-### What Step 11 built
+### What Step 12 built
 
-- **Languages.** Every word on screen is in `frontend/lib/copy/{en,hi,hinglish}.ts` (the `Copy`
-  type makes a missing key a build error). The screen language is the `eg_lang` cookie: from the
-  account at sign-in and sign-up (`users.preferred_language`; sign-up keeps the language the screens
-  were in), from the child's `primary_language` in child mode, and from the **language picker**
-  (landing, entry pages, parent Settings, a solo student's header; signed in it also calls
-  `PATCH /auth/me`, which child mode may not). The root layout wraps the page in its `lang` (`hi`,
-  `hi-Latn`) and the client provider; `<html lang>` stays `en` (Cache Components can't read the cookie
-  there). Hindi uses Noto Sans Devanagari; dates use `hi-IN`. The backend sends **codes, not
-  sentences**: recommendation and plan-task reasons are `{code, …numbers}` (`schemas/adaptive.Reason`,
-  worded by `reasonText`); errors are worded by `code` in `FormMessage` (English keeps the backend's
-  own message); class / board / stream / goal / material labels by code (`said`, `classLabel`). Book,
-  chapter and exercise titles stay as printed. Another language = one file, one line in
-  `lib/copy/index.ts`, and `content_enabled` in `app/core/languages.py`.
-- **Rewards** (`analytics/rewards.py`, tables `student_rewards`, `student_badges`): counted with each
-  answer, never recomputed (a deleted book takes nothing away). First answer +2, right first time +8
-  more, a finished practice or a submitted test +20, the day's goal (`default_session_questions`)
-  +10; levels at 100, 250, 450, … XP; the streak counts India-time days with an answer and lasts
-  until the end of the next day; 11 badges. The practice answer carries `rewards: {xp, badges}`; the
-  dashboard and `GET /students/{id}/rewards` the summary. Nursery–Class 2 see stars and stickers, no
-  XP or levels.
-- **Progress over time** (`GET /students/{id}/progress/trends`): 12 weeks (each by its Monday),
-  accuracy by subject, format and difficulty, the last 20 tests. Charts are server-rendered HTML/SVG
-  (`components/charts.tsx`): stacked columns (the dashboard's week chart is the same component), a
-  line for test scores (below 0 with negative marking), a sparkline of a paper chapter's marks by
-  year; each with a hover / focus readout, accessible names and a "Show the numbers" table.
-  `--primary-light` now exists for the Class 3–5 and 9–12 palettes too (checked with the dataviz
-  validator). Class 3–5 get the weeks and subjects; Nursery–Class 2 no charts.
+- **Background workers.** `REDIS_URL` empty: jobs run in the API, as before. Set: `RedisTaskQueue`
+  sends a job's name and ids (JSON) to Redis through SAQ, keyed by name and ids so the same work is
+  never queued twice; `python -m app.worker` runs only the jobs in `JOBS`, marks a running job alive
+  every 30 s (taken over after 120 s without), gives up a job after 2 hours or 3 tries, and queues
+  unfinished work again when it starts. A stopping worker waits 10 s, then puts running jobs back.
+  The rewards row lock is untouched (it is in the answer's request, not a job).
+- **Rate limits** (docs/03 §3.11): failed sign-ins (10 per email, 60 per address, 15 minutes; a
+  full count refuses before the password is checked; a successful sign-in counts nothing), sign-ups
+  (60 per address an hour), and per family: 20 AI requests a minute / 300 a day, 60 practices,
+  tests or paper analyses a day, 100 uploads a day. `429 too_many_requests` /
+  `daily_limit_reached` with `Retry-After`; worded in Hindi and Hinglish. Fail open if Redis is down.
+- **Sessions**: `auth_sessions`, one per sign-in and per child-mode session; every request checks
+  the token's session; `POST /auth/logout` (Sign out, leaving child mode). Refresh tokens are not
+  rotated (on purpose: parallel renewals). Old rows go at the next sign-in.
+- **Security headers** on the API and every page; no API docs in production; production refuses to
+  start without `REDIS_URL`. **Monitoring**: Prometheus metrics on `METRICS_PORT` (API and worker),
+  `infra/monitoring/` alert rules, JSON logs, readiness with Redis, the worker's `--check`.
+- **Docker / server**: one backend image (api, worker, migrate), the standalone frontend image,
+  Caddy in front; README "Run it on a server". **CI**: `.github/workflows/ci.yml`, actions pinned to
+  commits. **Security review**: docs/08, with the fixes it led to (pillow, query values in errors,
+  uvicorn's access log, a 429 that broke the form).
 
 ### Known issues
 
-- **The Hindi and Hinglish wording has not been read by a native speaker.** Read `lib/copy/hi.ts`
-  and `hinglish.ts` before real families use them (the tone is "आप" / "aap", with "तुम" in a few lines
-  for the youngest).
-- Field-level validation messages from the backend (rare: the forms check first) stay English, as do
-  errors whose code the dictionaries don't know yet. Chapter labels say "Chapter 4 …" as the backend
-  makes them.
-- In child mode the screens follow the child's explanation language and there is no picker; to
-  change them, change the child's language.
-- The XP rules, levels, the goal and the badges are starting values. Retaking a test earns its XP
-  again (each sitting's first answers count, as for accuracy).
+- docs/08 §8.3 lists what is still open; first: the DPDP lawyer review, password reset (it must
+  revoke the sessions), backups (nothing automates them), the CSP's inline scripts.
+- `fastembed` 0.9.1 was 12 days old when pinned (the rule is two weeks), to get pillow 13's fixes.
+- **The Hindi and Hinglish wording has not been read by a native speaker** (`lib/copy/hi.ts`,
+  `hinglish.ts`), including Step 12's two new messages.
+- The rate limits, like the XP rules, are starting values; watch `eduguide_rate_limited_total`.
 - Unchanged: written test answers need the AI to be marked; the server does not submit a test whose
   time ran out; lists show the first 50; a failed first chat message leaves an empty conversation;
-  reading a book can hold the API up for a few seconds; `npm audit` (17 moderate); no rate limiting,
-  token revocation or security headers yet; reading a paper and the assistant / tutor are untried on
-  a real model (worth one check with `LLM_PROVIDER=groq`).
+  without Redis, reading a book can still hold the API up for a few seconds; reading a paper and
+  the assistant / tutor are untried on a real model (worth one check with `LLM_PROVIDER=groq`);
+  uploads live on one server's disk (object storage is one `FileStorage` adapter away).
 - **Running the browser tests next to your own servers:** start the API with `LLM_PROVIDER=none` (or
-  use separate ports), or the paper and assistant journeys call the AI.
+  use separate ports), or the paper and assistant journeys call the AI. The journeys make 22
+  sign-ups; the limit is 60 an hour per address, so with `REDIS_URL` set (shared counts) run them at
+  most twice an hour, or clear the counts with `docker compose exec -T redis redis-cli --scan --pattern 'eduguide:limit:*' | xargs docker compose exec -T redis redis-cli del`.
 
-### What Step 12 needs to know
+### What comes next
 
-- Step 12 is **production hardening**: rate limiting, background workers on Redis (the in-process
-  `TaskQueue` in `core/tasks.py` is the seam), Docker images, CI, monitoring, a security review.
-- Work done in the background today: reading books, writing practice and tests, analysing papers,
-  looking for misconceptions; start-up resumes unfinished work (`app/main.py`).
-- Rewards rely on a row lock (`SELECT … FOR UPDATE` on `student_rewards`) inside each answer's
-  transaction; keep that when work moves to workers.
-- `eg_lang` is not secret; `eg_access` / `eg_refresh` are httpOnly. Security headers, a CSP (the
-  charts and bars size themselves with inline styles) and token revocation are still to do.
+The 12-step plan is complete. Sensible next pieces, each worth its own plan first: a pilot with a
+few families (and the native-speaker read and the lawyer review before it), password reset and
+email checks, automated backups, object storage for uploads, Alertmanager for the alerts, and the
+server submitting timed-out tests.

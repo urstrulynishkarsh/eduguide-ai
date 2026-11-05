@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter
 
-from app.api.deps import CurrentPrincipal, DbSession
+from app.api.deps import CurrentPrincipal, DbSession, limit_account
+from app.core.rate_limits import AI_PER_DAY, AI_PER_MINUTE
 from app.schemas.common import ErrorResponse
 from app.schemas.learn import ExplainRequest, ExplainResponse
 from app.services import learn_service
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/learn", tags=["Learn"])
     "/explain",
     response_model=ExplainResponse,
     summary="Explain a concept from the child's books",
+    dependencies=[limit_account(AI_PER_MINUTE, AI_PER_DAY)],
     responses={
         422: {"model": ErrorResponse, "description": "`insufficient_context`: the books do not cover this"},
         503: {"model": ErrorResponse, "description": "`ai_not_configured` or `ai_unavailable`"},

@@ -30,11 +30,19 @@ class AppError(Exception):
         self.details = details
         super().__init__(self.message)
 
+    @property
+    def headers(self) -> dict[str, str] | None:
+        return None
+
 
 class AuthenticationError(AppError):
     status_code = 401
     code = "not_authenticated"
     message = "Please sign in to continue."
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return {"WWW-Authenticate": "Bearer"}
 
 
 class PermissionDeniedError(AppError):
@@ -53,6 +61,26 @@ class ConflictError(AppError):
     status_code = 409
     code = "conflict"
     message = "This conflicts with something that already exists."
+
+
+class TooManyRequestsError(AppError):
+    """A rate limit (core/rate_limits.py). The `Retry-After` header says in how many seconds it may be
+    tried again (`details` stays what it is everywhere: the fields at fault, here none)."""
+
+    status_code = 429
+    code = "too_many_requests"
+    message = "Too many tries in a short time. Please wait a little and try again."
+
+    def __init__(self, retry_after: int, *, daily: bool = False) -> None:
+        super().__init__(
+            "Today's allowance for this has been used. It starts again at midnight." if daily else None,
+            code="daily_limit_reached" if daily else None,
+        )
+        self.retry_after = retry_after
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return {"Retry-After": str(self.retry_after)}
 
 
 class InvalidInputError(AppError):
@@ -89,11 +117,10 @@ def _field_path(location: tuple[Any, ...]) -> str:
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
-        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
         return JSONResponse(
             status_code=exc.status_code,
             content=error_body(exc.code, exc.message, exc.details),
-            headers=headers,
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)

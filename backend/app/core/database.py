@@ -18,6 +18,9 @@ engine: AsyncEngine = create_async_engine(
     _settings.database_url,
     echo=_settings.db_echo,
     pool_pre_ping=True,
+    # A failed query's error names its values (a child's answer, a name); in production they are left
+    # out of the error, and so out of the logs.
+    hide_parameters=_settings.is_production,
 )
 
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)

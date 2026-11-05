@@ -1,0 +1,43 @@
+# What is worth someone's attention. Starting values: adjust them to what the server really sees.
+groups:
+  - name: eduguide
+    rules:
+      - alert: ApiDown
+        expr: up{job="api"} == 0 or absent(up{job="api"})
+        for: 2m
+        annotations:
+          summary: The API is not answering; nobody can sign in or practise.
+      - alert: WorkerDown
+        expr: up{job="worker"} == 0 or absent(up{job="worker"})
+        for: 5m
+        annotations:
+          summary: No worker is running; books are not read and practice is not prepared.
+      - alert: ServerErrors
+        expr: >
+          sum(rate(eduguide_http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(eduguide_http_requests_total[5m])) > 0.05
+        for: 10m
+        annotations:
+          summary: More than 5% of requests fail on the server's side; look at the API's logs.
+      - alert: SlowAnswers
+        # Uploads and the streamed chat replies are long by nature.
+        expr: >
+          histogram_quantile(0.95, sum by (le) (rate(eduguide_http_request_duration_seconds_bucket{route!~".*/(documents|messages)"}[5m]))) > 2
+        for: 15m
+        annotations:
+          summary: One answer in twenty takes more than 2 seconds.
+      - alert: JobsFailing
+        expr: sum(increase(eduguide_jobs_total{outcome="failed"}[1h])) > 3
+        annotations:
+          summary: Background jobs keep failing; look at the worker's logs.
+      - alert: AiFailing
+        expr: >
+          sum(rate(eduguide_ai_requests_total{outcome="failed"}[10m]))
+          / sum(rate(eduguide_ai_requests_total[10m])) > 0.2
+        for: 10m
+        annotations:
+          summary: More than 20% of calls to the AI fail (its key, its limits, or the provider is down).
+      - alert: PasswordGuessing
+        expr: sum(increase(eduguide_rate_limited_total{limit=~"sign_in_.*"}[15m])) > 20
+        annotations:
+          summary: Many sign-ins were refused for too many wrong passwords.

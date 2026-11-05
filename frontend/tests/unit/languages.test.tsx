@@ -73,6 +73,12 @@ describe("words the backend sends", () => {
     const hi = copyFor("hi");
     expect(said(hi.errors, "book_not_found", "We couldn't find this book.")).toBe("हमें यह किताब नहीं मिली।");
     expect(said(hi.errors, "a_new_code", "Something new.")).toBe("Something new.");
+    // The rate limits (Step 12): English keeps the backend's own sentence.
+    for (const language of ["hi", "hinglish"] as const) {
+      for (const code of ["too_many_requests", "daily_limit_reached"]) {
+        expect(copyFor(language).errors[code], `${language} ${code}`).toBeTruthy();
+      }
+    }
     expect(classLabel(hi, { class_level: "class_7", class_label: "Class 7" })).toBe("कक्षा 7");
     expect(classLabel(en, { class_level: "class_7", class_label: "Class 7" })).toBe("Class 7");
     expect(reasonText(en, REASONS[0])).toBe(

@@ -4,8 +4,9 @@ import uuid
 
 from fastapi import APIRouter, Response, status
 
-from app.api.deps import CurrentPrincipal, DbSession, Queue, Storage
+from app.api.deps import CurrentPrincipal, DbSession, Queue, Storage, limit_account
 from app.api.v1.library_views import document_out
+from app.core.rate_limits import UPLOADS_PER_DAY
 from app.schemas.library import DocumentOut
 from app.services import document_service
 
@@ -24,6 +25,7 @@ async def get_document(document_id: uuid.UUID, principal: CurrentPrincipal, db: 
     response_model=DocumentOut,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Read a failed file again",
+    dependencies=[limit_account(UPLOADS_PER_DAY)],
 )
 async def retry_document(
     document_id: uuid.UUID, principal: CurrentPrincipal, db: DbSession, queue: Queue

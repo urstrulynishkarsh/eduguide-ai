@@ -12,7 +12,7 @@ from app.core.database import get_db
 from app.core.enums import Role
 from app.core.errors import AuthenticationError, PermissionDeniedError
 from app.core.security import TokenError, TokenType, decode_token
-from app.models import Student, User
+from app.models import AuthSession, Student, User
 from app.services.student_service import owned_by
 
 _bearer = HTTPBearer(auto_error=False, description="Paste the `access_token` you got from /auth/login.")
@@ -32,7 +32,14 @@ async def get_current_principal(
     except TokenError:
         raise AuthenticationError(_BAD_SESSION, code="invalid_token") from None
 
-    user = await db.get(User, payload.user_id)
+    # The account, if the token's session has not been signed out.
+    user = await db.scalar(
+        select(User)
+        .join(AuthSession, AuthSession.user_id == User.id)
+        .where(
+            User.id == payload.user_id, AuthSession.id == payload.session_id, AuthSession.revoked_at.is_(None)
+        )
+    )
     if user is None or not user.is_active:
         raise AuthenticationError(_BAD_SESSION, code="invalid_token")
 

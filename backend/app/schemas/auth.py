@@ -45,6 +45,11 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    # Any token of the session: the refresh token, or the access token in child mode.
+    token: str = Field(min_length=1, max_length=4096)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

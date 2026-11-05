@@ -5,7 +5,7 @@
 #   docker compose down       stop (data is kept)
 #   docker compose down -v    stop and DELETE all local data
 #
-# Redis is added in the step that first needs it.
+# For a server, see infra/docker-compose.production.yml instead.
 
 name: eduguide
 
@@ -27,6 +27,19 @@ services:
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U eduguide -d eduguide"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    # Background jobs and rate limits when REDIS_URL is set in backend/.env (it is empty by default:
+    # jobs then run inside the API). The tests of the Redis parts use database 15.
+    image: redis:8.10.1-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20

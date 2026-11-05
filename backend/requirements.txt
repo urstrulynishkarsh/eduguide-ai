@@ -16,11 +16,16 @@ python-multipart==0.0.32   # file uploads
 pypdfium2==5.14.0          # PDF text, fonts, outline, page images for OCR
 python-docx==1.2.0         # Word documents
 lxml==6.1.3                # safe XML parsing (also used by python-docx)
-pillow==12.3.0             # page images for OCR
+pillow==13.0.0             # page images for OCR
 
 # Search inside books and the AI layer (Step 3)
 pgvector==0.5.1            # vector column type for PostgreSQL
-fastembed==0.9.0           # runs the local multilingual search model through ONNX (no PyTorch)
+fastembed==0.9.1           # runs the local multilingual search model through ONNX (no PyTorch); 0.9.1 allows pillow 13
 onnxruntime==1.31.0        # used by fastembed; pinned to a release older than two weeks
 anthropic==2.1.0           # Claude; 2.x sends API version 2026-10-21
 groq==1.7.0                # open models on Groq (LLM_PROVIDER=groq)
+
+# Production hardening (Step 12)
+saq[redis]==0.26.4         # background jobs on Redis (REDIS_URL); JSON, not pickle
+redis==7.4.1               # saq and the rate limits (saq needs a version below 8)
+prometheus-client==0.26.0  # metrics for monitoring (METRICS_PORT)

@@ -198,11 +198,15 @@ complete, so a reply that fails half-way leaves nothing behind.
 
 ## 6.6 Cost and speed
 
-- Batch generation; reuse saved questions; cache identical requests (Redis, Step 12).
+- Batch generation; reuse saved questions. Identical requests are not cached (decided in Step 12):
+  practice and tests already reuse the question bank, and explanations and chats are about one
+  learner and their books.
 - Lower effort for small jobs (tiers); a cheaper model per tier is one setting. The system prompt is cached.
 - The search model runs locally, so reading and searching books costs nothing per book.
-- Token budget per request for passages; per-family daily limits (Step 12).
-- Every call logs model, tier, input / output tokens, latency and outcome (passed, regenerated, dropped).
+- Token budget per request for passages; per-family limits (Step 12): 20 AI requests a minute and
+  300 a day, 60 practices, tests or paper analyses a day (docs/03 §3.11).
+- Every call logs model, tier, input / output tokens, latency and outcome (passed, regenerated, dropped),
+  and is counted for monitoring (`eduguide_ai_requests_total`, `eduguide_ai_tokens_total`, Step 12).
 
 ## 6.7 Settings (added in Step 3)
 
