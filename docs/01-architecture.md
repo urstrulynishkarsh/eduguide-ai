@@ -107,7 +107,10 @@ Token claims:
 | `sub` (account) | parent's user id | parent's user id | student's user id |
 | `role` (may act as) | `parent` | `student` | `student` |
 | `sid` (limited to learner) | — | the child's id | their own learner id |
-| `ses` (session, Step 12) | the sign-in's session | its own session (signed out on leaving child mode) | the sign-in's session |
+| `ses` (session, Step 12) | the sign-in's session | its own session, which names the child (renewed as that child; only the parent PIN ends it) | the sign-in's session |
+
+Child mode needs a **parent PIN** (4 digits, set with the account's password), and only that PIN
+ends it: the exit screen has no password field for a browser to fill in (docs/08 §8.3).
 
 What a `student` session can do: see and practise as **that one learner only**. It cannot see
 siblings, change name / class / board, add or remove children, or open any parent screen.

@@ -1,16 +1,25 @@
-"""Sign-up, sign-in and "who am I"."""
+"""Sign-up, sign-in, "who am I", and the parent PIN that leaves child mode."""
 
 from fastapi import APIRouter, Request, Response, status
 
-from app.api.deps import CurrentPrincipal, DbSession, RateCounter, client_address, limit_address
+from app.api.deps import (
+    CurrentPrincipal,
+    DbSession,
+    ParentPrincipal,
+    RateCounter,
+    client_address,
+    limit_address,
+)
 from app.auth import service as auth_service
 from app.core import rate_limits
 from app.schemas.auth import (
     AccountUpdate,
     AuthResponse,
+    LeaveChildModeRequest,
     LoginRequest,
     LogoutRequest,
     MeResponse,
+    PinUpdate,
     RefreshRequest,
     RegisterRequest,
     TokenPair,
@@ -62,10 +71,36 @@ async def refresh(data: RefreshRequest, db: DbSession) -> TokenPair:
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Sign out")
 async def logout(data: LogoutRequest, db: DbSession) -> Response:
-    """Ends the session of the token sent (the refresh token, or in child mode the access token):
-    none of its tokens work any more. Always `204`, also for a session that has ended already."""
+    """Ends the session of the token sent (its access or refresh token): none of its tokens work any
+    more. `204`, also for a session that has ended already. Child mode answers `403 pin_required`:
+    only the parent PIN ends it (`POST /auth/child-mode/leave`)."""
     await auth_service.sign_out(db, data.token)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/pin", status_code=status.HTTP_204_NO_CONTENT, summary="Set or change the parent PIN")
+async def set_pin(
+    data: PinUpdate, principal: ParentPrincipal, db: DbSession, counter: RateCounter
+) -> Response:
+    """The 4-digit PIN that leaves child mode; needed before the first hand-over. Needs the account's
+    password (`401 wrong_password`), counted like a failed sign-in for the account's email."""
+    async with rate_limits.failures(counter, (rate_limits.SIGN_IN_PER_EMAIL, principal.user.email)):
+        await auth_service.set_pin(db, principal, data.password, data.pin)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/child-mode/leave", response_model=AuthResponse, summary="Leave child mode with the parent PIN")
+async def leave_child_mode(
+    data: LeaveChildModeRequest, principal: CurrentPrincipal, db: DbSession, counter: RateCounter
+) -> AuthResponse:
+    """Sent with the child-mode token. The right PIN ends child mode and signs the parent in (tokens
+    as at sign-in); a wrong one is `401 wrong_pin`. 5 wrong PINs in 15 minutes, or 20 in a day, and
+    the family waits (`429`). Anything but child mode is `403 not_child_mode`."""
+    family = principal.user.id.hex
+    counted = ((rate_limits.PIN_PER_ACCOUNT, family), (rate_limits.PIN_PER_DAY, family))
+    async with rate_limits.failures(counter, *counted):
+        tokens = await auth_service.leave_child_mode(db, principal, data.pin)
+    return AuthResponse(user=UserOut.model_validate(principal.user), tokens=tokens)
 
 
 @router.patch("/me", response_model=UserOut, summary="Change the account's screen language")
@@ -83,6 +118,7 @@ async def me(principal: CurrentPrincipal, db: DbSession) -> MeResponse:
         onboarding_complete = await student_service.count_students(db, principal) > 0
     return MeResponse(
         user=UserOut.model_validate(principal.user),
+        pin_set=await auth_service.has_pin(db, principal.user),
         active_role=principal.role,
         active_student=StudentOut.model_validate(principal.student) if principal.student else None,
         onboarding_complete=onboarding_complete,

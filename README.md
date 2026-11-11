@@ -29,7 +29,8 @@ from Nursery to Class 12.
 - Landing page, sign-up ("Who are you? Parent / Student") and sign-in
 - **Add Child** with the class first: stream, goals and subject suggestions follow the class
 - **Who is learning today?** — the parent taps a child and hands over the device (child mode).
-  Leaving child mode asks for the parent's password
+  The first hand-over asks for a 4-digit parent PIN; leaving child mode asks for it on an on-screen
+  number pad (nothing a browser can fill in), and nothing else ends child mode
 - **My Books**: upload a PDF, Word or text file with a progress bar, then watch it being read
   (✓ Reading your book … ✓ Getting practice ready). Chapters, topics, and exercise questions exactly
   as printed, with page numbers
@@ -238,7 +239,7 @@ Without a running worker, uploaded books then stay *waiting*.
 
 | Email | Password | Who |
 |---|---|---|
-| `parent@example.com` | `DemoParent123` | Sunita Sharma — children: Aarav (Class 7, CBSE, a sample Maths chapter) and Anaya (UKG, a sample picture book in Hindi) |
+| `parent@example.com` | `DemoParent123` | Sunita Sharma, parent PIN `2468` — children: Aarav (Class 7, CBSE, a sample Maths chapter) and Anaya (UKG, a sample picture book in Hindi) |
 | `student@example.com` | `DemoStudent123` | Kabir Verma — Class 12 Science, preparing for JEE |
 
 These passwords are public; the seed script refuses to run when `ENVIRONMENT=production`.

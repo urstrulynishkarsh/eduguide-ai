@@ -36,6 +36,7 @@ database to run, back up and secure.
 |---|---|---|
 | `id` | uuid, PK | |
 | `user_id` | uuid, unique, FK → `users.id` | one row per parent account |
+| `pin_hash` | text, null | the parent PIN (Argon2, like the password) that leaves child mode; set before the first hand-over (migration `0011`) |
 
 Small today on purpose. Notification settings, phone number and plan details will live here.
 
@@ -290,7 +291,11 @@ Migration `0010`. Goes with the account (`ON DELETE CASCADE`).
 
 Every token names its session (the `ses` claim) and every request checks it has not been revoked, in
 the same query that loads the account. `POST /auth/logout` revokes it. An account's expired and
-signed-out rows are deleted when it next signs in. The background jobs and the rate limits live in
+signed-out rows are deleted when it next signs in.
+
+Migration `0011` adds `student_id` (null, FK → `students.id`, `ON DELETE CASCADE`): set on a
+child-mode session, the child it acts as. Its refresh token renews it as that child only; removing
+the child removes the session; only the parent PIN signs it out (`POST /auth/child-mode/leave`). The background jobs and the rate limits live in
 Redis, not in tables.
 
 ## 2.10 The whole picture
@@ -348,7 +353,8 @@ erDiagram
     students ||--o{ student_badges : earns
 ```
 
-All 12 steps are built; `auth_sessions` (Step 12) is the last table so far.
+All 12 steps are built; `auth_sessions` (Step 12) is the last table so far. Migration `0011` (the
+parent PIN) added two columns: `parents.pin_hash` and `auth_sessions.student_id`.
 
 **Why `books` and `documents` are separate:** NCERT publishes a textbook as one PDF per chapter. A
 parent should see *one* "Class 8 Mathematics" in the library even if it arrived as 13 files.

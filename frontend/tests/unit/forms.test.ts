@@ -72,7 +72,7 @@ describe("childFromForm", () => {
     expect(
       childFromForm(
         formData([
-          ["name", " Aarav "],
+          ["child_name", " Aarav "],
           ["age", "12"],
         ]),
       ),
@@ -83,7 +83,7 @@ describe("childFromForm", () => {
     expect(
       childFromForm(
         formData([
-          ["name", "Anaya"],
+          ["child_name", "Anaya"],
           ["age", ""],
         ]),
       ),

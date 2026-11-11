@@ -85,7 +85,8 @@ export default async function LandingPage() {
                 <span aria-hidden className="text-3xl">
                   {group.emoji}
                 </span>
-                <h3 className="text-lg font-bold text-primary">{group.title}</h3>
+                {/* Large text (20px bold) needs 3:1, which the youngest layout's orange has, not 4.5:1. */}
+                <h3 className="text-xl font-bold text-primary">{group.title}</h3>
                 <p className="text-sm text-muted-foreground">{group.text}</p>
               </li>
             ))}

@@ -44,13 +44,6 @@ describe("storeTokens", () => {
     expect(options).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/" });
     expect(options.expires.getTime()).toBe(readClaims(access)!.exp * 1000);
   });
-
-  it("drops the parent's refresh token in child mode", () => {
-    const store = fakeStore();
-    storeTokens(store, fakeToken("student", 43200), null);
-    expect(store.set).toHaveBeenCalledOnce();
-    expect(store.delete).toHaveBeenCalledWith(REFRESH_COOKIE);
-  });
 });
 
 it("clearTokens forgets the whole session", () => {

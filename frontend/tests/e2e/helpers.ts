@@ -1,8 +1,11 @@
 import path from "node:path";
 
-import { expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export const PASSWORD = "Secret-pass-123";
+/** The parent PIN of the journeys' parents, and of the demo parent (backend/scripts/seed.py). */
+export const PIN = "2468";
 const SAMPLE_BOOK = path.resolve(__dirname, "../../../backend/scripts/sample_data/class7-maths-sample.txt");
 
 /** A new email for every test run, so runs never collide with each other or the demo accounts. */
@@ -36,6 +39,23 @@ export async function chooseClass(page: Page, classLabel: string, childName?: st
 /** The message of a refused form (not Next.js's own route announcer, which is also an alert). */
 export function formMessage(page: Page) {
   return page.locator("form").getByRole("alert");
+}
+
+/**
+ * The screen as it is now breaks none of the WCAG 2.2 A and AA rules axe can check: labels,
+ * contrast on the cream theme, `autocomplete` values, ARIA… Screens kept mounted but hidden (Cache
+ * Components) are not looked at. A soft check: the journey goes on, so one run lists every screen's
+ * problems, each with axe's reason (for contrast: the colours and the ratio).
+ */
+export async function expectAccessible(page: Page) {
+  await page.waitForLoadState("networkidle");
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  const found = violations.flatMap(({ id, nodes }) =>
+    nodes.map((node) => `${id}: ${node.target} – ${node.any[0]?.message ?? node.failureSummary}`),
+  );
+  expect.soft(found, `on ${page.url()}`).toEqual([]);
 }
 
 export async function expectLayout(page: Page, uiMode: string) {
@@ -99,12 +119,24 @@ export async function practiseChapter(page: Page, bookTitle: string) {
   await expect(page).toHaveURL(/\/parent\/practice\/[^/?]+$/);
 }
 
-/** Leaves child mode. Its screens are in the child's language, so the form is found by its fields. */
+/** Taps a PIN on a number pad. Its buttons are digits in every language. */
+export async function tapPin(pad: Locator, pin = PIN) {
+  for (const digit of pin) await pad.getByRole("button", { name: digit, exact: true }).click();
+}
+
+/** A new parent's first hand-over: the parent PIN is chosen, then child mode starts. */
+export async function choosePin(page: Page) {
+  await expect(page).toHaveURL(/\/who-is-learning\/pin\?/);
+  await page.getByLabel("Your password").fill(PASSWORD);
+  await tapPin(page.getByRole("group", { name: "New PIN" }));
+  await tapPin(page.getByRole("group", { name: "The PIN again" }));
+  await page.getByRole("button", { name: "Save PIN and start" }).click();
+}
+
+/** Leaves child mode with the parent PIN. Its screens are in the child's language: the pad's are digits. */
 export async function leaveChildMode(page: Page) {
   await page.goto("/learn/exit");
-  const form = page.locator("main form").filter({ visible: true });
-  await form.locator('input[name="password"]').fill("DemoParent123");
-  await form.getByRole("button").click();
+  await tapPin(page.locator("main form").filter({ visible: true }));
   await expect(page).toHaveURL(/\/who-is-learning$/);
 }
 

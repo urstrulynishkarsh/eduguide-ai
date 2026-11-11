@@ -46,7 +46,7 @@ async def get_current_principal(
     if payload.role is Role.PARENT:
         if user.role != Role.PARENT:
             raise AuthenticationError(_BAD_SESSION, code="invalid_token")
-        return Principal(user=user, role=Role.PARENT)
+        return Principal(user=user, role=Role.PARENT, session_id=payload.session_id)
 
     # A student session: either a student's own login or a parent in child mode.
     # Checked on every request, so the token stops working if the child is removed.
@@ -55,7 +55,7 @@ async def get_current_principal(
         student = await db.scalar(select(Student).where(Student.id == payload.student_id, owned_by(user.id)))
     if student is None:
         raise AuthenticationError(_BAD_SESSION, code="invalid_token")
-    return Principal(user=user, role=Role.STUDENT, student=student)
+    return Principal(user=user, role=Role.STUDENT, student=student, session_id=payload.session_id)
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]

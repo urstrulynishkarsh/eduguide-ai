@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { chooseClass, signUp, uniqueEmail, uploadSampleBook } from "./helpers";
+import { chooseClass, choosePin, signUp, uniqueEmail, uploadSampleBook } from "./helpers";
 
 /** A date `days` from today, as a date field takes it (YYYY-MM-DD). */
 function daysFromNow(days: number): string {
@@ -53,6 +53,7 @@ test("a parent makes a study plan, the child starts today's tasks, and both ask 
   // Riya's screen: a learn task opens Learn a Concept with its question, and is ticked off.
   await page.goto("/who-is-learning");
   await page.getByRole("button", { name: /Riya/ }).click();
+  await choosePin(page);
   await expect(page).toHaveURL(/\/learn$/);
   const learnTask = () =>
     page

@@ -45,6 +45,12 @@ export function draftOf(answer: Answer): Draft {
   };
 }
 
+/**
+ * For typed answers: a blank is marked on its exact spelling, so no red underline or right-click
+ * suggestion may hint it and no phone keyboard may "correct" it.
+ */
+const unaided = { spellCheck: false, autoCorrect: "off" } as const;
+
 const optionClass = (chosen: boolean) =>
   cn(
     "rounded-lg border-2 bg-card px-4 py-3 text-left font-medium transition-colors hover:border-primary/60 disabled:cursor-default",
@@ -172,9 +178,11 @@ export function AnswerInput({
       value={draft.text ?? ""}
       disabled={disabled}
       onChange={(event) => onChange({ text: event.target.value })}
+      {...unaided}
     />
   ) : (
     <textarea
+      {...unaided}
       aria-label={text.yourAnswer}
       placeholder={text.textPlaceholder}
       rows={question.format === "long_answer" ? 7 : 3}

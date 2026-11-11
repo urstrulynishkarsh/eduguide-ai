@@ -33,6 +33,8 @@ export interface Student {
 
 export interface Me {
   user: User;
+  /** The parent PIN is set: child mode needs one, and only it leaves child mode. */
+  pin_set: boolean;
   active_role: Role;
   active_student: Student | null;
   onboarding_complete: boolean;
@@ -48,8 +50,8 @@ export interface AuthResponse {
   tokens: TokenPair;
 }
 
-export interface ChildSession {
-  access_token: string;
+/** Child mode's tokens: renewed as this child only, until the parent PIN ends it. */
+export interface ChildSession extends TokenPair {
   student: Student;
 }
 

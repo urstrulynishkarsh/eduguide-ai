@@ -48,6 +48,10 @@ class Limit:
 SIGN_IN_PER_EMAIL = Limit("sign_in_email", 10, 15 * 60)
 SIGN_IN_PER_ADDRESS = Limit("sign_in_address", 60, 15 * 60)
 SIGN_UP_PER_ADDRESS = Limit("sign_up_address", 60, 60 * 60)
+# Wrong parent PINs only (`failures`), per family: guessing the PIN that leaves child mode. With 4
+# digits, trying them all at 20 a day takes over a year.
+PIN_PER_ACCOUNT = Limit("pin_account", 5, 15 * 60)
+PIN_PER_DAY = Limit("pin_day", 20, _DAY)
 # Explain, the tutor and the assistant: each request is one or more calls to the AI.
 AI_PER_MINUTE = Limit("ai_minute", 20, 60)
 AI_PER_DAY = Limit("ai_day", 300, _DAY)
@@ -148,9 +152,9 @@ async def check_ai(counter: Counter, account: uuid.UUID) -> None:
 
 @asynccontextmanager
 async def failures(counter: Counter, *counted: tuple[Limit, str]) -> AsyncIterator[None]:
-    """For signing in: refuses (429) while any count is at its limit, before the password is even
-    looked at; counts one more for each when the block fails to sign in. Signing in that works
-    counts nothing."""
+    """For a password or a PIN: refuses (429) while any count is at its limit, before it is even
+    looked at; counts one more for each when the block finds it wrong. One that is right counts
+    nothing."""
     windows = [(limit, _window(limit, who)) for limit, who in counted]
     for limit, window in windows:
         if await counter.get(window.key) >= limit.times:

@@ -55,21 +55,40 @@ export async function saveOwnProfile(_: FormState, formData: FormData): Promise<
   redirect("/learn");
 }
 
+/** Child mode for a child, straight into a practice or a test made for them if one is named. */
+export interface HandOver {
+  child: string;
+  practice?: string;
+  test?: string;
+}
+
 /**
  * The parent hands the device to a child, optionally straight into a practice or a test made for
- * them. A test's clock starts now (a sitting in progress is carried on), before the hand-over, so
- * nothing has changed if it can't. The parent's refresh token is dropped (see lib/session.ts).
+ * them. Without a parent PIN, which is the only way out of child mode, one is set first
+ * (/who-is-learning/pin, which then comes back here). A test's clock starts now (a sitting in
+ * progress is carried on), before the hand-over, so nothing has changed if it can't. Child mode's
+ * tokens replace the parent's on this device (see lib/session.ts).
  */
 export async function startChildMode(
   studentId: string,
   start: { practice?: string; test?: string },
 ): Promise<void> {
   const id = encodeURIComponent;
+  if (!(await api<Me>("/auth/me")).pin_set) {
+    const handOver = new URLSearchParams({ child: studentId });
+    if (start.practice) handOver.set("practice", start.practice);
+    if (start.test) handOver.set("test", start.test);
+    redirect(`/who-is-learning/pin?${handOver}`);
+  }
   const sitting =
     start.test && (await api<TestAttempt>(`/mock-tests/${id(start.test)}/attempts`, { method: "POST" }));
   const session = await api<ChildSession>(`${path(studentId)}/session`, { method: "POST" });
   // The screens in the child's language (the language of their explanations) until a grown-up returns.
-  await saveSession(session.access_token, null, session.student.profile?.primary_language ?? "en");
+  await saveSession(
+    session.access_token,
+    session.refresh_token,
+    session.student.profile?.primary_language ?? "en",
+  );
   if (sitting) redirect(`/learn/tests/${id(sitting.id)}`);
   redirect(start.practice ? `/learn/practice/${id(start.practice)}` : "/learn");
 }

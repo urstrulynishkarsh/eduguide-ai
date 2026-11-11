@@ -1,38 +1,34 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { startChildMode, type HandOver } from "@/lib/actions/students";
 import { api, saveLanguage, saveSession } from "@/lib/api";
-import { callBackend, endSession } from "@/lib/backend";
+import { callBackend } from "@/lib/backend";
 import { screenLanguage } from "@/lib/copy";
 import { currentLanguage } from "@/lib/copy/server";
 import { formError, formText, type FormState } from "@/lib/forms";
 import { homeFor } from "@/lib/routes";
-import { ACCESS_COOKIE } from "@/lib/session";
-import type { AuthResponse, Me, Role } from "@/lib/types";
+import type { AuthResponse, Role } from "@/lib/types";
 
 /** The browser's address as this server received it, passed on to the backend's limits. */
 async function browserAddress(): Promise<string | null> {
   return (await headers()).get("x-forwarded-for");
 }
 
-async function signInWith(email: string, password: string): Promise<Role> {
-  const { user, tokens } = await callBackend<AuthResponse>("/auth/login", {
-    method: "POST",
-    body: { email, password },
-    forwardedFor: await browserAddress(),
-  });
-  await saveSession(tokens.access_token, tokens.refresh_token, user.preferred_language);
-  return user.role;
-}
-
 export async function signIn(_: FormState, formData: FormData): Promise<FormState> {
   const email = formText(formData, "email");
   let role: Role;
   try {
-    role = await signInWith(email, String(formData.get("password") ?? ""));
+    const { user, tokens } = await callBackend<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: { email, password: String(formData.get("password") ?? "") },
+      forwardedFor: await browserAddress(),
+    });
+    await saveSession(tokens.access_token, tokens.refresh_token, user.preferred_language);
+    role = user.role;
   } catch (error) {
     return { ...formError(error), values: { email } };
   }
@@ -72,18 +68,41 @@ export async function chooseLanguage(language: string): Promise<void> {
 }
 
 /**
- * Leaves child mode. The child-mode token belongs to the parent's account, so its email is
- * known; the parent proves who they are with their password and gets their own session back.
- * The child-mode session is then signed out on the backend.
+ * Leaves child mode with the parent PIN (typed on the number pad: nothing a browser fills in). The
+ * backend ends child mode and signs the parent in again, on a session of their own.
  */
-export async function exitChildMode(_: FormState, formData: FormData): Promise<FormState> {
-  const childToken = (await cookies()).get(ACCESS_COOKIE)?.value;
+export async function leaveChildMode(_: FormState, formData: FormData): Promise<FormState> {
   try {
-    const me = await api<Me>("/auth/me");
-    await signInWith(me.user.email, String(formData.get("password") ?? ""));
+    const { user, tokens } = await api<AuthResponse>("/auth/child-mode/leave", {
+      method: "POST",
+      body: { pin: formText(formData, "pin") },
+    });
+    await saveSession(tokens.access_token, tokens.refresh_token, user.preferred_language);
   } catch (error) {
     return formError(error);
   }
-  await endSession(childToken);
   redirect("/who-is-learning");
+}
+
+/** The PIN form's state: a refusal, or that the PIN was saved. */
+export type PinState = FormState & { saved?: boolean };
+
+/**
+ * Sets or changes the parent PIN, typed twice on the number pad; the backend checks the password.
+ * Before the first hand-over (`handOver`), child mode then starts as the parent asked.
+ */
+export async function setPin(handOver: HandOver | null, _: PinState, formData: FormData): Promise<PinState> {
+  const pin = formText(formData, "pin");
+  if (pin !== formText(formData, "pin_again")) return { code: "pins_differ" };
+  try {
+    await api("/auth/pin", {
+      method: "PUT",
+      body: { password: String(formData.get("password") ?? ""), pin },
+    });
+  } catch (error) {
+    return formError(error);
+  }
+  if (handOver) await startChildMode(handOver.child, handOver);
+  refresh();
+  return { saved: true };
 }

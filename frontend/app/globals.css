@@ -60,7 +60,7 @@
   --accent-foreground: oklch(0.3 0.06 60);
   --muted: oklch(0.944 0.026 82);
   --muted-foreground: oklch(0.47 0.03 60);
-  --success: oklch(0.53 0.135 155);
+  --success: oklch(0.5 0.135 155); /* 4.7:1 even on its own 10% tint (the "Ready" pill) */
   --destructive: oklch(0.54 0.21 27);
   --border: oklch(0.885 0.03 80);
 }
@@ -105,5 +105,15 @@
   h2,
   h3 {
     @apply font-display;
+  }
+  /*
+   * A field the browser filled (sign-in, sign-up) keeps the cream with an amber tint instead of
+   * Chrome's blue, which it paints with !important: an inset shadow covers it. Set as Tailwind's
+   * inset-shadow layer, so `shadow-xs` and the focus ring still show.
+   */
+  :autofill {
+    --tw-inset-shadow: inset 0 0 0 100vmax color-mix(in oklch, var(--accent) 22%, var(--card));
+    box-shadow: var(--tw-inset-shadow);
+    -webkit-text-fill-color: var(--foreground);
   }
 }

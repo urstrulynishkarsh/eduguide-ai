@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { answerFor, pictureAndWord } from "@/components/answer-input";
+import { AnswerInput, answerFor, pictureAndWord } from "@/components/answer-input";
 import { PracticePlayer } from "@/components/practice-player";
 import { answerQuestion, getHelp } from "@/lib/actions/practice";
 import type { PracticeSession, Question } from "@/lib/types";
@@ -74,6 +74,16 @@ it("pictureAndWord splits the picture from its word", () => {
   expect(pictureAndWord("🍎 सेब")).toEqual({ picture: "🍎", word: "सेब" });
   expect(pictureAndWord("Apple")).toEqual({ word: "Apple" });
 });
+
+it.each(["fill_blank", "short_answer", "long_answer"] as const)(
+  "gives no spelling hints or autocorrect in a typed answer (%s)",
+  (format) => {
+    render(<AnswerInput question={question({ format })} draft={{}} onChange={vi.fn()} disabled={false} />);
+    const box = screen.getByLabelText("Your answer");
+    expect(box).toHaveAttribute("spellcheck", "false");
+    expect(box).toHaveAttribute("autocorrect", "off");
+  },
+);
 
 describe("PracticePlayer", () => {
   it("checks a chosen option and moves on to the next question", async () => {

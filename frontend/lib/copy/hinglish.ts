@@ -650,10 +650,33 @@ export const hinglish: Copy = {
 
   exitChildMode: {
     title: "Badon ke liye",
-    text: "Is bachche ki screen se bahar jaane ke liye parent ka password daaliye.",
-    password: "Parent ka password",
-    submit: "Aage badhein",
+    text: "Is bachche ki screen se bahar jaane ke liye parent PIN daaliye.",
+    pin: "Parent PIN",
+    forgot:
+      "PIN bhool gaye? Kisi doosre phone ya computer par sign in karein aur Settings mein naya PIN banayein.",
     back: "Padhai par wapas",
+  },
+
+  parentPin: {
+    title: "Parent PIN",
+    isSet:
+      "Aapka PIN device ko bachche ki screen se wapas leta hai. Agar kisi bachche ne ise dekh liya ho, to ise badal dein.",
+    notSet: "4 digit ka ek PIN chuniye. Device bachche ko dene aur wapas lene ke liye iski zaroorat hogi.",
+    handOverTitle: "Parent PIN chuniye",
+    handOverText:
+      "Device dene se pehle 4 digit ka ek PIN chuniye. Bachche ki screen se bahar jaate waqt yahi poochha jaayega; wahan aapka password kaam nahin karega.",
+    password: "Aapka password",
+    pin: "Naya PIN",
+    again: "PIN phir se",
+    save: "PIN save karein",
+    saveAndStart: "PIN save karke shuru karein",
+    saved: "PIN save ho gaya.",
+    tip: "Jis device ko aapka bachcha use karta hai, us par browser ko apna password save na karne dein: save kiya hua password kisi ko bhi aapke naam se sign in kara deta hai.",
+  },
+
+  pinPad: {
+    entered: (count: number) => `4 mein se ${count} digit daale gaye`,
+    erase: "Mitaayein",
   },
 
   nav: {
@@ -716,6 +739,7 @@ export const hinglish: Copy = {
     explain_ai_not_configured: "Samjhane ke liye AI chahiye, jo abhi on nahin hai.",
     marking_ai_not_configured: "Likhe gaye answers AI check karta hai, jo abhi on nahin hai.",
     analysis_ai_not_configured: "Papers analyse karne ke liye AI chahiye, jo abhi on nahin hai.",
+    pins_differ: "Dono PIN ek jaise nahin hain. Please inhe phir se daaliye.",
     // The backend's own messages, by code.
     ai_declined: "Main ismein madad nahin kar sakta. Please apni books se judi koi baat poochhiye.",
     ai_not_configured: "AI features abhi on nahin hain.",
@@ -751,6 +775,7 @@ export const hinglish: Copy = {
     no_text_found: "Is file mein humein koi likha hua text nahin mila. Please koi doosri PDF try karein.",
     not_a_paper_book: "Yeh pichhle saalon ke papers ki book nahin hai.",
     not_authenticated: "Aage badhne ke liye please sign in karein.",
+    not_child_mode: "Yeh device bachche ki screen par nahin hai.",
     not_for_class: "Pichhle saalon ke papers ka analysis Class 9 se hota hai.",
     not_found: "Aap jo dhoondh rahe the, woh humein nahin mila.",
     paper_not_analysed:
@@ -759,6 +784,8 @@ export const hinglish: Copy = {
     parent_required: "Yeh sirf parent kar sakte hain.",
     password_protected: "Yeh PDF password se protected hai. Please bina password wali copy upload karein.",
     permission_denied: "Aapko yeh karne ki permission nahin hai.",
+    pin_not_set: "Bachche ko device dene se pehle parent PIN chuniye.",
+    pin_required: "Bachche ki screen se bahar jaane ke liye parent PIN chahiye.",
     plan_item_not_found: "Humein yeh task nahin mila.",
     practice_not_found: "Humein yeh practice nahin mili.",
     practice_not_ready: "Yeh practice abhi tayyar nahin hai.",
@@ -787,5 +814,7 @@ export const hinglish: Copy = {
     unsupported_file_type: "Please PDF, Word file (.docx) ya text file (.txt) upload karein.",
     upload_rejected: "Hum yeh file nahin le sake.",
     validation_error: "Kuch jaankari sahi nahin hai.",
+    wrong_password: "Password sahi nahin hai.",
+    wrong_pin: "PIN sahi nahin hai.",
   },
 };

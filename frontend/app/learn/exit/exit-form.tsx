@@ -1,28 +1,26 @@
 "use client";
 
-import { useActionState } from "react";
+import { useRef } from "react";
 
 import { useCopy } from "@/components/copy-provider";
-import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
-import { SubmitButton } from "@/components/submit-button";
-import { exitChildMode } from "@/lib/actions/auth";
+import { PinPad, usePinFormState } from "@/components/pin-pad";
+import { leaveChildMode } from "@/lib/actions/auth";
 
+/** The parent PIN on the number pad; sent as soon as its last digit is in. */
 export function ExitForm() {
   const copy = useCopy();
-  const [state, formAction] = useActionState(exitChildMode, {});
+  const [state, formAction] = usePinFormState(leaveChildMode);
+  const form = useRef<HTMLFormElement>(null);
   return (
-    <form action={formAction} className="grid gap-4">
-      <Field
-        name="password"
-        label={copy.exitChildMode.password}
-        type="password"
-        autoComplete="current-password"
-        required
-        error={state.fieldErrors?.password}
+    <form ref={form} action={formAction} className="grid justify-items-center gap-4">
+      <PinPad
+        key={state.answers}
+        name="pin"
+        label={copy.exitChildMode.pin}
+        onComplete={() => form.current?.requestSubmit()}
       />
       <FormMessage error={state} />
-      <SubmitButton size="lg">{copy.exitChildMode.submit}</SubmitButton>
     </form>
   );
 }

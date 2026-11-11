@@ -650,10 +650,33 @@ export const en = {
 
   exitChildMode: {
     title: "For grown-ups",
-    text: "Enter the parent's password to leave this learner's screen.",
-    password: "Parent's password",
-    submit: "Continue",
+    text: "Enter the parent PIN to leave this learner's screen.",
+    pin: "Parent PIN",
+    forgot: "Forgot the PIN? Sign in on another phone or computer and set a new one in Settings.",
     back: "Back to learning",
+  },
+
+  /** The parent PIN that leaves child mode: Settings, and before the first hand-over. */
+  parentPin: {
+    title: "Parent PIN",
+    isSet: "Your PIN takes the device back from child mode. Change it if a child may have seen it.",
+    notSet: "Choose a 4-digit PIN. You need it to hand the device to a child, and to take it back.",
+    handOverTitle: "Choose a parent PIN",
+    handOverText:
+      "Before you hand the device over, choose a 4-digit PIN. Leaving your child's screen asks for it; your password doesn't work there.",
+    password: "Your password",
+    pin: "New PIN",
+    again: "The PIN again",
+    save: "Save PIN",
+    saveAndStart: "Save PIN and start",
+    saved: "PIN saved.",
+    tip: "On a device your child uses, don't let the browser save your password: a saved password signs anyone in as you.",
+  },
+
+  /** The on-screen number pad of the PIN. */
+  pinPad: {
+    entered: (count: number) => `${count} of 4 digits entered`,
+    erase: "Delete",
   },
 
   nav: {
@@ -725,6 +748,7 @@ export const en = {
     explain_ai_not_configured: "Explanations need the AI, which is not switched on yet.",
     marking_ai_not_configured: "Written answers are marked by the AI, which is not switched on yet.",
     analysis_ai_not_configured: "Analysing papers needs the AI, which is not switched on yet.",
+    pins_differ: "The two PINs are not the same. Please type them again.",
   } as Record<string, string>,
 };
 

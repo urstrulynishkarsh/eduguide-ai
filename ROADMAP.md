@@ -425,15 +425,69 @@ frontend. `REDIS_URL` stays empty locally unless you want a worker (README).
 
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: after the full code review that followed Step 12
-(5 November 2026).*
+*Rewritten at the end of every step. Last updated: after the parent PIN (6 November 2026).*
 
 ### Where things stand
 
-- **All 12 steps are done, and the whole code has been reviewed since.** Backend: 418 tests pass
-  (live tests skipped), `ruff` clean, `pip-audit` clean (not re-run in the review). Frontend: 143
-  unit tests and 15 browser journeys (desktop + phone) pass; `lint`, `typecheck`, `format:check` and
-  `build` are clean; `npm audit` had 8 moderate warnings, all in the lint tools.
+- **All 12 steps are done, and the whole code has been reviewed since.** Backend: 425 tests pass
+  (live tests skipped), `ruff` clean, `pip-audit` clean (not re-run: no new library). Frontend: 152
+  unit tests and 19 browser journeys (38 runs: desktop + phone) pass; `lint`, `typecheck`,
+  `format:check` and `build` are clean; `npm audit` has 8 moderate warnings, all in the lint tools.
+
+### The parent PIN (6 November 2026)
+
+Migration `0011` (`parents.pin_hash`, `auth_sessions.student_id`); no new library. Decided: 4
+digits; a PIN is required before the first hand-over; child mode lasts until the PIN ends it.
+
+- **Child mode ends only with the parent PIN**, typed on an on-screen number pad
+  (`components/pin-pad.tsx`: buttons and a hidden field, so nothing for a password manager to fill
+  or a phone keyboard to learn; number keys work too; a screen reader hears "2 of 4 digits"). The
+  exit screen (`/learn/exit`) sends it at the fourth digit: `POST /auth/child-mode/leave` signs child
+  mode out and the parent in (a new session). Wrong PINs: 5 per 15 minutes and 20 a day per family
+  (`rate_limits.PIN_PER_ACCOUNT`, `PIN_PER_DAY`).
+- **Setting it**: `PUT /auth/pin` with the account's password (a wrong one counts as a failed
+  sign-in); Settings has a Parent PIN section, and a hand-over without a PIN goes to
+  `/who-is-learning/pin?child=…` (also `practice=` / `test=`), which sets it and then starts child
+  mode as asked. The backend refuses child mode without one (`409 pin_not_set`). `GET /auth/me`
+  has `pin_set`.
+- **Child mode no longer drops to sign-in on its own**: a child-mode session names its child
+  (`auth_sessions.student_id`) and gets a refresh token that renews it as that child only (14 days
+  unused at most; removing the child removes it). `CHILD_SESSION_EXPIRE_MINUTES` is gone (a line
+  left in an old `.env` is ignored). `POST /auth/logout` refuses child mode (`403 pin_required`), and
+  `/signout` then goes to `/learn/exit` instead.
+- **Still open** (docs/08 §8.3 item 3): a private window or cleared site data reaches sign-in, where
+  a saved password works. The set-PIN screen tells parents not to let the browser save it on a
+  child's device.
+- Demo parent: PIN `2468` (`python -m scripts.seed` adds it to an existing demo parent too). This
+  machine's database is at `0011` and has it. Child-mode sessions from before `0011` have no refresh
+  token and end after their 12 hours, as before.
+- `Principal.is_child_mode` replaces `library_service.is_child_mode` and the same check in
+  `auth/service.update_account`; `Principal.session_id` is the request's session.
+- Tried and changed: the pad first cleared itself when the form stopped being "pending"; it is now
+  remounted with a new `key` per answer (`usePinFormState`), which is simpler. (A screenshot script
+  had seemed to lose digits; the cause was the script matching Next's hidden route announcer as
+  the error message, not the pad.)
+- Browser runs: the second full run had 3 desktop failures (pages that didn't load in time; the Mac
+  was using about 6 of 7 GB of swap); all passed on a re-run. Close Chrome tabs before a full run.
+
+### Forms and accessibility (6 November 2026)
+
+No migration; one new dev library, `@axe-core/playwright` 4.14.0 (its `axe-core` was already there).
+
+- **Chrome filled the parent's own name into "Book name"** (and "Child's name", "Name of the
+  board"). Chrome ignores `autocomplete="off"` there (tried in Chromium 156 and read in its source);
+  a value it doesn't know stops it on computers. `Field` now gives every field `autoComplete="none"`
+  unless it says what it holds (sign-in, sign-up, the exit password). Phones ignore that, so the
+  child's name field is `child_name`, not `name` (`childFromForm` reads it; the API still gets `name`).
+- **Answer boxes gave spelling hints**: a blank is marked on exact spelling, so the blank and the
+  written answer have no spellcheck and no phone autocorrect (`answer-input.tsx`).
+- **Autofilled fields stay cream** (an amber tint, `:autofill` in `globals.css`) instead of Chrome's blue.
+- **axe checks every main screen in CI** (`tests/e2e/accessibility.spec.ts`: public, parent, three
+  learner layouts; plus the practice, test and report screens inside `practice.spec.ts`). Its first
+  run found text below 4.5:1, now fixed: unearned badges (the whole card was faded; now only the
+  picture), the "Ready" pill on My Books (`--success` a step darker: 4.7:1 on its tint), and the
+  youngest layout's orange title on the landing page (`text-xl`, so large text at 3:1).
+- A child could leave child mode with the browser's saved password: fixed by the parent PIN (above).
 
 ### The review after Step 12
 
@@ -518,7 +572,7 @@ No migration and no new library. Fixed (each with a test, unless said otherwise)
   revoke the sessions), backups (nothing automates them), the CSP's inline scripts.
 - `fastembed` 0.9.1 was 12 days old when pinned (the rule is two weeks), to get pillow 13's fixes.
 - **The Hindi and Hinglish wording has not been read by a native speaker** (`lib/copy/hi.ts`,
-  `hinglish.ts`), including Step 12's two new messages.
+  `hinglish.ts`), including Step 12's two new messages and the parent PIN's screens and messages.
 - The rate limits, like the XP rules, are starting values; watch `eduguide_rate_limited_total`.
 - Unchanged: written test answers need the AI to be marked; the server does not submit a test whose
   time ran out; lists show the first 50; a failed first chat message leaves an empty conversation;

@@ -80,15 +80,17 @@ Submitted values are never echoed back in errors (they can contain passwords).
 | POST | `/api/v1/auth/register` | anyone | Create a parent or student account (signs in at once) |
 | POST | `/api/v1/auth/login` | anyone | Sign in |
 | POST | `/api/v1/auth/refresh` | anyone with a refresh token | New tokens |
-| POST | `/api/v1/auth/logout` | anyone with a token | Sign out: the session's tokens stop working (Step 12) |
-| GET | `/api/v1/auth/me` | signed in | Account, current mode, onboarding state |
+| POST | `/api/v1/auth/logout` | anyone with a token | Sign out: the session's tokens stop working (Step 12). Not child mode |
+| PUT | `/api/v1/auth/pin` | parent (not child mode) | Set or change the parent PIN, with the account's password |
+| POST | `/api/v1/auth/child-mode/leave` | child mode | Leave child mode with the parent PIN; signs the parent in |
+| GET | `/api/v1/auth/me` | signed in | Account, current mode, onboarding state, `pin_set` |
 | POST | `/api/v1/students` | parent | Add a child |
 | GET | `/api/v1/students` | signed in | Parent: all children. Student session: only itself |
 | GET | `/api/v1/students/{id}` | owner | One child |
 | PATCH | `/api/v1/students/{id}` | parent, or solo student for self | Change name / age |
 | PUT | `/api/v1/students/{id}/profile` | parent, or solo student for self | Replace class, board, language, stream, goal, subjects |
 | DELETE | `/api/v1/students/{id}` | parent | Remove a child and all their learning data |
-| POST | `/api/v1/students/{id}/session` | parent | Start child mode for this child |
+| POST | `/api/v1/students/{id}/session` | parent | Start child mode for this child (needs the parent PIN set) |
 
 ### Onboarding flow
 
@@ -132,9 +134,10 @@ optional `preferred_language`, and returns the same shape with status `201`.
 
 `POST /auth/refresh` takes `{ "refresh_token": "..." }` and returns a new `tokens` object.
 
-`POST /auth/logout` (Step 12) takes `{ "token": "..." }`, any token of the session (the refresh token;
-in child mode the access token), and answers `204`. From then on none of that session's tokens work.
-It is also `204` for a session that has ended already or a token that is not ours.
+`POST /auth/logout` (Step 12) takes `{ "token": "..." }`, any token of the session, and answers `204`.
+From then on none of that session's tokens work. It is also `204` for a session that has ended
+already or a token that is not ours. A child-mode session is refused (`403 pin_required`): only the
+parent PIN ends it (below).
 
 ### Add a child
 
@@ -200,16 +203,28 @@ Authorization: Bearer <parent access token>
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
   "token_type": "bearer",
-  "expires_in": 43200,
+  "expires_in": 1800,
   "student": { "...": "the child, same shape as above" }
 }
 ```
 
-The frontend switches to this token while the child uses the app. With it, `GET /auth/me` returns
-`"active_role": "student"` and `"active_student"` = this child. There is no refresh token. The frontend
-deletes the parent's refresh token while child mode is on, so when the child session expires the
-parent signs in again (docs/04 §4.6).
+`409 pin_not_set` until the parent has set a parent PIN. The frontend replaces the parent's tokens
+with these while the child uses the app. With them, `GET /auth/me` returns `"active_role": "student"`
+and `"active_student"` = this child. The refresh token renews child mode **as this child only**, like
+a sign-in's (14 days unused and it ends); removing the child ends it.
+
+**The parent PIN** (4 digits, `0`–`9`):
+
+- `PUT /auth/pin` `{ "password": "...", "pin": "2468" }` → `204`. A parent's own session only
+  (`403 parent_required` in child mode or for a student); a wrong password is `401 wrong_password`,
+  counted like a failed sign-in for the account's email; anything but 4 digits is `422` ("The PIN is
+  4 digits.").
+- `POST /auth/child-mode/leave` `{ "pin": "2468" }`, sent with the child-mode token → `200`, the same
+  shape as sign-in: child mode's session is signed out and the parent has a new session of their own.
+  A wrong PIN is `401 wrong_pin`; 5 wrong PINs in 15 minutes or 20 in a day and the family waits
+  (`429`); anything but child mode is `403 not_child_mode`.
 
 ## 3.3 Endpoints added in Step 2 — My Books
 
@@ -817,15 +832,16 @@ answers, as everywhere); `tests` are the dashboard's test results, oldest first.
 
 ## 3.11 Rules for every endpoint
 
-Step 12 added one endpoint, `POST /auth/logout` (§3.2), and the rate limits below. Rules that hold
-for all endpoints:
+Step 12 added one endpoint, `POST /auth/logout` (§3.2), and the rate limits below; the parent PIN two
+more (§3.2, child mode). Rules that hold for all endpoints:
 
 - **Rate limits** (`app/core/rate_limits.py`; starting values). Over a limit the answer is `429` with
   `Retry-After`. An account is the family: child mode counts with the parent.
 
   | What | Counted per | Limit | Code |
   |---|---|---|---|
-  | Failed sign-ins | email · address | 10 · 60 per 15 minutes | `too_many_requests` |
+  | Failed sign-ins (and a wrong password setting the parent PIN, by email) | email · address | 10 · 60 per 15 minutes | `too_many_requests` |
+  | Wrong parent PINs | account | 5 per 15 minutes, 20 a day | `too_many_requests` · `daily_limit_reached` |
   | Sign-ups | address | 60 per hour | `too_many_requests` |
   | Explain, a practice question explained, a chat message, a written practice answer, a test submitted with written answers | account | 20 a minute, 300 a day | `too_many_requests` · `daily_limit_reached` |
   | Create Practice, create a test, analyse papers | account | 60 a day | `daily_limit_reached` |

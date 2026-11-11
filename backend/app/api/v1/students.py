@@ -63,11 +63,8 @@ async def delete_student(student_id: uuid.UUID, principal: ParentPrincipal, db: 
 async def start_child_session(
     student_id: uuid.UUID, principal: ParentPrincipal, db: DbSession
 ) -> ChildSessionResponse:
-    """A parent hands the device to a child. The returned token can only act as
-    this child: no siblings, no profile changes, no parent screens."""
-    token, seconds_valid, student = await auth_service.start_child_session(db, principal, student_id)
-    return ChildSessionResponse(
-        access_token=token,
-        expires_in=seconds_valid,
-        student=StudentOut.model_validate(student),
-    )
+    """A parent hands the device to a child. The returned tokens can only act as this child (no
+    siblings, no profile changes, no parent screens), also when renewed, until the parent PIN ends
+    child mode. `409 pin_not_set` until the parent has set one (`PUT /auth/pin`)."""
+    tokens, student = await auth_service.start_child_session(db, principal, student_id)
+    return ChildSessionResponse(**tokens.model_dump(), student=StudentOut.model_validate(student))

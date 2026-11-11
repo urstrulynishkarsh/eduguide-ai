@@ -12,6 +12,7 @@ from tests.samples import NOTES_TEXT, make_pdf
 
 API = "/api/v1"
 PASSWORD = "Str0ng-Passw0rd"
+PIN = "2468"
 
 
 @dataclass
@@ -70,11 +71,23 @@ async def add_child(client: AsyncClient, parent: Account, **profile_overrides: A
     return response.json()
 
 
-async def start_child_session(client: AsyncClient, parent: Account, student_id: str) -> dict[str, str]:
-    """Returns the headers of a child-mode session."""
+async def set_pin(client: AsyncClient, parent: Account) -> None:
+    body = {"password": parent.password, "pin": PIN}
+    response = await client.put(f"{API}/auth/pin", json=body, headers=parent.headers)
+    assert response.status_code == 204, response.text
+
+
+async def hand_over(client: AsyncClient, parent: Account, student_id: str) -> dict[str, Any]:
+    """Child mode for one child, the parent PIN set first: the tokens and the child."""
+    await set_pin(client, parent)
     response = await client.post(f"{API}/students/{student_id}/session", headers=parent.headers)
     assert response.status_code == 200, response.text
-    return bearer(response.json()["access_token"])
+    return response.json()
+
+
+async def start_child_session(client: AsyncClient, parent: Account, student_id: str) -> dict[str, str]:
+    """Returns the headers of a child-mode session."""
+    return bearer((await hand_over(client, parent, student_id))["access_token"])
 
 
 def reason(item: dict[str, Any]) -> dict[str, Any]:

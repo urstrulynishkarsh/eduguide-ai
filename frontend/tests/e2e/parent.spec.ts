@@ -1,6 +1,17 @@
 import { expect, test } from "@playwright/test";
 
-import { PASSWORD, chooseClass, expectLayout, formMessage, signUp, tap, uniqueEmail } from "./helpers";
+import {
+  chooseClass,
+  choosePin,
+  expectAccessible,
+  expectLayout,
+  formMessage,
+  PASSWORD,
+  signUp,
+  tap,
+  tapPin,
+  uniqueEmail,
+} from "./helpers";
 
 test("a parent signs up, adds a child, hands over the device and takes it back", async ({ page }) => {
   await page.goto("/");
@@ -15,9 +26,12 @@ test("a parent signs up, adds a child, hands over the device and takes it back",
   await page.getByLabel("Age", { exact: true }).fill("12"); // not the language picker's "Language"
   await page.getByRole("button", { name: "Add child" }).click();
 
-  // Who is learning? → child mode
+  // Who is learning? → the first hand-over asks for a parent PIN → child mode
   await expect(page).toHaveURL(/\/who-is-learning$/);
   await page.getByRole("button", { name: /Aarav/ }).click();
+  await expect(page.getByRole("heading", { name: /Choose a parent PIN/ })).toBeVisible();
+  await expectAccessible(page);
+  await choosePin(page);
   await expect(page).toHaveURL(/\/learn$/);
   await expect(page.getByRole("heading", { name: "Hi Aarav 👋" })).toBeVisible();
   await expectLayout(page, "standard");
@@ -28,14 +42,27 @@ test("a parent signs up, adds a child, hands over the device and takes it back",
   await page.goto("/who-is-learning");
   await expect(page).toHaveURL(/\/learn$/);
 
-  // Leaving child mode needs the parent's password.
+  // Nor sign out of child mode: that asks for the PIN too.
+  await page.goto("/signout");
+  await expect(page).toHaveURL(/\/learn\/exit$/);
+  await page.getByRole("link", { name: /Back to learning/ }).click();
+
+  // Leaving child mode needs the parent PIN, on a pad: no field for a saved password.
   await page.getByRole("link", { name: "Grown-ups" }).click();
-  await page.getByLabel("Parent's password").fill("not-the-password");
-  await page.getByRole("button", { name: "Continue" }).click();
+  const pad = page.getByRole("group", { name: "Parent PIN" });
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+  await tapPin(pad, "1111");
   await expect(formMessage(page)).toContainText("not correct");
-  await page.getByLabel("Parent's password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await tapPin(pad);
   await expect(page).toHaveURL(/\/who-is-learning$/);
+
+  // The PIN can be changed in Settings, with the password.
+  await page.goto("/parent/settings");
+  await page.getByLabel("Your password").fill(PASSWORD);
+  await tapPin(page.getByRole("group", { name: "New PIN" }), "1357");
+  await tapPin(page.getByRole("group", { name: "The PIN again" }), "1357");
+  await page.getByRole("button", { name: "Save PIN" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "PIN saved." })).toBeVisible();
 });
 
 test("a parent edits and removes a child", async ({ page }) => {
@@ -72,6 +99,7 @@ test("Nursery – Class 2 get the playful layout without tests", async ({ page }
   await chooseClass(page, "UKG", "Anaya");
   await page.getByRole("button", { name: "Add child" }).click();
   await page.getByRole("button", { name: /Anaya/ }).click();
+  await choosePin(page);
 
   await expectLayout(page, "playful");
   const menu = page.getByRole("navigation", { name: "Learning menu" });

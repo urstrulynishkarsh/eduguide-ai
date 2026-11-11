@@ -6,8 +6,9 @@ import type { Role, TokenPair } from "@/lib/types";
  * (docs/04 §4.6):
  *
  *   eg_access   the token sent to the backend: a parent's, a solo student's, or a child-mode token
- *   eg_refresh  swaps an expired access token for a new one. Deleted in child mode, so nothing
- *               on the device can act as the parent until the parent's password is entered again.
+ *   eg_refresh  swaps an expired access token for a new one. In child mode it is child mode's own,
+ *               which renews only that child's session: nothing on the device can act as the
+ *               parent until the parent PIN is entered.
  */
 export const ACCESS_COOKIE = "eg_access";
 export const REFRESH_COOKIE = "eg_refresh";
@@ -97,11 +98,10 @@ function cookieOptions(token: string): CookieOptions {
   };
 }
 
-/** Saves a session. Without a refresh token (child mode) any stored one is deleted. */
-export function storeTokens(store: CookieStore, accessToken: string, refreshToken: string | null): void {
+/** Saves a session's tokens, in place of the ones before. */
+export function storeTokens(store: CookieStore, accessToken: string, refreshToken: string): void {
   store.set(ACCESS_COOKIE, accessToken, cookieOptions(accessToken));
-  if (refreshToken) store.set(REFRESH_COOKIE, refreshToken, cookieOptions(refreshToken));
-  else store.delete(REFRESH_COOKIE);
+  store.set(REFRESH_COOKIE, refreshToken, cookieOptions(refreshToken));
 }
 
 /** Keeps the screen language for a year. Readers check the code (lib/copy `screenLanguage`). */

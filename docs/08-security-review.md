@@ -53,21 +53,31 @@ In rough order of importance. None blocks a small pilot with families the team k
    (docs/01 §1.10). So do students under 18 signing up alone.
 2. **No password reset, password change or email check.** When they are added, a reset must revoke
    every session of the account (`auth_sessions.revoked_at`).
-3. **Backups.** The database and uploads volumes are not backed up by anything in this project. On a
+3. **A saved password still opens the parent area from a private window.** Child mode used to end
+   with the parent's password, which Chrome filled in for the child; it now ends only with a 4-digit
+   parent PIN typed on an on-screen number pad (no field for a browser to fill), 5 wrong tries per
+   15 minutes and 20 a day per family. Child mode no longer ends by itself after 12 hours, and
+   `/signout` can't end it, so the device never drops to the sign-in page on its own. What is left:
+   a child who opens a private window (or clears the site's data) reaches sign-in, where a browser
+   offers the saved password. Nothing in the app can stop that; the set-PIN screen tells parents not
+   to let the browser save the password on a device the child uses. A child can also use up the
+   tries on purpose; the parent then waits (15 minutes, or midnight after 20 in a day), or clears
+   the site's data on that device and signs in again.
+4. **Backups.** The database and uploads volumes are not backed up by anything in this project. On a
    server, back up `pgdata` and `uploads` every day and practise a restore.
-4. **The CSP allows inline scripts.** Nonces would make every page dynamic and switch off Cache
+5. **The CSP allows inline scripts.** Nonces would make every page dynamic and switch off Cache
    Components' prebuilt pages. Look again if Next.js's hash-based option (SRI) supports Turbopack,
    or if the pages become dynamic anyway.
-5. **Refresh tokens are not rotated.** Two pages renewing at the same moment would sign people out,
+6. **Refresh tokens are not rotated.** Two pages renewing at the same moment would sign people out,
    so they are not. Signing out still ends the session. Rotation with a short grace period is
    possible later.
-6. **Per-address limits trust the proxy.** The browser's address comes from Caddy's
+7. **Per-address limits trust the proxy.** The browser's address comes from Caddy's
    `X-Forwarded-For`. Without Caddy (or another proxy that sets it) in front of the frontend, the
    address can be faked; the per-email and per-account limits still hold.
-7. **The limits let requests through while Redis is down**, so families are not locked out; the
+8. **The limits let requests through while Redis is down**, so families are not locked out; the
    readiness check and the `ApiDown` alert show it.
-8. **Sign-up says when an email already has an account** (`email_already_registered`). That is kept
+9. **Sign-up says when an email already has an account** (`email_already_registered`). That is kept
    for clear screens; the sign-up limit slows anyone collecting emails this way.
-9. **No check against passwords known from breaches.**
-10. **Alerts go nowhere yet.** `infra/monitoring/alerts.yml` shows them in Prometheus; add an
+10. **No check against passwords known from breaches.**
+11. **Alerts go nowhere yet.** `infra/monitoring/alerts.yml` shows them in Prometheus; add an
     Alertmanager (email, chat) before relying on them.

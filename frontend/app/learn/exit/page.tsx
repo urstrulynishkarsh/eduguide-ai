@@ -9,7 +9,7 @@ import { ExitForm } from "./exit-form";
 
 export const generateMetadata = titled((copy) => copy.exitChildMode.title);
 
-/** Leaving child mode needs the parent's password (docs/04 §4.6). */
+/** Leaving child mode needs the parent PIN (docs/04 §4.6). */
 export default async function ExitChildModePage() {
   const copy = await getCopy();
   const text = copy.exitChildMode;
@@ -23,6 +23,7 @@ export default async function ExitChildModePage() {
         <p className="text-muted-foreground">{text.text}</p>
       </div>
       <ExitForm />
+      <p className="text-sm text-muted-foreground">{text.forgot}</p>
       <Button asChild variant="ghost" className="justify-self-start">
         <Link href="/learn">← {text.back}</Link>
       </Button>

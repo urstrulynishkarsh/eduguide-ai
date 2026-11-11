@@ -66,10 +66,15 @@ export async function callBackend<T>(
 
 /**
  * Signs a session out on the backend: none of its tokens work any more. Takes any token of the
- * session (the refresh token, or in child mode the access token). Never throws: the cookies are
- * forgotten either way.
+ * session. False only when the backend refuses because it is child mode, which only the parent PIN
+ * ends; otherwise (it had ended already, the backend is down…) the cookies are forgotten either way.
  */
-export async function endSession(token: string | undefined): Promise<void> {
-  if (!token) return;
-  await callBackend("/auth/logout", { method: "POST", body: { token } }).catch(() => undefined);
+export async function endSession(token: string | undefined): Promise<boolean> {
+  if (!token) return true;
+  try {
+    await callBackend("/auth/logout", { method: "POST", body: { token } });
+  } catch (error) {
+    return !(error instanceof ApiError && error.body.code === "pin_required");
+  }
+  return true;
 }

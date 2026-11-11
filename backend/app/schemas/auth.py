@@ -23,6 +23,18 @@ def _supported(language: str) -> str:
 # The language of the screens (and of the AI for a parent): one the platform can use today.
 ScreenLanguage = Annotated[str, AfterValidator(_supported)]
 
+PIN_LENGTH = 4
+
+
+def _pin(pin: str) -> str:
+    if len(pin) != PIN_LENGTH or not (pin.isascii() and pin.isdigit()):
+        raise ValueError(f"The PIN is {PIN_LENGTH} digits.")
+    return pin
+
+
+# The parent PIN, which leaves child mode: typed on an on-screen number pad.
+Pin = Annotated[str, AfterValidator(_pin)]
+
 
 class RegisterRequest(BaseModel):
     role: Role
@@ -36,9 +48,21 @@ class AccountUpdate(BaseModel):
     preferred_language: ScreenLanguage
 
 
+CurrentPassword = Annotated[str, Field(min_length=1, max_length=128)]
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: Annotated[str, Field(min_length=1, max_length=128)]
+    password: CurrentPassword
+
+
+class PinUpdate(BaseModel):
+    password: CurrentPassword = Field(description="The account's password: only the parent sets the PIN.")
+    pin: Pin
+
+
+class LeaveChildModeRequest(BaseModel):
+    pin: Pin
 
 
 class RefreshRequest(BaseModel):
@@ -46,7 +70,7 @@ class RefreshRequest(BaseModel):
 
 
 class LogoutRequest(BaseModel):
-    # Any token of the session: the refresh token, or the access token in child mode.
+    # Any token of the session: its access or its refresh token.
     token: str = Field(min_length=1, max_length=4096)
 
 
@@ -73,17 +97,16 @@ class AuthResponse(BaseModel):
     tokens: TokenPair
 
 
-class ChildSessionResponse(BaseModel):
-    """A token that can only act as one child. It has no refresh token."""
+class ChildSessionResponse(TokenPair):
+    """Tokens that can only act as one child, also when they are renewed. Child mode ends with the
+    parent PIN (`POST /auth/child-mode/leave`)."""
 
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int = Field(description="Seconds until this child session ends.")
     student: StudentOut
 
 
 class MeResponse(BaseModel):
     user: UserOut
+    pin_set: bool = Field(description="The parent PIN is set (child mode needs one). False for a student.")
     active_role: Role = Field(description='"student" while a parent has the app in child mode.')
     active_student: StudentOut | None = Field(description="The learner this session is limited to, if any.")
     onboarding_complete: bool = Field(

@@ -49,10 +49,10 @@ export function profileFromForm(formData: FormData) {
   };
 }
 
-/** Name and age of the "Add Child" form. An empty age is sent as "not given". */
+/** Name (field "child_name") and age of the "Add Child" form. An empty age is sent as "not given". */
 export function childFromForm(formData: FormData) {
   const age = text(formData, "age");
-  return { name: text(formData, "name"), age: age ? Number(age) : null };
+  return { name: text(formData, "child_name"), age: age ? Number(age) : null };
 }
 
 /**

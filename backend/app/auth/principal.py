@@ -14,11 +14,13 @@ class Principal:
     `user`    - the account that signed in (it owns the data).
     `role`    - what this session may do. A parent in child mode has role "student".
     `student` - the single learner a student session is limited to; None for parents.
+    `session_id` - the session of the request's token (auth_sessions.id).
     """
 
     user: User
     role: Role
     student: Student | None = None
+    session_id: uuid.UUID | None = None
 
     @property
     def student_id(self) -> uuid.UUID | None:
@@ -27,3 +29,8 @@ class Principal:
     @property
     def is_parent(self) -> bool:
         return self.role is Role.PARENT
+
+    @property
+    def is_child_mode(self) -> bool:
+        """A parent's account acting as one of its children."""
+        return self.role is Role.STUDENT and self.user.role == Role.PARENT

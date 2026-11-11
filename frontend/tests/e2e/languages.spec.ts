@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { PASSWORD, tap, uniqueEmail } from "./helpers";
+import { PASSWORD, tap, tapPin, uniqueEmail } from "./helpers";
 
 test("a family uses the screens in Hindi, the child's in Hinglish, then switches to English", async ({
   page,
@@ -25,13 +25,19 @@ test("a family uses the screens in Hindi, the child's in Hinglish, then switches
   await page.getByRole("button", { name: "बच्चा जोड़ें" }).click();
   await expect(page.getByRole("heading", { name: "आज कौन पढ़ रहा है?" })).toBeVisible();
 
-  // Child mode: the screens follow the child's language until a grown-up comes back.
+  // The first hand-over asks for a parent PIN, in Hindi.
   await page.getByRole("button", { name: /Kabir/ }).click();
+  await expect(page.getByRole("heading", { name: /अभिभावक PIN चुनें/ })).toBeVisible();
+  await page.getByLabel("आपका पासवर्ड").fill(PASSWORD);
+  await tapPin(page.getByRole("group", { name: "नया PIN" }));
+  await tapPin(page.getByRole("group", { name: "PIN फिर से" }));
+  await page.getByRole("button", { name: "PIN सहेजें और शुरू करें" }).click();
+
+  // Child mode: the screens follow the child's language until a grown-up comes back.
   await expect(page).toHaveURL(/\/learn$/);
   await expect(page.getByText("Aaj aap kya karna chahenge?")).toBeVisible();
   await page.getByRole("link", { name: "Badon ke liye" }).click();
-  await page.getByLabel("Parent ka password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Aage badhein" }).click();
+  await tapPin(page.getByRole("group", { name: "Parent PIN" }));
   await expect(page.getByRole("heading", { name: "आज कौन पढ़ रहा है?" })).toBeVisible();
 
   await page.getByRole("link", { name: "अभिभावक का हिस्सा" }).click();

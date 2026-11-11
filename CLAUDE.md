@@ -12,10 +12,11 @@ User roles: parent and student. A student is either a child profile under a pare
 
 - Backend: Python 3.12 (3.11+ works) + FastAPI, fully async
 - Database: PostgreSQL 16 with pgvector, run in Docker (`pgvector/pgvector:pg16`)
-- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0010` so far)
-- Auth: JWT access tokens (30 min) + refresh tokens (14 days) with PyJWT; passwords hashed with Argon2. Child mode is a parent token limited to one child.
+- ORM / migrations: SQLAlchemy 2.1 (async, asyncpg) + Alembic, one migration per step (`0001`–`0011` so far)
+- Auth: JWT access tokens (30 min) + refresh tokens (14 days) with PyJWT; passwords hashed with Argon2. Child mode is a parent session limited to one child; it needs a
+  4-digit parent PIN, and only that PIN ends it.
 - Frontend: Next.js 16 (App Router, Cache Components on) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui (radix), Node.js 22/24 LTS. Versions are pinned exactly in `frontend/package.json`. Next.js 16 differs from older versions: read `frontend/node_modules/next/dist/docs/` before using an API you are unsure of (`middleware` is now `proxy.ts`)
-- Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API), ESLint, Prettier (print width 110), `tsc`
+- Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API) with axe accessibility checks (`@axe-core/playwright`, WCAG A/AA), ESLint, Prettier (print width 110), `tsc`
 - AI provider: switched off unless `backend/.env` sets one. `LLM_PROVIDER=groq` + `GROQ_API_KEY`: open models on Groq through the `groq` SDK (free plan; `openai/gpt-oss-20b` / `-120b`). `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`: Claude through the `anthropic` SDK, `claude-opus-5-5` for every tier (connected in step 3). Both behind `app/llm/`'s `LLMProvider`.
 - Search: local multilingual embeddings (`intfloat/multilingual-e5-base` through fastembed / ONNX, 768 dimensions) plus PostgreSQL keyword search
 - File parsing: pypdfium2 (PDF), python-docx + lxml (DOCX), plain text (TXT); optional OCR with Tesseract (`OCR_PROVIDER=tesseract`)
@@ -106,7 +107,7 @@ npm run test:e2e                    # browser journeys; needs the API and `pytho
 npm run lint && npm run typecheck && npm run format:check && npm run build
 
 # Database migrations
-alembic revision --autogenerate -m "what changed" --rev-id 0011   # next free number; review the file
+alembic revision --autogenerate -m "what changed" --rev-id 0012   # next free number; review the file
 alembic upgrade head
 
 # A server (README, "Run it on a server")
@@ -143,6 +144,8 @@ docker compose -f infra/docker-compose.production.yml --env-file infra/productio
   (failed sign-ins, sign-ups, the family's AI use, practices / tests, uploads), sessions so signing
   out ends them (`POST /auth/logout`), security headers (API and every page), metrics and JSON logs,
   Docker images behind Caddy, CI, the security review (docs/08)
+- After Step 12: the parent PIN (migration 0011): set before the first hand-over, typed on an
+  on-screen number pad, the only way out of child mode, which no longer ends by itself
 - All 12 steps are built. What is left is listed in ROADMAP.md, "Notes for next step".
 
 See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff section.
@@ -150,7 +153,8 @@ See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff s
 ## Coding conventions
 
 - Keep route handlers thin; put logic in services.
-- Every new endpoint needs input validation and at least one test. Every new screen needs at least one unit or browser test.
+- Every new endpoint needs input validation and at least one test. Every new screen needs at least one unit or browser test,
+  and its address goes in `frontend/tests/e2e/accessibility.spec.ts` (or `expectAccessible` in its journey).
 - Screen text goes in `frontend/lib/copy/`, never inline: add it to `en.ts`, `hi.ts` and `hinglish.ts` (the
   `Copy` type fails the build if one is missing). Pages, layouts and async server components use
   `await getCopy()`, synchronous server components a `copy` prop, client components `useCopy()`
@@ -158,6 +162,9 @@ See ROADMAP.md for the full 12-step plan and the "Notes for next step" handoff s
   use the words in docs/04 §4.5.
 - Every frontend page that loads data gets its own `loading.tsx` (`export { default } from "@/app/loading";`),
   or moving between pages waits on the server with no sign of life (see `frontend/app/loading.tsx`).
+- Form text fields use `Field` (`components/field.tsx`): the browser fills one only when its `autoComplete`
+  names what it holds (`"email"`, `"current-password"`…). Don't call a field `name` unless it is the
+  signed-in person's own name: Chrome fills the parent's name there, on phones whatever `autoComplete` says.
 - Every new database table or column needs a migration.
 - A new background job is added to `JOBS` in `app/worker.py` (the tests fail otherwise) and is
   enqueued with ids only. A new route that calls the AI or starts background work gets a rate limit

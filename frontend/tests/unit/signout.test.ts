@@ -38,14 +38,28 @@ describe("sign out", () => {
     ]);
   });
 
-  it("uses the access token in child mode, and signs out here even when the backend is down", async () => {
+  it("uses the access token when there is no other, and signs out here even when the backend is down", async () => {
     const fetchMock = mockBackend(async () => {
       throw new TypeError("fetch failed");
     });
-    const response = await POST(request({ [ACCESS_COOKIE]: "child-access" }));
+    const response = await POST(request({ [ACCESS_COOKIE]: "access" }));
 
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({ token: "child-access" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({ token: "access" });
     expect(response.headers.get("location")).toBe("http://localhost:3000/login");
+  });
+
+  it("does not end child mode: only the parent PIN does, so it goes there", async () => {
+    const refused = {
+      error: { code: "pin_required", message: "Child mode is left with the parent PIN.", details: null },
+    };
+    mockBackend(async () => Response.json(refused, { status: 403 }));
+    const response = await POST(
+      request({ [ACCESS_COOKIE]: "child-access", [REFRESH_COOKIE]: "child-refresh" }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("http://localhost:3000/learn/exit");
+    expect(response.cookies.getAll()).toEqual([]); // still in child mode
   });
 
   it("asks nothing of the backend without a session", async () => {

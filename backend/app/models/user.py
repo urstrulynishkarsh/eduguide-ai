@@ -30,6 +30,8 @@ class Parent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "parents"
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    # The parent PIN that leaves child mode (Argon2, like the password). Set before the first hand-over.
+    pin_hash: Mapped[str | None] = mapped_column(String(255))
 
 
 class AuthSession(UUIDPrimaryKeyMixin, Base):
@@ -39,6 +41,9 @@ class AuthSession(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "auth_sessions"
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # Child mode: the one child the parent's session acts as, also after its tokens are renewed. It
+    # ends with the parent PIN only (or when the child is removed).
+    student_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     # When its last token runs out (moved on at every refresh). Old rows are removed at sign-in.
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

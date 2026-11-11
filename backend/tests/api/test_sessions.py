@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AuthSession
-from tests.api.helpers import API, PASSWORD, add_child, bearer, error_code, register
+from tests.api.helpers import API, PASSWORD, bearer, error_code, register
 
 
 async def _me(client: AsyncClient, token: str) -> int:
@@ -48,19 +48,6 @@ async def test_signing_out_on_one_device_keeps_the_others(client: AsyncClient):
 
     await client.post(f"{API}/auth/logout", json={"token": parent.tokens["refresh_token"]})
     assert await _me(client, other_device["access_token"]) == 200
-
-
-async def test_leaving_child_mode_ends_the_child_session_only(client: AsyncClient):
-    parent = await register(client)
-    child = await add_child(client, parent)
-    response = await client.post(f"{API}/students/{child['id']}/session", headers=parent.headers)
-    child_token = response.json()["access_token"]
-    assert await _me(client, child_token) == 200
-
-    # Child mode has no refresh token: its access token is what the frontend sends.
-    await client.post(f"{API}/auth/logout", json={"token": child_token})
-    assert await _me(client, child_token) == 401
-    assert await _me(client, parent.tokens["access_token"]) == 200
 
 
 async def test_signing_out_twice_or_with_nonsense_is_harmless(client: AsyncClient):

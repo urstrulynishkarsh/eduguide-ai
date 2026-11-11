@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import {
   addTemporaryChild,
+  expectAccessible,
   leaveChildMode,
   openFirstChapter,
   practiseChapter,
@@ -79,6 +80,7 @@ test("a parent prepares chapter practice, and a Class 7 child does all of it", a
   await expect(page).toHaveURL(practice);
   await page.getByRole("button", { name: `Start now with ${name}` }).click();
   await expect(page).toHaveURL(/\/learn\/practice\/[^/]+$/);
+  await expectAccessible(page);
 
   // The child's screens are in their language (Hinglish). Help comes in order: a hint, then the steps.
   await page.getByRole("button", { name: /Hint/ }).click();
@@ -114,6 +116,7 @@ test("a UKG child plays picture practice: try again, stars, no marks", async ({ 
   await practiseChapter(page, "Sample: UKG Picture Book");
   await page.getByRole("button", { name: `Start now with ${name}` }).click();
   await expect(page.locator('[data-ui-mode="playful"]').first()).toBeVisible();
+  await expectAccessible(page);
   await expect(page.getByText(/प्रश्न \d+ \//)).toHaveCount(0); // no "Question 2 of 5" for the youngest
 
   for (let i = 0; i < 5; i++) {
@@ -155,6 +158,7 @@ test("a parent makes a chapter test, the Class 7 child takes it, and both see th
   await expect(page.getByText(/15 questions · 31 marks · No time limit/)).toBeVisible();
   await page.getByRole("button", { name: `Start now with ${name}` }).click();
   await expect(page).toHaveURL(/\/learn\/tests\/[^/]+$/);
+  await expectAccessible(page);
 
   // Written answers are marked by the AI, so only section A (8 objective questions) is answered.
   // The child's screens are in Hinglish.
@@ -171,6 +175,7 @@ test("a parent makes a chapter test, the Class 7 child takes it, and both see th
   // The answers still on their way go first, then the marking: allow it a while on a busy server.
   const result = page.getByRole("heading", { name: /^Result: Chapter test/ });
   await expect(result).toBeVisible({ timeout: 30_000 });
+  await expectAccessible(page);
   await expect(page.locator("dt", { hasText: "Nahin kiya" }).locator("..")).toContainText("7");
   await page.reload(); // a submitted test stays submitted
   await expect(result).toBeVisible();
@@ -186,4 +191,5 @@ test("a parent makes a chapter test, the Class 7 child takes it, and both see th
     .click();
   await expect(page.getByRole("heading", { name: "Sittings" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Every question" })).toBeVisible();
+  await expectAccessible(page);
 });

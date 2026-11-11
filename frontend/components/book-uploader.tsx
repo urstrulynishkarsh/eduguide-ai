@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { useCopy } from "@/components/copy-provider";
-import { Field, NO_AUTOFILL } from "@/components/field";
+import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -116,7 +116,6 @@ export function BookUploader({
               placeholder={text.bookTitlePlaceholder}
               required
               maxLength={200}
-              autoComplete={NO_AUTOFILL}
               error={errors.title}
             />
             <Field

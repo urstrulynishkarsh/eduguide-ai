@@ -23,6 +23,7 @@ that opens a `/parent/…` URL is sent back to `/learn`.
 | `/onboarding/child` | Add Child (parent) | **Class is the first field.** Stream, goals and subject suggestions appear from the class chosen, using `/meta/options` |
 | `/onboarding/profile` | My class details (solo student) | same form without name / age |
 | `/who-is-learning` | Profile picker | Parent taps a child → child mode starts → `/learn` |
+| `/who-is-learning/pin` | Choose a parent PIN (first hand-over) | `?child=` (and `practice=` / `test=`): the account's password, the PIN twice on the number pad; then child mode starts as asked |
 
 ## 4.3 Parent area
 
@@ -42,7 +43,7 @@ Navigation (spec §38): Dashboard · Children · My Books · Practice · Mock Te
 | `/parent/plans` · `/parent/plans/new` | The chosen child's study plan day by day (one per learner, API: `GET /students/{id}/study-plan`), and making a new one: exam date, minutes a day, target, chapters | 9 |
 | `/parent/progress` | Numbers, by chapter and topic, recent practice, **Progress over time** (the last 12 weeks, test scores, by subject, by kind of question, by difficulty — each with "Show the numbers"), streak and every badge, Understand Mistakes (current and put right), recent tests | 6 basic · 9 · 10 · 11 |
 | `/parent/assistant` · `/parent/assistant/[chatId]` | Parent AI Assistant about the chosen child: suggested questions, replies as they are written with the books they used, earlier conversations. A new conversation is made with its first message and then opens at its own address | 9 |
-| `/parent/settings` | Account, the language of the screens (the picker; saved on the account), sign out | 5 · 11 |
+| `/parent/settings` | Account, the language of the screens (the picker; saved on the account), the parent PIN (change it with the password), sign out | 5 · 11 |
 
 A child switcher at the top of the parent area (Step 6, kept in the `eg_child` cookie) chooses whose
 dashboard, practice and progress are shown. My Books always lists all of the family's books.
@@ -118,15 +119,17 @@ Built in Step 5 (`frontend/lib/session.ts`, `frontend/proxy.ts`).
   token silently; a refresh the backend refuses ends the session. It also sends each session to its
   area: signed out → `/login`, a student session on a parent URL → `/learn`, a parent on `/learn`
   → `/who-is-learning`. These redirects only choose a screen; the backend checks every call.
-- **Child mode** replaces the access token with the child-session token **and deletes the parent's
-  refresh token**, so nothing on the device can act as the parent. Leaving child mode
-  (`/learn/exit`, "Grown-ups") asks for the parent's password, which signs the parent in again;
-  the child-mode session is then signed out on the backend (Step 12). When the 12-hour child
-  session ends, the device goes to sign-in.
+- **Child mode** replaces the parent's tokens with child mode's own, which renew only that child's
+  session, so nothing on the device can act as the parent. It needs a **parent PIN**: a hand-over
+  without one goes to `/who-is-learning/pin` first. Leaving child mode (`/learn/exit`, "Grown-ups")
+  asks for the PIN on an on-screen number pad (`components/pin-pad.tsx`: buttons, no text field, so
+  nothing for a password manager to fill in), which signs the parent in again. Child mode doesn't
+  end by itself (14 days unused at most), and `/signout` in child mode goes to `/learn/exit` (the
+  backend refuses to sign it out), so the sign-in page, where a browser offers a saved password,
+  never comes up on its own.
 - A session the backend refuses (say the child was removed) is ended through `/signout`.
-- **Signing out** (Step 12): `/signout` first calls `POST /auth/logout` with the refresh token (in
-  child mode the access token), so the session's tokens stop working everywhere, then deletes the
-  cookies. Sign-in and sign-up pass the browser's address on (`X-Forwarded-For`) for the backend's
+- **Signing out** (Step 12): `/signout` first calls `POST /auth/logout` with the refresh token, so the
+  session's tokens stop working everywhere, then deletes the cookies. Sign-in and sign-up pass the browser's address on (`X-Forwarded-For`) for the backend's
   rate limits.
 - **Security headers** (Step 12, `next.config.ts`) on every page: a CSP that allows this site only
   (inline scripts too: nonces would make every page dynamic), no framing, HSTS, nosniff,

@@ -2,20 +2,26 @@
 
 from httpx import AsyncClient
 
-from tests.api.helpers import API, add_child, child_payload, error_code, register, start_child_session
+from tests.api.helpers import (
+    API,
+    add_child,
+    child_payload,
+    error_code,
+    hand_over,
+    register,
+    start_child_session,
+)
 
 
 async def test_parent_starts_child_mode(client: AsyncClient):
     parent = await register(client)
     child = await add_child(client, parent)
 
-    response = await client.post(f"{API}/students/{child['id']}/session", headers=parent.headers)
+    body = await hand_over(client, parent, child["id"])
 
-    assert response.status_code == 200
-    body = response.json()
     assert body["student"]["id"] == child["id"]
-    assert body["expires_in"] == 720 * 60
-    assert "refresh_token" not in body
+    assert body["expires_in"] == 30 * 60  # renewed like any session's, as this child only
+    assert body["refresh_token"]
 
     me = (
         await client.get(f"{API}/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})

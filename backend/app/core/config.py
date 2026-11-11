@@ -45,9 +45,8 @@ class Settings(BaseSettings):
     jwt_secret_key: str = ""
     jwt_algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
     access_token_expire_minutes: int = Field(default=30, ge=1)
+    # A session unused this long ends (a sign-in, or child mode, which otherwise lasts until the PIN).
     refresh_token_expire_days: int = Field(default=14, ge=1)
-    # How long a "child mode" session started by a parent stays valid.
-    child_session_expire_minutes: int = Field(default=720, ge=1)
 
     # ---- Limits ----
     max_students_per_parent: int = Field(default=10, ge=1)

@@ -4,7 +4,7 @@
 
 Creates (only if they do not exist yet):
 
-    parent@example.com  / DemoParent123     Sunita Sharma, with two children:
+    parent@example.com  / DemoParent123     Sunita Sharma (parent PIN 2468), with two children:
                                             Aarav (Class 7, CBSE) and Anaya (UKG),
                                             a sample book for each in "My Books", and
                                             demo practice questions for both books
@@ -13,7 +13,8 @@ Creates (only if they do not exist yet):
 The demo practice questions (scripts/demo_questions.py) let practice work without an AI key.
 Each learner is given a question only once, so they last for a few sessions per child.
 
-These passwords are public. The script refuses to run in production.
+These passwords and the PIN are public. The script refuses to run in production. Run again, it adds
+only what is missing (the PIN, to a demo parent made before there was one).
 """
 
 import asyncio
@@ -40,6 +41,7 @@ from scripts.demo_questions import CLASS_7_MATHS, UKG_PICTURES
 
 PARENT_EMAIL = "parent@example.com"
 PARENT_PASSWORD = "DemoParent123"
+PARENT_PIN = "2468"
 STUDENT_EMAIL = "student@example.com"
 STUDENT_PASSWORD = "DemoStudent123"
 SAMPLE_DATA = Path(__file__).parent / "sample_data"
@@ -87,22 +89,26 @@ SOLO_STUDENT_PROFILE = StudentProfileIn(
 
 async def _seed_parent() -> None:
     async with SessionLocal() as db:
-        if await db.scalar(select(User.id).where(User.email == PARENT_EMAIL)) is not None:
+        user = await db.scalar(select(User).where(User.email == PARENT_EMAIL))
+        if user is not None:
             print(f"= {PARENT_EMAIL} already exists")
-            return
-        user = await auth_service.register_user(
-            db,
-            RegisterRequest(
-                role=Role.PARENT,
-                full_name="Sunita Sharma",
-                email=PARENT_EMAIL,
-                password=PARENT_PASSWORD,
-            ),
-        )
-        principal = Principal(user=user, role=Role.PARENT)
-        for child in CHILDREN:
-            await student_service.create_student(db, principal, child)
-        print(f"+ {PARENT_EMAIL} / {PARENT_PASSWORD}  (children: Aarav - Class 7, Anaya - UKG)")
+        else:
+            user = await auth_service.register_user(
+                db,
+                RegisterRequest(
+                    role=Role.PARENT,
+                    full_name="Sunita Sharma",
+                    email=PARENT_EMAIL,
+                    password=PARENT_PASSWORD,
+                ),
+            )
+            for child in CHILDREN:
+                await student_service.create_student(db, Principal(user=user, role=Role.PARENT), child)
+            print(f"+ {PARENT_EMAIL} / {PARENT_PASSWORD}  (children: Aarav - Class 7, Anaya - UKG)")
+        if not await auth_service.has_pin(db, user):
+            parent = Principal(user=user, role=Role.PARENT)
+            await auth_service.set_pin(db, parent, PARENT_PASSWORD, PARENT_PIN)
+            print(f"+ parent PIN {PARENT_PIN}")
 
 
 async def _seed_solo_student() -> None:

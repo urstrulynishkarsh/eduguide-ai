@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.principal import Principal
 from app.core.config import get_settings
-from app.core.enums import ClassLevel, ContentType, Role
+from app.core.enums import ClassLevel, ContentType
 from app.core.errors import ConflictError, InvalidInputError, NotFoundError, PermissionDeniedError
 from app.core.tasks import TaskQueue
 from app.models import Book, Chapter, Document, DocumentChunk, Exercise, Topic
@@ -37,14 +37,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------- access rules
 
 
-def is_child_mode(principal: Principal) -> bool:
-    """A parent's account acting as one child."""
-    return principal.role is Role.STUDENT and principal.user.role == Role.PARENT
-
-
 def book_visible_to(principal: Principal) -> ColumnElement[bool]:
     condition = Book.owner_user_id == principal.user.id
-    if is_child_mode(principal):
+    if principal.is_child_mode:
         condition = and_(condition, or_(Book.student_id.is_(None), Book.student_id == principal.student_id))
     return condition
 
@@ -58,7 +53,7 @@ def books_for_learner(owner_user_id: uuid.UUID, student_id: uuid.UUID) -> Column
 
 def ensure_can_manage(principal: Principal) -> None:
     """Parents, and students who signed up alone, manage their books. Child mode only reads."""
-    if is_child_mode(principal):
+    if principal.is_child_mode:
         raise PermissionDeniedError("Only a parent can change the library.", code="parent_required")
 
 

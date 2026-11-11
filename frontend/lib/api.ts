@@ -163,7 +163,7 @@ export const getClassProfile = (classLevel: string) =>
  */
 export async function saveSession(
   accessToken: string,
-  refreshToken: string | null,
+  refreshToken: string,
   language: string,
 ): Promise<void> {
   const store = await cookies();

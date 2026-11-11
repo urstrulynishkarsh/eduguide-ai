@@ -1,4 +1,4 @@
-"""Sign-up, sign-in, tokens and child mode."""
+"""Sign-up, sign-in, tokens, child mode and the parent PIN."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -32,6 +32,7 @@ _DUMMY_PASSWORD_HASH = hash_password("not-a-real-password")
 _EMAIL_TAKEN = "An account with this email already exists. Try signing in instead."
 _BAD_LOGIN = "The email or password is not correct."
 _BAD_SESSION = "Your session has expired. Please sign in again."
+_WRONG_PIN = "The PIN is not correct."
 
 
 def normalize_email(email: str) -> str:
@@ -69,7 +70,7 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
 
 async def update_account(db: AsyncSession, principal: Principal, data: AccountUpdate) -> User:
     """The account's own settings. Not in child mode: the child must not change the parent's account."""
-    if principal.role is Role.STUDENT and principal.user.role == Role.PARENT:
+    if principal.is_child_mode:
         raise PermissionDeniedError("Only the account holder can change this.", code="parent_required")
     principal.user.preferred_language = data.preferred_language
     await db.commit()
@@ -89,7 +90,8 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> User:
     return user
 
 
-async def _new_session(db: AsyncSession, user: User, lasts: timedelta) -> AuthSession:
+async def _new_session(db: AsyncSession, user: User, student_id: uuid.UUID | None = None) -> AuthSession:
+    """A sign-in, or child mode for one child (`student_id`)."""
     now = utcnow()
     # The account's sessions that ran out or were signed out are of no more use.
     await db.execute(
@@ -98,17 +100,25 @@ async def _new_session(db: AsyncSession, user: User, lasts: timedelta) -> AuthSe
             or_(AuthSession.expires_at < now, AuthSession.revoked_at.is_not(None)),
         )
     )
-    session = AuthSession(user_id=user.id, created_at=now, expires_at=now + lasts)
+    session = AuthSession(
+        user_id=user.id,
+        student_id=student_id,
+        created_at=now,
+        expires_at=now + timedelta(days=get_settings().refresh_token_expire_days),
+    )
     db.add(session)
     await db.flush()
     return session
 
 
 async def _tokens(db: AsyncSession, user: User, session: AuthSession) -> TokenPair:
+    """New tokens for a session: a parent's, a student's own, or child mode (the session's child)."""
     settings = get_settings()
     role = Role(user.role)
-    student_id: uuid.UUID | None = None
-    if role is Role.STUDENT:
+    student_id = session.student_id
+    if student_id is not None:
+        role = Role.STUDENT
+    elif role is Role.STUDENT:
         student_id = await db.scalar(select(Student.id).where(Student.user_id == user.id))
 
     refresh_lasts = timedelta(days=settings.refresh_token_expire_days)
@@ -137,8 +147,7 @@ async def _tokens(db: AsyncSession, user: User, session: AuthSession) -> TokenPa
 
 async def issue_tokens(db: AsyncSession, user: User) -> TokenPair:
     """A new sign-in: a new session and its first tokens."""
-    session = await _new_session(db, user, timedelta(days=get_settings().refresh_token_expire_days))
-    return await _tokens(db, user, session)
+    return await _tokens(db, user, await _new_session(db, user))
 
 
 async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenPair:
@@ -163,7 +172,8 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenPair:
 
 async def sign_out(db: AsyncSession, token: str) -> None:
     """Revokes the session of a token: an access or a refresh token, still valid. Anything else is
-    ignored (the session has ended already, or the token is not one of ours)."""
+    ignored (the session has ended already, or the token is not one of ours). Child mode is refused:
+    only the parent PIN ends it (`leave_child_mode`)."""
     for token_type in TokenType:
         try:
             payload = decode_token(token, expected_type=token_type)
@@ -173,30 +183,55 @@ async def sign_out(db: AsyncSession, token: str) -> None:
     else:
         return
     session = await db.get(AuthSession, payload.session_id)
-    if session is not None and session.user_id == payload.user_id and session.revoked_at is None:
-        session.revoked_at = utcnow()
-        await db.commit()
+    if session is None or session.user_id != payload.user_id or session.revoked_at is not None:
+        return
+    if session.student_id is not None:
+        raise PermissionDeniedError("Child mode is left with the parent PIN.", code="pin_required")
+    session.revoked_at = utcnow()
+    await db.commit()
+
+
+async def has_pin(db: AsyncSession, user: User) -> bool:
+    """The parent PIN is set. Never for a student's own account (it has no parent record)."""
+    return bool(await db.scalar(select(Parent.pin_hash.is_not(None)).where(Parent.user_id == user.id)))
+
+
+async def set_pin(db: AsyncSession, principal: Principal, password: str, pin: str) -> None:
+    """Sets or changes the parent PIN. Only in a parent's own session (not child mode), and only with
+    the account's password, so whoever holds a parent's open screen can't change it either."""
+    user = principal.user
+    if not await run_in_threadpool(verify_password, password, user.password_hash):
+        raise AuthenticationError("The password is not correct.", code="wrong_password")
+    parent = await db.scalar(select(Parent).where(Parent.user_id == user.id))
+    parent.pin_hash = await run_in_threadpool(hash_password, pin)  # slow on purpose
+    await db.commit()
+
+
+async def leave_child_mode(db: AsyncSession, principal: Principal, pin: str) -> TokenPair:
+    """Child mode ends with the parent PIN: its session is signed out and the parent signs in anew,
+    with a session of their own (tokens as at sign-in)."""
+    if not principal.is_child_mode:
+        raise PermissionDeniedError("This device is not in child mode.", code="not_child_mode")
+    user = principal.user
+    pin_hash = await db.scalar(select(Parent.pin_hash).where(Parent.user_id == user.id))
+    if pin_hash is None or not await run_in_threadpool(verify_password, pin, pin_hash):
+        raise AuthenticationError(_WRONG_PIN, code="wrong_pin")
+    child_session = await db.get(AuthSession, principal.session_id)
+    child_session.revoked_at = utcnow()
+    return await issue_tokens(db, user)
 
 
 async def start_child_session(
     db: AsyncSession, principal: Principal, student_id: uuid.UUID
-) -> tuple[str, int, Student]:
-    """A parent hands the device to a child.
+) -> tuple[TokenPair, Student]:
+    """A parent hands the device to a child: a child-mode session, which needs the parent PIN set.
 
-    Returns a token that still belongs to the parent's account but can only act
-    as this one child: it cannot see siblings, change profiles or use any
-    parent screen. Returns (token, seconds_valid, student).
+    Its tokens still belong to the parent's account but can only act as this one child: no
+    siblings, no profile changes, no parent screen. They are renewed like a sign-in's, as this
+    child only, until the parent PIN ends child mode.
     """
     student = await student_service.get_student(db, principal, student_id)  # 404 unless it is their child
-    seconds_valid = get_settings().child_session_expire_minutes * 60
-    session = await _new_session(db, principal.user, timedelta(seconds=seconds_valid))
-    token = create_token(
-        user_id=principal.user.id,
-        role=Role.STUDENT,
-        token_type=TokenType.ACCESS,
-        expires_in=timedelta(seconds=seconds_valid),
-        session_id=session.id,
-        student_id=student.id,
-    )
-    await db.commit()
-    return token, seconds_valid, student
+    if not await has_pin(db, principal.user):
+        raise ConflictError("Set a parent PIN before handing the device to a child.", code="pin_not_set")
+    session = await _new_session(db, principal.user, student.id)
+    return await _tokens(db, principal.user, session), student

@@ -76,6 +76,8 @@ describe("LearnerProfileForm", () => {
     for (const label of ["Child's name", "Name of the board"]) {
       expect(screen.getByLabelText(label)).toHaveAttribute("autocomplete", "none");
     }
+    // Not "name" either, which phones read as the parent's name whatever autocomplete says.
+    expect(screen.getByLabelText("Child's name")).toHaveAttribute("name", "child_name");
   });
 
   it("lets the parent add a subject of their own, once", async () => {

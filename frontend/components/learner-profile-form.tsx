@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 
 import { useCopy } from "@/components/copy-provider";
 import { Choice, ChoiceGroup, ErrorText, SelectField } from "@/components/choice";
-import { Field, NO_AUTOFILL } from "@/components/field";
+import { Field } from "@/components/field";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
@@ -119,14 +119,15 @@ export function LearnerProfileForm({
           {askName && (
             <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
               <Field
-                name="name"
+                // Not "name": Chrome reads a field called that as the parent's own name, and on
+                // phones it ignores autoComplete="none" (components/field.tsx).
+                name="child_name"
                 label={text.childName}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 error={errors.name}
                 required
                 maxLength={80}
-                autoComplete={NO_AUTOFILL}
               />
               <Field
                 name="age"
@@ -163,7 +164,6 @@ export function LearnerProfileForm({
                 onChange={(event) => setBoardName(event.target.value)}
                 error={errors.board_name}
                 maxLength={80}
-                autoComplete={NO_AUTOFILL}
               />
             )}
             <SelectField

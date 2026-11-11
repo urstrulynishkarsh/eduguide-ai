@@ -95,10 +95,14 @@ export function BadgeList({ badges, copy }: { badges: Rewards["badges"]; copy: C
           data-earned={Boolean(badge.earned_at)}
           className={cn(
             "grid content-start justify-items-center gap-1 rounded-xl border bg-card p-4 text-center",
-            !badge.earned_at && "border-dashed bg-transparent opacity-60 grayscale",
+            !badge.earned_at && "border-dashed bg-transparent",
           )}
         >
-          <span aria-hidden className="text-3xl playful:text-5xl">
+          {/* Only the picture fades on a badge still to earn: faded words would be hard to read. */}
+          <span
+            aria-hidden
+            className={cn("text-3xl playful:text-5xl", !badge.earned_at && "opacity-60 grayscale")}
+          >
             {BADGE_EMOJI[badge.code] ?? "🏅"}
           </span>
           <span className="font-semibold">{badgeName(copy, badge.code)}</span>
