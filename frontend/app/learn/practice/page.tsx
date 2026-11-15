@@ -1,3 +1,4 @@
+import { NoBooksYet } from "@/components/no-books-yet";
 import { RecentPractice } from "@/components/progress-view";
 import { chosenFrom, PracticeChooser } from "@/components/question-chooser";
 import { StartButton } from "@/components/start-button";
@@ -15,13 +16,14 @@ export const generateMetadata = titled((copy) => copy.nav.practice);
 export default async function LearnPracticePage({ searchParams }: PageProps<"/learn/practice">) {
   const copy = await getCopy();
   const text = copy.practiceForm;
-  const [{ student, profile, classProfile }, books, query, options] = await Promise.all([
+  const [{ me, student, profile, classProfile }, books, query, options] = await Promise.all([
     getLearner(),
     getBooks(),
     searchParams,
     getOptions(),
   ]);
-  if (books.length === 0) return <p className="text-muted-foreground playful:text-2xl">{text.noBooks}</p>;
+  if (books.length === 0)
+    return <NoBooksYet copy={copy} solo={me.user.role === "student"} words={text.noBooks} />;
 
   if (classProfile.ui_mode === "playful") {
     const chapters = (await Promise.all(books.map((book) => getChapters(book.id)))).flat();

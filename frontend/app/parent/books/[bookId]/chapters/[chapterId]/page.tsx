@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { ExplainBox } from "@/components/explain-box";
 import { StartButton } from "@/components/start-button";
 import { Button } from "@/components/ui/button";
 import { createPractice } from "@/lib/actions/practice";
 import { createTest } from "@/lib/actions/tests";
-import { getChapter, getClassProfile, getExercise, requireChosenChild } from "@/lib/api";
+import { getBook, getBookLearner, getChapter, getClassProfile, getExercise } from "@/lib/api";
 import { getCopy, titled } from "@/lib/copy/server";
 import type { ClassFeatures, ExerciseDetail } from "@/lib/types";
 
@@ -31,14 +32,19 @@ function testKind(features: ClassFeatures): string | null {
 
 export const generateMetadata = titled((copy) => copy.practiceForm.chapter);
 
-/** A chapter: Learn · Practice · Exercise Questions · Generate Questions · Take Test (spec §39). */
+/**
+ * A chapter: Learn · Practice · Exercise Questions · Generate Questions · Take Test (spec §39), for
+ * the child the book is for (a family book: the chosen child).
+ */
 export default async function ChapterPage({
   params,
 }: PageProps<"/parent/books/[bookId]/chapters/[chapterId]">) {
   const copy = await getCopy();
   const text = copy.chapter;
   const { bookId, chapterId } = await params;
-  const [chapter, child] = await Promise.all([getChapter(chapterId), requireChosenChild()]);
+  const [chapter, book] = await Promise.all([getChapter(chapterId), getBook(bookId)]);
+  const child = await getBookLearner(book);
+  if (!child) redirect("/onboarding/child");
   const [exercises, classProfile] = await Promise.all([
     Promise.all(chapter.exercises.map((exercise) => getExercise(exercise.id))),
     getClassProfile(child.profile!.class_level),

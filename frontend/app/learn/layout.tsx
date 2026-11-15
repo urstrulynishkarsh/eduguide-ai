@@ -39,6 +39,9 @@ export default async function LearnLayout({ children }: LayoutProps<"/learn">) {
           <div className="flex items-center gap-1">
             <LanguagePicker />
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
+              <Link href="/learn/books">{copy.nav.books}</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
               <Link href="/onboarding/profile">{copy.learn.myClassDetails}</Link>
             </Button>
             <SignOutButton />

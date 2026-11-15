@@ -34,7 +34,13 @@ describe("BookUploader", () => {
   it("makes the book without its file (a Server Action takes at most 1 MB), then sends the file", async () => {
     vi.mocked(createBook).mockResolvedValue({ bookId: "b1" });
     vi.stubGlobal("XMLHttpRequest", Upload);
-    render(<BookUploader newBook={{ options, learners: [], chosenId: null }} limits={options.upload} />);
+    render(
+      <BookUploader
+        area="parent"
+        newBook={{ options, learners: [], chosenId: null }}
+        limits={options.upload}
+      />,
+    );
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Book name"), "Class 7 Mathematics");
     await user.type(screen.getByLabelText("Subject"), "Mathematics");
@@ -53,8 +59,35 @@ describe("BookUploader", () => {
   });
 
   it("keeps the browser from filling the book's name with the parent's own", () => {
-    render(<BookUploader newBook={{ options, learners: [], chosenId: null }} limits={options.upload} />);
+    render(
+      <BookUploader
+        area="parent"
+        newBook={{ options, learners: [], chosenId: null }}
+        limits={options.upload}
+      />,
+    );
     // Not "off": Chrome ignores that and offers the parent's saved name (components/field.tsx).
     expect(screen.getByLabelText("Book name")).toHaveAttribute("autocomplete", "none");
+  });
+
+  it("asks a solo student neither who the book is for nor its class, and opens it in their library", async () => {
+    vi.mocked(createBook).mockResolvedValue({ bookId: "b2" });
+    vi.stubGlobal("XMLHttpRequest", Upload);
+    render(<BookUploader area="learn" newBook={{ options }} limits={options.upload} />);
+    expect(screen.queryByLabelText("Who is it for?")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Which class?")).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Book name"), "Physics notes");
+    await user.type(screen.getByLabelText("Subject"), "Physics");
+    await user.upload(
+      screen.getByLabelText("File"),
+      new File(["notes"], "notes.txt", { type: "text/plain" }),
+    );
+    fireEvent.submit(screen.getByRole("button", { name: "Upload" }));
+
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith("/learn/books/b2"));
+    const fields = vi.mocked(createBook).mock.calls.at(-1)![1];
+    expect(fields.get("student_id")).toBeNull();
+    expect(fields.get("class_level")).toBeNull();
   });
 });

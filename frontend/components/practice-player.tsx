@@ -138,7 +138,10 @@ export function PracticePlayer({ session, uiMode }: { session: PracticeSession; 
           draft={draft}
           disabled={final || pending}
           playful={playful}
-          onChange={(next) => (oneTap ? submit(answerFor(question, next)) : setDraft(next))}
+          onChange={(next) => {
+            setDraft(next); // the tapped option stays marked while the answer is checked
+            if (oneTap) submit(answerFor(question, next));
+          }}
         />
 
         {result && (

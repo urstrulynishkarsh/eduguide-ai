@@ -72,5 +72,5 @@ test("a student's screens, in the Class 9 – 12 layout", async ({ page }) => {
   await page.getByLabel("Password").fill("DemoStudent123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/learn$/);
-  await expectScreensAccessible(page, [...LEARNER_SCREENS, "/learn/tests"]);
+  await expectScreensAccessible(page, [...LEARNER_SCREENS, "/learn/tests", "/learn/books"]);
 });

@@ -4,6 +4,8 @@ import hashlib
 import math
 import re
 from collections.abc import Sequence
+from types import SimpleNamespace
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -85,6 +87,39 @@ class FakeLLM:
                 raise part
             for piece in re.findall(r"\S+\s*", part):
                 yield piece
+
+
+class ChatCompletionsStub:
+    """The SDK client of a service in OpenAI's format (OpenAI's own, or Groq's): returns `result`,
+    streams it when the request asks for a stream, or raises it. Records every request."""
+
+    def __init__(self, result: object) -> None:
+        self.result = result
+        self.calls: list[dict[str, Any]] = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    async def _create(self, **kwargs: Any) -> object:
+        self.calls.append(kwargs)
+        if isinstance(self.result, Exception):
+            raise self.result
+        if kwargs.get("stream"):
+            return self._chunks(self.result)
+        return self.result
+
+    @staticmethod
+    async def _chunks(pieces: Any):
+        for piece in pieces:
+            yield piece
+
+
+def chat_completion(content: str, finish_reason: str = "stop") -> SimpleNamespace:
+    """A whole (not streamed) answer in OpenAI's format."""
+    return SimpleNamespace(
+        id="chatcmpl_1",
+        model="test-model",
+        choices=[SimpleNamespace(finish_reason=finish_reason, message=SimpleNamespace(content=content))],
+        usage=SimpleNamespace(prompt_tokens=120, completion_tokens=30),
+    )
 
 
 def make_question(**overrides: object) -> GeneratedQuestion:

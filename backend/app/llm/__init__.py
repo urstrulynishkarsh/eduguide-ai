@@ -57,6 +57,21 @@ def _provider() -> LLMProvider | None:
             groq.AsyncGroq(api_key=settings.groq_api_key, max_retries=6, timeout=120),
             _models(chosen, GROQ_MODELS),
         )
+    if settings.llm_provider == "openai_compatible":
+        import openai
+
+        from app.llm.openai_compatible_provider import OpenAICompatibleProvider
+
+        return OpenAICompatibleProvider(
+            openai.AsyncOpenAI(
+                api_key=settings.openai_compatible_api_key,
+                base_url=settings.openai_compatible_base_url,
+                max_retries=3,
+                timeout=120,
+            ),
+            # The service has no models of its own to fall back on: LLM_MODEL_DEFAULT fills an empty tier.
+            _models(chosen, dict.fromkeys(chosen, settings.llm_model_default)),
+        )
     return None
 
 

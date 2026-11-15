@@ -194,8 +194,10 @@ to `backend/.env` and restart the API:
 |---|---|---|---|
 | **Groq** (open models: gpt-oss) | free plan, with low limits per minute and per day | https://console.groq.com/keys | `LLM_PROVIDER=groq` · `GROQ_API_KEY=gsk_...` |
 | **Claude** | paid per use | https://platform.claude.com | `LLM_PROVIDER=anthropic` · `ANTHROPIC_API_KEY=sk-ant-...` |
+| **Any OpenAI-compatible service** | set by the service | the service | `LLM_PROVIDER=openai_compatible` · `OPENAI_COMPATIBLE_BASE_URL=https://.../v1` · `OPENAI_COMPATIBLE_API_KEY=...` · `LLM_MODEL_DEFAULT=<a model it offers>` |
 
-The models are chosen for you (`LLM_MODEL_FAST` / `_DEFAULT` / `_STRONG` override them). Check that
+The models are chosen for you (`LLM_MODEL_FAST` / `_DEFAULT` / `_STRONG` override them; an
+OpenAI-compatible service needs `LLM_MODEL_DEFAULT`). Check that
 your key works with `pytest -m live`. **On Groq's free plan, ask for 5 questions at a time:** the plan
 allows 8,000 tokens a minute, so questions are written 3 at a time with waits in between - a practice
 of 5 takes about 4 minutes, and a hard one may come back with fewer questions (the independent check
@@ -286,7 +288,7 @@ From `backend/` with the virtual environment active:
 pytest                 # everything (the database and Redis must be running: docker compose up -d);
                        # no AI calls, no model download
 pytest tests/unit      # only the tests that need nothing running
-pytest -m live         # real calls to Groq and/or Claude, whichever keys are in .env
+pytest -m live         # real calls to each AI provider whose key is in .env
 ruff check .           # code style
 ```
 

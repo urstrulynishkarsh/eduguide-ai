@@ -1,10 +1,9 @@
 import Link from "next/link";
 
+import { BookList } from "@/components/book-sections";
 import { Button } from "@/components/ui/button";
 import { getBooks, getChosenChild } from "@/lib/api";
-import { classLabel } from "@/lib/copy";
 import { getCopy, titled } from "@/lib/copy/server";
-import { cn } from "@/lib/utils";
 
 export const generateMetadata = titled((copy) => copy.library.title);
 
@@ -27,43 +26,7 @@ export default async function LibraryPage() {
           <Link href="/parent/books/upload">+ {text.upload}</Link>
         </Button>
       </div>
-      {books.length === 0 ? (
-        <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">{text.empty}</p>
-      ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
-          {books.map((book) => (
-            <li key={book.id}>
-              <Link
-                href={`/parent/books/${book.id}`}
-                className="grid gap-2 rounded-xl border bg-card p-5 shadow-sm transition hover:border-primary"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-lg font-bold">📘 {book.title}</h2>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold",
-                      book.status === "ready" && "bg-success/10 text-success",
-                      book.status === "processing" && "bg-secondary text-secondary-foreground",
-                      (book.status === "failed" || book.status === "empty") &&
-                        "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {text.status[book.status]}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {[
-                    book.subject,
-                    classLabel(copy, book),
-                    nameOf(book.student_id),
-                    text.chapters(book.chapter_count),
-                  ].join(" · ")}
-                </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <BookList books={books} copy={copy} area="parent" detail={(book) => nameOf(book.student_id)} />
     </div>
   );
 }

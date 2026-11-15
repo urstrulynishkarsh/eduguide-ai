@@ -17,7 +17,7 @@ User roles: parent and student. A student is either a child profile under a pare
   4-digit parent PIN, and only that PIN ends it.
 - Frontend: Next.js 16 (App Router, Cache Components on) + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui (radix), Node.js 22/24 LTS. Versions are pinned exactly in `frontend/package.json`. Next.js 16 differs from older versions: read `frontend/node_modules/next/dist/docs/` before using an API you are unsure of (`middleware` is now `proxy.ts`)
 - Frontend tests and checks: Vitest + Testing Library (unit), Playwright (end to end, against the real API) with axe accessibility checks (`@axe-core/playwright`, WCAG A/AA), ESLint, Prettier (print width 110), `tsc`
-- AI provider: switched off unless `backend/.env` sets one. `LLM_PROVIDER=groq` + `GROQ_API_KEY`: open models on Groq through the `groq` SDK (free plan; `openai/gpt-oss-20b` / `-120b`). `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`: Claude through the `anthropic` SDK, `claude-opus-5-5` for every tier (connected in step 3). Both behind `app/llm/`'s `LLMProvider`.
+- AI provider: switched off unless `backend/.env` sets one. `LLM_PROVIDER=groq` + `GROQ_API_KEY`: open models on Groq through the `groq` SDK (free plan; `openai/gpt-oss-20b` / `-120b`). `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`: Claude through the `anthropic` SDK, `claude-opus-5-5` for every tier (connected in step 3). `LLM_PROVIDER=openai_compatible` + `OPENAI_COMPATIBLE_BASE_URL` + `OPENAI_COMPATIBLE_API_KEY` + `LLM_MODEL_DEFAULT`: any service in OpenAI's chat-completions format through the `openai` SDK (Groq's adapter is a subclass of this one). All behind `app/llm/`'s `LLMProvider`.
 - Search: local multilingual embeddings (`intfloat/multilingual-e5-base` through fastembed / ONNX, 768 dimensions) plus PostgreSQL keyword search
 - File parsing: pypdfium2 (PDF), python-docx + lxml (DOCX), plain text (TXT); optional OCR with Tesseract (`OCR_PROVIDER=tesseract`)
 - Tests and checks: pytest + pytest-asyncio + httpx; ruff (line length 110); pip-audit / npm audit
@@ -44,7 +44,7 @@ backend/
     services/            # business logic, transactions, data isolation
     storage/             # where uploaded files are kept
     rag/                 # reading books (ingestion/), OCR, embeddings, search, explanations
-    llm/                 # AI provider interface + Claude adapter
+    llm/                 # AI provider interface + the adapters (Claude, OpenAI-compatible, Groq)
     question_generation/ # write -> check -> independent review of questions; marking answers; test papers
     analytics/           # progress numbers and progress over time; previous-year paper analysis; streaks, XP, badges
     adaptive_learning/   # mastery per topic, difficulty that follows it, daily recommendations, study planner,
@@ -92,7 +92,7 @@ python -m app.worker                # only when REDIS_URL is set in .env: runs t
 
 # Tests (the database and Redis must be running)
 pytest                              # live tests are skipped
-pytest -m live                      # real calls to Groq / Claude, for each key in .env
+pytest -m live                      # real calls to each AI provider whose key is in .env
 
 # Code checks
 ruff check . && ruff format --check .

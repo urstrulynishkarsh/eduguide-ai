@@ -22,9 +22,11 @@ export async function chooseChild(studentId: string): Promise<void> {
   refresh();
 }
 
-/** Step one of "Upload Book": the book itself. The browser then sends the file (see BookUploader). */
+/**
+ * Step one of "Upload Book": the book itself. The browser then sends the file (see BookUploader). A
+ * child's book (or a solo student's own, with no child named) takes its class from their profile.
+ */
 export async function createBook(_: FormState, formData: FormData): Promise<FormState & { bookId?: string }> {
-  const studentId = formText(formData, "student_id");
   try {
     const book = await api<Book>("/books", {
       method: "POST",
@@ -32,8 +34,8 @@ export async function createBook(_: FormState, formData: FormData): Promise<Form
         title: formText(formData, "title"),
         subject: formText(formData, "subject"),
         material_type: formText(formData, "material_type"),
-        student_id: studentId || null,
-        class_level: studentId ? null : formText(formData, "class_level"),
+        student_id: formText(formData, "student_id") || null,
+        class_level: formText(formData, "class_level") || null,
       },
     });
     return { bookId: book.id };
@@ -42,9 +44,10 @@ export async function createBook(_: FormState, formData: FormData): Promise<Form
   }
 }
 
-export async function deleteBook(bookId: string): Promise<void> {
+/** Deletes a book and goes back to the library of its area (the parent's, or a solo student's). */
+export async function deleteBook(area: "parent" | "learn", bookId: string): Promise<void> {
   await api(`/books/${id(bookId)}`, { method: "DELETE" });
-  redirect("/parent/books");
+  redirect(`/${area}/books`);
 }
 
 export async function retryDocument(documentId: string): Promise<void> {

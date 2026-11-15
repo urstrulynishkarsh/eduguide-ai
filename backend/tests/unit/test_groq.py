@@ -1,8 +1,7 @@
-"""The Groq adapter: request shape, strict schemas, failures, and choosing the provider.
-The SDK client is replaced by a stub."""
+"""The Groq adapter, and with it what it shares with every service in OpenAI's format: request
+shape, strict schemas, failures, and choosing the provider. The SDK client is replaced by a stub."""
 
 from types import SimpleNamespace
-from typing import Any
 
 import groq
 import httpx
@@ -12,8 +11,10 @@ from pydantic import BaseModel
 import app.llm as llm
 from app.core.config import Settings
 from app.llm import AIUnavailableError, Message
-from app.llm.groq_provider import DEFAULT_MODELS, GroqProvider, strict_schema
+from app.llm.groq_provider import DEFAULT_MODELS, GroqProvider
+from app.llm.openai_compatible_provider import strict_schema
 from app.question_generation.schemas import GeneratedBatch
+from tests.fakes import ChatCompletionsStub, chat_completion
 
 
 class Answer(BaseModel):
@@ -21,37 +22,8 @@ class Answer(BaseModel):
     note: str | None = None
 
 
-def _response(content: str, finish_reason: str = "stop") -> SimpleNamespace:
-    return SimpleNamespace(
-        id="chatcmpl_1",
-        model="openai/gpt-oss-120b",
-        choices=[SimpleNamespace(finish_reason=finish_reason, message=SimpleNamespace(content=content))],
-        usage=SimpleNamespace(prompt_tokens=120, completion_tokens=30),
-    )
-
-
-class StubClient:
-    def __init__(self, result: object) -> None:
-        self.result = result
-        self.calls: list[dict[str, Any]] = []
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
-
-    async def _create(self, **kwargs: Any) -> object:
-        self.calls.append(kwargs)
-        if isinstance(self.result, Exception):
-            raise self.result
-        if kwargs.get("stream"):
-            return self._chunks(self.result)
-        return self.result
-
-    @staticmethod
-    async def _chunks(pieces: Any):
-        for piece in pieces:
-            yield piece
-
-
-def _provider(result: object, **models: str) -> tuple[GroqProvider, StubClient]:
-    client = StubClient(result)
+def _provider(result: object, **models: str) -> tuple[GroqProvider, ChatCompletionsStub]:
+    client = ChatCompletionsStub(result)
     return GroqProvider(client, {**DEFAULT_MODELS, **models}), client  # type: ignore[arg-type]
 
 
@@ -65,7 +37,7 @@ async def _ask(provider: GroqProvider, tier: str = "default"):
 
 
 async def test_structured_answer_and_request_shape():
-    provider, client = _provider(_response('{"text": "ok", "note": null}'))
+    provider, client = _provider(chat_completion('{"text": "ok", "note": null}'))
 
     result = await _ask(provider, tier="fast")
 
@@ -85,7 +57,7 @@ async def test_structured_answer_and_request_shape():
 
 
 async def test_models_other_than_gpt_oss_keep_their_own_reasoning_settings():
-    provider, client = _provider(_response('{"text": "ok", "note": null}'), default="qwen/qwen3.8-27b")
+    provider, client = _provider(chat_completion('{"text": "ok", "note": null}'), default="qwen/qwen3.8-27b")
 
     await _ask(provider)
 
@@ -110,7 +82,7 @@ def test_strict_schemas_close_every_object_and_keep_optional_fields_nullable():
     [('{"text": "cut of', "length"), ('{"note": "no text"}', "stop")],
 )
 async def test_an_answer_that_is_cut_off_or_does_not_fit_is_not_used(content: str, finish_reason: str):
-    provider, _ = _provider(_response(content, finish_reason))
+    provider, _ = _provider(chat_completion(content, finish_reason))
     with pytest.raises(AIUnavailableError):
         await _ask(provider)
 

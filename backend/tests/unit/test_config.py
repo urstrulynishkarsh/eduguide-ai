@@ -59,3 +59,17 @@ def test_the_chosen_ai_provider_needs_its_key(provider: str, key: str):
         _settings(jwt_secret_key=GOOD_SECRET, llm_provider=provider, **{key: "a-key"}).llm_provider
         == provider
     )
+
+
+def test_an_openai_compatible_service_needs_its_key_its_address_and_a_model():
+    complete = {
+        "openai_compatible_api_key": "a-key",
+        "openai_compatible_base_url": "https://llm.example.com/v1",
+        "llm_model_default": "model-a",
+    }
+    for missing in complete:
+        given = {name: value for name, value in complete.items() if name != missing}
+        with pytest.raises(ValidationError) as error:
+            _settings(jwt_secret_key=GOOD_SECRET, llm_provider="openai_compatible", **given)
+        assert f"{missing.upper()} in backend/.env" in str(error.value)
+    assert _settings(jwt_secret_key=GOOD_SECRET, llm_provider="openai_compatible", **complete)

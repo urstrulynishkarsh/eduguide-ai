@@ -1,6 +1,16 @@
 import { expect, test } from "@playwright/test";
 
-import { PASSWORD, chooseClass, expectLayout, formMessage, signUp, tap, uniqueEmail } from "./helpers";
+import {
+  PASSWORD,
+  SAMPLE_BOOK,
+  chooseClass,
+  expectAccessible,
+  expectLayout,
+  formMessage,
+  signUp,
+  tap,
+  uniqueEmail,
+} from "./helpers";
 
 test("a student signs up alone, fills in class details and lands in the Class 9–12 layout", async ({
   page,
@@ -86,4 +96,39 @@ test("a student who signed up alone makes their own study plan and finds their t
     "Practice test",
     "Chapter test",
   ]);
+});
+
+test("a student who signed up alone uploads their own book and finds its chapter", async ({ page }) => {
+  test.setTimeout(120_000); // the book is read to the end
+  await signUp(page, "Student", "Neel Joshi", uniqueEmail("student"));
+  await chooseClass(page, "Class 7");
+  await page.getByRole("button", { name: "Save and start" }).click();
+  await expect(page).toHaveURL(/\/learn$/);
+
+  // No books yet: practice sends them to upload one.
+  await page.goto("/learn/practice");
+  await page.getByRole("link", { name: "Upload Book" }).click();
+  await expect(page).toHaveURL(/\/learn\/books$/);
+  await expectAccessible(page);
+  await page.getByLabel("Book name").fill("My Maths Notes");
+  await page.getByLabel("Subject").fill("Mathematics");
+  await page.getByLabel("File").setInputFiles(SAMPLE_BOOK);
+  await page.getByRole("button", { name: "Upload" }).click();
+
+  await expect(page).toHaveURL(/\/learn\/books\/[^/]+$/);
+  await expect(page.getByText("Reading your book")).toBeVisible();
+  await expect(page.getByText(/Found 1 chapter, 2 exercises/)).toBeVisible({ timeout: 90_000 });
+  await expectAccessible(page);
+  await page.locator('a[href^="/learn/concepts/"]').filter({ visible: true }).first().click();
+  await expect(page.getByRole("heading", { name: /Simple Equations/ })).toBeVisible();
+
+  // Their own class's book is listed for practice now, and can be deleted again.
+  await page.goto("/learn/practice");
+  await expect(page.getByLabel("Book").locator("option")).toContainText(["My Maths Notes"]);
+  await page.goto("/learn/books");
+  await page.getByRole("link", { name: /My Maths Notes/ }).click();
+  await page.getByRole("button", { name: "Delete this book" }).click();
+  await page.getByRole("button", { name: "Yes, delete" }).click();
+  await expect(page).toHaveURL(/\/learn\/books$/);
+  await expect(page.getByText(/No books yet/)).toBeVisible();
 });

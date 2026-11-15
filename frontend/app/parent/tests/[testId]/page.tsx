@@ -7,7 +7,7 @@ import { placeOf, TestReportView, testSummary, testTitle } from "@/components/te
 import { startChildMode } from "@/lib/actions/students";
 import { getReport, getStudents, getTest } from "@/lib/api";
 import { getCopy, titled } from "@/lib/copy/server";
-import { cn, formatDay } from "@/lib/utils";
+import { cn, formatDay, searchParam } from "@/lib/utils";
 
 export const generateMetadata = titled((copy) => copy.tests.title);
 
@@ -22,7 +22,7 @@ export default async function ParentTestPage({ params, searchParams }: PageProps
   const [test, children] = await Promise.all([getTest(testId), getStudents()]);
   const name = children.find((child) => child.id === test.student_id)?.name ?? "";
   const submitted = test.attempts.filter((sitting) => sitting.submitted_at);
-  const shown = submitted.find((sitting) => sitting.id === query.attempt) ?? submitted.at(-1);
+  const shown = submitted.find((sitting) => sitting.id === searchParam(query, "attempt")) ?? submitted.at(-1);
   const report = shown && (await getReport(shown.id));
 
   return (

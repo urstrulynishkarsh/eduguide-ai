@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { getBooks, getChapters } from "@/lib/api";
+import { NoBooksYet } from "@/components/no-books-yet";
+import { getBooks, getChapters, getLearner } from "@/lib/api";
 import { getCopy, titled } from "@/lib/copy/server";
 
 export const generateMetadata = titled((copy) => copy.concepts.title);
@@ -9,7 +10,7 @@ export const generateMetadata = titled((copy) => copy.concepts.title);
 export default async function ConceptsPage() {
   const copy = await getCopy();
   const text = copy.concepts;
-  const books = await getBooks();
+  const [{ me }, books] = await Promise.all([getLearner(), getBooks()]);
   const chapters = await Promise.all(books.map((book) => getChapters(book.id)));
 
   return (
@@ -18,7 +19,9 @@ export default async function ConceptsPage() {
         <h1 className="text-3xl font-extrabold playful:text-4xl dense:text-2xl">{text.title}</h1>
         <p className="text-muted-foreground">{text.subtitle}</p>
       </div>
-      {chapters.flat().length === 0 && <p className="text-muted-foreground">{text.noBooks}</p>}
+      {chapters.flat().length === 0 && (
+        <NoBooksYet copy={copy} solo={me.user.role === "student"} words={text.noBooks} />
+      )}
       {books.map(
         (book, i) =>
           chapters[i].length > 0 && (

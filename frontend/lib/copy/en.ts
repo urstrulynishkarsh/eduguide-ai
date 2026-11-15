@@ -188,6 +188,7 @@ export const en = {
     todaysPlan: "Today's plan",
     openPlan: "Open my plan",
     revise: "Revise the idea first",
+    noBooksSolo: "No books yet. Upload a textbook or notes, and your practice is made from it.",
   },
 
   switcher: {
@@ -223,6 +224,7 @@ export const en = {
   library: {
     title: "My Learning Library",
     subtitle: "Books, notes and question papers for your family.",
+    mySubtitle: "Your books, notes and question papers. Practice, tests and explanations come from them.",
     upload: "Upload Book",
     empty: "No books yet. Upload a textbook, notes or a question paper to get started.",
     forChild: (name: string) => `For ${name}`,

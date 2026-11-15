@@ -65,7 +65,9 @@ even be written. There is no `Reranker` yet either (see [doc 5](05-rag-pipeline.
 for writing explanations and questions, `strong` for the hardest checks. Each tier has a model
 (`LLM_MODEL_*`) and an effort level (low / medium / high). Left empty, each provider picks:
 Claude Opus 5.5 for all three, or on Groq `openai/gpt-oss-20b` (fast) and `openai/gpt-oss-120b`
-(default, strong). A different model for a tier is a setting, not a code change.
+(default, strong). An OpenAI-compatible service has no models of its own to fall back on:
+`LLM_MODEL_DEFAULT` is required and fills an empty tier, and no effort level is sent. A different
+model for a tier is a setting, not a code change.
 
 **Errors** the API returns: `503 ai_not_configured` (AI switched off), `503 ai_unavailable` (the
 provider is busy, unreachable or rejects the key - details in the log), `422 ai_declined` (the
@@ -211,11 +213,13 @@ complete, so a reply that fails half-way leaves nothing behind.
 ## 6.7 Settings (added in Step 3)
 
 ```
-LLM_PROVIDER=none            # none | anthropic | groq
+LLM_PROVIDER=none            # none | anthropic | groq | openai_compatible
 ANTHROPIC_API_KEY=           # required when LLM_PROVIDER=anthropic
 GROQ_API_KEY=                # required when LLM_PROVIDER=groq
+OPENAI_COMPATIBLE_BASE_URL=  # both required when LLM_PROVIDER=openai_compatible
+OPENAI_COMPATIBLE_API_KEY=
 LLM_MODEL_FAST=              # empty = the provider's choice (DEFAULT_MODELS in its adapter)
-LLM_MODEL_DEFAULT=
+LLM_MODEL_DEFAULT=           # required when LLM_PROVIDER=openai_compatible
 LLM_MODEL_STRONG=
 MODEL_CACHE_DIR=storage/models   # the local search model (~1 GB, downloaded on first use)
 ```
@@ -232,6 +236,17 @@ effort per tier on the gpt-oss models with the reasoning itself left out of the 
 answer validated by the same Pydantic model. Open models have no refusal signal, so `ai_declined`
 never comes from Groq. The free plan's limits per minute and per day show up as `ai_unavailable`,
 with the reason in the log (HTTP 429, or 413 for a request larger than the plan allows per minute).
+
+**Any OpenAI-compatible service** (added after Step 12) through the official `openai` SDK
+(`app/llm/openai_compatible_provider.py`), at the address in `OPENAI_COMPATIBLE_BASE_URL`. This
+adapter holds everything the chat-completions format needs (the strict schema, validation,
+streaming, failures), and `GroqProvider` is now a subclass of it that adds only what is Groq's own:
+its SDK's errors, its models, the free plan's sizes and the gpt-oss reasoning settings. Requests
+are full size (6,000 tokens of book text, 10 questions, no cap on replies), and a stream asks for
+its token counts (`stream_options`). Services differ in how well they keep to the format: some
+drop `response_format` or the system prompt for some models, and the system prompt carries the
+class rules and the hint ladder. So check a new service and model with `pytest -m live` before
+using it, and send children's work only to a service you trust with it.
 
 Each provider declares a `RequestSize` (book text per request, questions written and reviewed per
 call), which the question writer follows: Claude 6,000 tokens and 10 questions; Groq 1,500 and 3. On

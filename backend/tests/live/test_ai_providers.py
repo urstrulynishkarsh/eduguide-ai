@@ -1,19 +1,23 @@
 """Real calls to the AI providers - catch prompt and schema problems the fakes cannot.
 
     pytest -m live      (runs for each provider whose key is in backend/.env: ANTHROPIC_API_KEY
-                         costs a fraction of a cent; GROQ_API_KEY uses the free plan's allowance)
+                         costs a fraction of a cent; GROQ_API_KEY uses the free plan's allowance;
+                         OPENAI_COMPATIBLE_API_KEY, with its address and LLM_MODEL_DEFAULT, costs
+                         what that service charges)
 
 Not part of the normal `pytest` run.
 """
 
 import anthropic
 import groq
+import openai
 import pytest
 
 from app.class_profiles import get_class_profile
 from app.core.config import get_settings
 from app.core.enums import ClassLevel
 from app.llm import LLMProvider, Message, anthropic_provider, groq_provider
+from app.llm.openai_compatible_provider import OpenAICompatibleProvider
 from app.models import DocumentChunk, StudentProfile
 from app.rag.answering import Explanation, format_passages, system_prompt
 from app.rag.retrieval import Passage, build_context
@@ -23,8 +27,17 @@ pytestmark = pytest.mark.live
 _settings = get_settings()  # keys are read from backend/.env, even though tests switch AI off
 
 
-@pytest.fixture(params=["anthropic", "groq"])
+@pytest.fixture(params=["anthropic", "groq", "openai_compatible"])
 def provider(request: pytest.FixtureRequest) -> LLMProvider:
+    if request.param == "openai_compatible":
+        address, key = _settings.openai_compatible_base_url, _settings.openai_compatible_api_key
+        model = _settings.llm_model_default
+        if not (address and key and model):
+            pytest.skip(
+                "OPENAI_COMPATIBLE_BASE_URL, _API_KEY and LLM_MODEL_DEFAULT are not set in backend/.env"
+            )
+        client = openai.AsyncOpenAI(api_key=key, base_url=address)
+        return OpenAICompatibleProvider(client, {"fast": model, "default": model, "strong": model})
     if request.param == "anthropic":
         if not _settings.anthropic_api_key:
             pytest.skip("ANTHROPIC_API_KEY is not set in backend/.env")
@@ -65,7 +78,7 @@ async def test_grounded_explanation_in_hinglish(provider: LLMProvider):
     answer = result.output
     assert answer.enough_information
     assert answer.sources_used == ["S1"]
-    assert "3" in answer.explanation
+    assert "3" in " ".join([answer.explanation, *answer.steps])  # some models keep the working to the steps
     assert result.input_tokens > 0
 
 

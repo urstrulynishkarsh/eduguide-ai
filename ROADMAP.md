@@ -425,14 +425,67 @@ frontend. `REDIS_URL` stays empty locally unless you want a worker (README).
 
 ## Notes for next step
 
-*Rewritten at the end of every step. Last updated: after the parent PIN (6 November 2026).*
+*Rewritten at the end of every step. Last updated: 15 November 2026 (a third AI provider).*
 
 ### Where things stand
 
-- **All 12 steps are done, and the whole code has been reviewed since.** Backend: 425 tests pass
-  (live tests skipped), `ruff` clean, `pip-audit` clean (not re-run: no new library). Frontend: 152
-  unit tests and 19 browser journeys (38 runs: desktop + phone) pass; `lint`, `typecheck`,
+- **All 12 steps are done, and the whole code has been reviewed since.** Backend: 434 tests pass
+  (live tests skipped), `ruff` clean, `pip-audit` clean (re-run on 15 November for `openai`). Frontend: 153
+  unit tests and 20 browser journeys (40 runs: desktop + phone) pass; `lint`, `typecheck`,
   `format:check` and `build` are clean; `npm audit` has 8 moderate warnings, all in the lint tools.
+
+### Any OpenAI-compatible service (15 November 2026)
+
+- **A third provider:** `LLM_PROVIDER=openai_compatible` with `OPENAI_COMPATIBLE_BASE_URL`,
+  `OPENAI_COMPATIBLE_API_KEY` and `LLM_MODEL_DEFAULT` (all three required; the default model fills
+  an empty tier). New library: `openai` 3.42.1 (14 days old when pinned). No migration, no endpoint.
+- `app/llm/openai_compatible_provider.py` now holds everything the chat-completions format needs;
+  `GroqProvider` is a subclass with only Groq's own settings and sends the same requests as before
+  (its live tests pass). Tests: `tests/unit/test_openai_compatible.py`, one more in
+  `test_config.py`, a third provider in the live tests; the shared client stub moved to
+  `tests/fakes.py`. The live explanation check now accepts the answer in the steps.
+- **Tried on one reseller gateway, with `gpt-6.1-terra`:** the three live tests pass and Explain
+  works in the running app. On the same gateway its Claude models ignored the system prompt (where
+  the class rules and the hint ladder live) and one open model ignored `response_format`: check
+  every new service and model with `pytest -m live`. The same three tests took 22 seconds once and
+  5 minutes another time.
+- **Not for real families as it stands:** such a service sees book text and children's answers and
+  messages. Before a pilot, use a provider the DPDP review accepts (docs/08).
+
+### The full review (12 November 2026)
+
+No migration and no new library; the backend is unchanged. Every check was run first (all green),
+then every screen was opened in a real browser, desktop and phone, as the demo parent, both demo
+children and the demo student: no console errors, no failed requests, no horizontal overflow. What
+the read and the sweep found, fixed:
+
+- **A student who signed up alone could never add a book.** The API has let a solo student manage
+  their own books since Step 2 (docs/03), but the only Upload Book screen was the parent's, so every
+  feature of that role stayed empty, and the practice screen told them "a grown-up can upload one".
+  Now `/learn/books` (My Books in their header) lists their books with Upload Book (no "who is it
+  for" and no class: the backend files the book under them, in their class), and
+  `/learn/books/[bookId]` is their book page (chapters open Learn a Concept; files, retry, remove,
+  add a file, delete). Child mode is sent home from both: a child's books are the parent's to
+  manage. The practice and concept screens send a solo student with no books there
+  (`components/no-books-yet.tsx`); a child still reads that a grown-up uploads them.
+  `BookUploader` and `deleteBook` take the `area` (parent / learn) they come back to. Journey:
+  student.spec "uploads their own book"; `/learn/books` is in the axe checks.
+- **A chapter page acted for the wrong child.** `/parent/books/[bookId]/chapters/[chapterId]` made
+  practice, tests and explanations for the child chosen in the switcher, whatever child the book was
+  for (Aarav, Class 7, on Anaya's UKG picture book). It now acts for the child the book is for, and
+  for the chosen child only on a family book - the rule the paper analysis already used, now shared
+  (`lib/api.getBookLearner`).
+- **Nursery - Class 2: the tapped answer is marked.** A one-tap answer sent the answer without
+  keeping it as the draft, so the chosen picture never showed as pressed while it was checked.
+- Two pages read a search param by hand instead of `searchParam` (`/who-is-learning/pin`,
+  `/parent/tests/[testId]`, where a repeated `?attempt=` would have matched nothing).
+- Not changed, checked on purpose: removing a child deletes their child-mode session (the
+  `auth_sessions.student_id` cascade), so a device left in child mode goes to sign-in, not round in
+  circles between `/signout` and `/learn/exit`; `help_with` can't run out of hints (the writer's
+  check requires one or two); the test clock at 0 submits after a second.
+- One browser journey (the parent hand-over, desktop) timed out once at its last step while four
+  workers and a 9 GB swap shared the machine, and passed alone in 6 s: the known memory-pressure
+  flake, not a fault.
 
 ### The parent PIN (6 November 2026)
 

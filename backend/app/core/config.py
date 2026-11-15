@@ -73,12 +73,17 @@ class Settings(BaseSettings):
 
     # ---- AI model (docs/06-llm-interfaces.md) ----
     # "none": AI features answer 503 `ai_not_configured`. "anthropic": Claude. "groq": open models on
-    # Groq, which has a free plan (with low limits per minute and per day).
-    llm_provider: Literal["none", "anthropic", "groq"] = "none"
+    # Groq, which has a free plan (with low limits per minute and per day). "openai_compatible": any
+    # service that speaks OpenAI's chat-completions format, at the address given here.
+    llm_provider: Literal["none", "anthropic", "groq", "openai_compatible"] = "none"
     anthropic_api_key: str = ""  # required when LLM_PROVIDER=anthropic
     groq_api_key: str = ""  # required when LLM_PROVIDER=groq
-    # One model per tier; empty = the provider's own choice (DEFAULT_MODELS in its adapter). The tiers
-    # also differ in effort (fast = low, default = medium, strong = high).
+    # Both required when LLM_PROVIDER=openai_compatible, and LLM_MODEL_DEFAULT with them.
+    openai_compatible_base_url: str = ""  # ends in /v1 for most services
+    openai_compatible_api_key: str = ""
+    # One model per tier; empty = the provider's own choice (DEFAULT_MODELS in its adapter; on
+    # openai_compatible, LLM_MODEL_DEFAULT). On Claude and Groq the tiers also differ in effort
+    # (fast = low, default = medium, strong = high).
     llm_model_fast: str = ""
     llm_model_default: str = ""
     llm_model_strong: str = ""
@@ -98,11 +103,19 @@ class Settings(BaseSettings):
         return value
 
     @model_validator(mode="after")
-    def _ai_key_must_be_set(self) -> "Settings":
-        keys = {"anthropic": self.anthropic_api_key, "groq": self.groq_api_key}
-        if self.llm_provider in keys and not keys[self.llm_provider]:
-            name = f"{self.llm_provider.upper()}_API_KEY"
-            raise ValueError(f"LLM_PROVIDER={self.llm_provider} needs {name} in backend/.env.")
+    def _ai_provider_must_be_complete(self) -> "Settings":
+        needed = {
+            "anthropic": {"ANTHROPIC_API_KEY": self.anthropic_api_key},
+            "groq": {"GROQ_API_KEY": self.groq_api_key},
+            "openai_compatible": {
+                "OPENAI_COMPATIBLE_API_KEY": self.openai_compatible_api_key,
+                "OPENAI_COMPATIBLE_BASE_URL": self.openai_compatible_base_url,
+                "LLM_MODEL_DEFAULT": self.llm_model_default,
+            },
+        }
+        for name, value in needed.get(self.llm_provider, {}).items():
+            if not value:
+                raise ValueError(f"LLM_PROVIDER={self.llm_provider} needs {name} in backend/.env.")
         return self
 
     @model_validator(mode="after")

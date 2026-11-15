@@ -42,19 +42,23 @@ function send(bookId: string, file: File, onProgress: (percent: number) => void)
 
 interface NewBook {
   options: OnboardingOptions;
-  learners: Student[];
-  chosenId: string | null;
+  /** A parent's children to choose from; a solo student's book is their own, so no choice. */
+  learners?: Student[];
+  chosenId?: string | null;
 }
 
 /**
  * "Upload Book". Without `bookId` it first creates the book from the fields, then sends the file
  * and opens the book, where the reading checklist follows. With `bookId` it adds a file to it.
+ * `area` is whose library the book is opened in: the parent's or a solo student's.
  */
 export function BookUploader({
+  area,
   bookId,
   newBook,
   limits,
 }: {
+  area: "parent" | "learn";
   bookId?: string;
   newBook?: NewBook;
   limits: OnboardingOptions["upload"];
@@ -94,12 +98,12 @@ export function BookUploader({
       setState({});
       setPercent(null);
       if (bookId) router.refresh();
-      else router.push(`/parent/books/${target}`);
+      else router.push(`/${area}/books/${target}`);
     } else {
       // A book made a moment ago stays: the file can be sent again from its page.
       setState(result.error ?? { message: text.failed });
       setPercent(null);
-      if (!bookId) router.push(`/parent/books/${target}`);
+      if (!bookId) router.push(`/${area}/books/${target}`);
     }
   }
 
@@ -138,25 +142,27 @@ export function BookUploader({
                 ))}
               </select>
             </div>
-            <div className="grid content-start gap-2">
-              <Label htmlFor="student_id">{text.forWhom}</Label>
-              <select
-                id="student_id"
-                name="student_id"
-                value={forWhom}
-                onChange={(event) => setForWhom(event.target.value)}
-                className={selectClass}
-              >
-                {newBook.learners.map((child) => (
-                  <option key={child.id} value={child.id}>
-                    {child.name}
-                  </option>
-                ))}
-                <option value="">{text.family}</option>
-              </select>
-            </div>
+            {newBook.learners && (
+              <div className="grid content-start gap-2">
+                <Label htmlFor="student_id">{text.forWhom}</Label>
+                <select
+                  id="student_id"
+                  name="student_id"
+                  value={forWhom}
+                  onChange={(event) => setForWhom(event.target.value)}
+                  className={selectClass}
+                >
+                  {newBook.learners.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {child.name}
+                    </option>
+                  ))}
+                  <option value="">{text.family}</option>
+                </select>
+              </div>
+            )}
           </div>
-          {!forWhom && (
+          {newBook.learners && !forWhom && (
             <div className="grid content-start gap-2 sm:w-1/2">
               <Label htmlFor="class_level">{copy.profileForm.classTitle}</Label>
               <select

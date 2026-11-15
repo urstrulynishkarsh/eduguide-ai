@@ -14,6 +14,7 @@ export default async function UploadPage() {
         <p className="text-muted-foreground">{copy.upload.subtitle}</p>
       </div>
       <BookUploader
+        area="parent"
         newBook={{ options, learners: children, chosenId: child?.id ?? null }}
         limits={options.upload}
       />

@@ -24,6 +24,7 @@ fastembed==0.9.1           # runs the local multilingual search model through ON
 onnxruntime==1.31.0        # used by fastembed; pinned to a release older than two weeks
 anthropic==2.1.0           # Claude; 2.x sends API version 2026-10-21
 groq==1.7.0                # open models on Groq (LLM_PROVIDER=groq)
+openai==3.42.1             # any service in OpenAI's format (LLM_PROVIDER=openai_compatible)
 
 # Production hardening (Step 12)
 saq[redis]==0.26.4         # background jobs on Redis (REDIS_URL); JSON, not pickle

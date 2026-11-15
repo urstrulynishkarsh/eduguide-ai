@@ -4,6 +4,7 @@ import { PinForm } from "@/components/pin-form";
 import { setPin } from "@/lib/actions/auth";
 import { getMe } from "@/lib/api";
 import { getCopy, titled } from "@/lib/copy/server";
+import { searchParam } from "@/lib/utils";
 
 export const generateMetadata = titled((copy) => copy.parentPin.handOverTitle);
 
@@ -15,10 +16,9 @@ export default async function HandOverPinPage({ searchParams }: PageProps<"/who-
   const copy = await getCopy();
   const text = copy.parentPin;
   const [{ pin_set }, query] = await Promise.all([getMe(), searchParams]);
-  const [child, practice, test] = ["child", "practice", "test"].map((name) => {
-    const value = query[name];
-    return typeof value === "string" && value ? value : undefined;
-  });
+  const [child, practice, test] = ["child", "practice", "test"].map(
+    (name) => searchParam(query, name) || undefined,
+  );
   if (pin_set || !child) redirect("/who-is-learning");
 
   return (

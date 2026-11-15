@@ -95,6 +95,12 @@ export async function requireChosenChild(): Promise<Student> {
   return child;
 }
 
+/** The child a parent's page about a book acts for: the one the book is for, else the chosen child. */
+export async function getBookLearner(book: Book): Promise<Student | null> {
+  const { children, child } = await getChosenChild();
+  return children.find((item) => item.id === book.student_id) ?? child;
+}
+
 /** My Learning Library: a child's books and the family's shared ones (the API's maximum page). */
 export async function getBooks(studentId?: string): Promise<Book[]> {
   const forChild = studentId ? `&student_id=${id(studentId)}` : "";

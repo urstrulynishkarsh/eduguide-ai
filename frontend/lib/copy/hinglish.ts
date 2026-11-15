@@ -192,6 +192,8 @@ export const hinglish: Copy = {
     todaysPlan: "Aaj ka plan",
     openPlan: "Mera plan kholiye",
     revise: "Pehle idea dohraiye",
+    noBooksSolo:
+      "Abhi koi book nahin hai. Koi textbook ya notes upload kijiye, aapki practice usi se banegi.",
   },
 
   switcher: {
@@ -227,6 +229,7 @@ export const hinglish: Copy = {
   library: {
     title: "Meri Learning Library",
     subtitle: "Aapke parivaar ki books, notes aur question papers.",
+    mySubtitle: "Aapki books, notes aur question papers. Practice, tests aur samjhaish inhi se bante hain.",
     upload: "Book upload karein",
     empty: "Abhi koi book nahin hai. Shuru karne ke liye textbook, notes ya question paper upload karein.",
     forChild: (name: string) => `${name} ke liye`,

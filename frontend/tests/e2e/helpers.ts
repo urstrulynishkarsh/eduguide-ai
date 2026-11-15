@@ -6,7 +6,10 @@ import { expect, type Locator, type Page } from "@playwright/test";
 export const PASSWORD = "Secret-pass-123";
 /** The parent PIN of the journeys' parents, and of the demo parent (backend/scripts/seed.py). */
 export const PIN = "2468";
-const SAMPLE_BOOK = path.resolve(__dirname, "../../../backend/scripts/sample_data/class7-maths-sample.txt");
+export const SAMPLE_BOOK = path.resolve(
+  __dirname,
+  "../../../backend/scripts/sample_data/class7-maths-sample.txt",
+);
 
 /** A new email for every test run, so runs never collide with each other or the demo accounts. */
 export function uniqueEmail(prefix: string): string {
